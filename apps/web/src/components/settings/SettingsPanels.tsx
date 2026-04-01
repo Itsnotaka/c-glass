@@ -26,9 +26,15 @@ import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 import { isElectron } from "../../env";
+import { usePiDefaults } from "../../hooks/use-pi-models";
 import { useTheme } from "../../hooks/useTheme";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useThreadActions } from "../../hooks/useThreadActions";
+import {
+  clearPiDefaultModel,
+  writePiDefaultModel,
+  writePiDefaultThinkingLevel,
+} from "../../lib/pi-models";
 import { serverConfigQueryOptions, serverQueryKeys } from "../../lib/serverReactQuery";
 import {
   MAX_CUSTOM_MODEL_LENGTH,
@@ -39,6 +45,7 @@ import { ensureNativeApi, readNativeApi } from "../../nativeApi";
 import { useStore } from "../../store";
 import { formatRelativeTime, formatRelativeTimeLabel } from "../../timestampFormat";
 import { cn } from "../../lib/utils";
+import { PiModelPicker } from "../glass/pi-model-picker";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "../ui/empty";
@@ -69,6 +76,15 @@ const TIMESTAMP_FORMAT_LABELS = {
   "12-hour": "12-hour",
   "24-hour": "24-hour",
 } as const;
+
+const PI_THINKING_LEVEL_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "X-High" },
+] as const;
 
 const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
 
@@ -387,6 +403,7 @@ export function GeneralSettingsPanel() {
   const { theme, setTheme } = useTheme();
   const settings = useSettings();
   const { updateSettings } = useUpdateSettings();
+  const piDefaults = usePiDefaults();
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
@@ -891,6 +908,78 @@ export function GeneralSettingsPanel() {
                 }}
               />
             </div>
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Pi Agent">
+        <SettingsRow
+          title="Default model"
+          description="Used when a new local Pi chat starts. Mirrors Pi's saved default provider and model."
+          resetAction={
+            piDefaults.stored ? (
+              <SettingResetButton
+                label="default Pi model"
+                onClick={() => {
+                  void clearPiDefaultModel();
+                }}
+              />
+            ) : null
+          }
+          control={
+            <PiModelPicker
+              items={piDefaults.items}
+              model={piDefaults.model}
+              disabled={piDefaults.loading}
+              triggerVariant="outline"
+              triggerClassName="min-w-0 max-w-none shrink-0 text-foreground/90 hover:text-foreground"
+              onSelect={(model) => {
+                void writePiDefaultModel(model);
+              }}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Default thinking level"
+          description="Applied to new Pi chats before a session overrides it."
+          resetAction={
+            piDefaults.thinkingLevel !== "off" ? (
+              <SettingResetButton
+                label="default Pi thinking level"
+                onClick={() => {
+                  void writePiDefaultThinkingLevel("off");
+                }}
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={piDefaults.thinkingLevel}
+              onValueChange={(value) => {
+                void writePiDefaultThinkingLevel(
+                  value as (typeof PI_THINKING_LEVEL_OPTIONS)[number]["value"],
+                );
+              }}
+              disabled={piDefaults.loading}
+            >
+              <SelectTrigger className="min-w-[10rem] justify-between">
+                <SelectValue>
+                  {
+                    PI_THINKING_LEVEL_OPTIONS.find(
+                      (item) => item.value === piDefaults.thinkingLevel,
+                    )?.label
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                {PI_THINKING_LEVEL_OPTIONS.map((item) => (
+                  <SelectItem key={item.value} hideIndicator value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
           }
         />
       </SettingsSection>

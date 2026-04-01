@@ -6,7 +6,7 @@ import { isElectron } from "../env";
 import { SidebarTrigger } from "../components/ui/sidebar";
 
 function ChatThreadRouteView() {
-  const threadId = Route.useParams({ select: (p) => p.threadId });
+  const id = Route.useParams({ select: (p) => p.threadId });
 
   return (
     <GlassShell>
@@ -19,7 +19,7 @@ function ChatThreadRouteView() {
         </header>
       )}
 
-      <GlassEmptyCanvas sessionId={threadId} />
+      <GlassEmptyCanvas sessionId={id} />
     </GlassShell>
   );
 }

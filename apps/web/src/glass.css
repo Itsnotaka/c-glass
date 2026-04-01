@@ -1,11 +1,21 @@
 /* Glass shell tokens */
 :root {
   --glass-canvas: var(--background);
+  --glass-chat-surface: var(--glass-canvas);
   --glass-sidebar: color-mix(in srgb, var(--card) 86%, var(--background) 14%);
   --glass-panel: var(--card);
   --glass-panel-border: var(--border);
   --glass-sidebar-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   --glass-sidebar-active: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --glass-bubble: var(--glass-panel);
+  --glass-stroke-tertiary: var(--glass-panel-border);
+  --glass-stroke-secondary: color-mix(
+    in srgb,
+    var(--glass-panel-border) 60%,
+    var(--foreground) 20%
+  );
+  --glass-duration-fast: 100ms;
+  --glass-duration-normal: 150ms;
   --sidebar: var(--glass-sidebar);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--foreground);
@@ -18,10 +28,14 @@
 
 .dark {
   --glass-canvas: var(--background);
+  --glass-chat-surface: var(--glass-canvas);
   --glass-sidebar: color-mix(in srgb, var(--background) 92%, var(--color-white, #fff) 8%);
   --glass-panel: color-mix(in srgb, var(--background) 88%, var(--color-white, #fff) 12%);
   --glass-sidebar-hover: --alpha(var(--color-white, #fff) / 6%);
   --glass-sidebar-active: --alpha(var(--color-white, #fff) / 12%);
+  --glass-bubble: color-mix(in srgb, var(--background) 82%, var(--color-white, #fff) 18%);
+  --glass-stroke-tertiary: --alpha(var(--color-white, #fff) / 8%);
+  --glass-stroke-secondary: --alpha(var(--color-white, #fff) / 14%);
   --sidebar: var(--glass-sidebar);
   --sidebar-accent: var(--glass-sidebar-hover);
 }
@@ -94,7 +108,7 @@ body {
   font-size: 13px;
   line-height: 1.4;
   cursor: pointer;
-  transition: background-color 80ms ease;
+  transition: background-color var(--glass-duration-fast) ease;
   color: var(--muted-foreground);
 }
 
@@ -108,16 +122,46 @@ body {
   color: var(--foreground);
 }
 
-.glass-inline-composer {
-  border: 1px solid var(--glass-panel-border);
-  border-radius: calc(var(--radius, 0.625rem) + 2px);
-  background: var(--glass-panel);
+/* ── Empty-state hero shell (Cursor: agent-panel-empty-state-shell) ── */
+
+.glass-empty-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 48px 24px;
+  outline: none;
+}
+
+.glass-empty-state-column {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  max-width: min(100%, 640px);
+  box-sizing: border-box;
+  padding-inline: 16px;
+  gap: 8px;
+  padding-bottom: 32px;
+  padding-top: 8px;
+}
+
+/* ── Composer card (Cursor: ui-prompt-input__container in glass mode) ── */
+
+.glass-inline-composer {
+  border: 1px solid var(--glass-stroke-tertiary);
+  border-radius: 12px;
+  background: var(--glass-bubble);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--glass-duration-fast) ease;
 }
 
 .glass-inline-composer:focus-within {
-  border-color: color-mix(in srgb, var(--glass-panel-border) 60%, var(--foreground) 20%);
+  border-color: var(--glass-stroke-secondary);
 }
 
 .glass-inline-composer textarea {
@@ -143,4 +187,84 @@ body {
   justify-content: space-between;
   padding: 4px 6px 6px;
   gap: 4px;
+}
+
+/* ── Quick-action chips (Cursor: project-mode-quick-action-*) ── */
+
+.glass-quick-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.glass-quick-action-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 21px;
+  padding: 8px;
+  border-radius: 20px;
+  border: 1px solid var(--glass-stroke-tertiary);
+  background: var(--glass-bubble);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition:
+    background-color var(--glass-duration-fast) ease,
+    border-color var(--glass-duration-fast) ease;
+}
+
+.glass-quick-action-chip:hover {
+  background: var(--glass-sidebar-hover);
+  border-color: var(--glass-stroke-secondary);
+}
+
+.glass-quick-action-label {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 140%;
+}
+
+.glass-quick-action-shortcut {
+  font-size: 11px;
+  margin-left: 2px;
+  opacity: 0.5;
+}
+
+/* ── Conversation-mode docked composer (Cursor: agent-panel-followup-input--conversation-overlay) ── */
+
+.glass-dock-composer {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 10px;
+}
+
+.glass-dock-composer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: -96px;
+  background: var(--glass-chat-surface);
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(
+    0deg,
+    #000 0,
+    rgba(0, 0, 0, 0.86) 28%,
+    rgba(0, 0, 0, 0.56) 62%,
+    rgba(0, 0, 0, 0.22) 84%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    0deg,
+    #000 0,
+    rgba(0, 0, 0, 0.86) 28%,
+    rgba(0, 0, 0, 0.56) 62%,
+    rgba(0, 0, 0, 0.22) 84%,
+    transparent
+  );
 }

@@ -1,18 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GlassEmptyCanvas } from "../components/glass/GlassEmptyCanvas";
+import { GlassHeroCanvas } from "../components/glass/glass-hero-canvas";
 import { GlassMarketplaceView } from "../components/glass/GlassMarketplaceView";
 import { GlassShell } from "../components/glass/GlassShell";
 import { useGlassShellView } from "../components/glass/GlassShellContext";
 import { isElectron } from "../env";
 import { SidebarTrigger } from "../components/ui/sidebar";
+import { GlassWorkspacePicker } from "../components/glass/GlassWorkspacePicker";
 
 function ChatIndexRouteView() {
-  const { centerMode } = useGlassShellView();
+  const view = useGlassShellView();
 
   return (
     <GlassShell>
-      {!isElectron && (
+      {isElectron ? (
+        <div className="drag-region flex h-[35px] shrink-0 items-center justify-center px-6">
+          <GlassWorkspacePicker />
+        </div>
+      ) : (
         <header className="border-b border-glass-panel-border px-3 py-2 md:hidden">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="size-7 shrink-0" />
@@ -21,11 +26,7 @@ function ChatIndexRouteView() {
         </header>
       )}
 
-      {centerMode === "marketplace" ? (
-        <GlassMarketplaceView />
-      ) : (
-        <GlassEmptyCanvas sessionId={null} />
-      )}
+      {view.centerMode === "marketplace" ? <GlassMarketplaceView /> : <GlassHeroCanvas />}
     </GlassShell>
   );
 }
