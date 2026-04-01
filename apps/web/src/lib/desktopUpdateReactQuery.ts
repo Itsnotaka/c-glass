@@ -16,8 +16,8 @@ export function desktopUpdateStateQueryOptions() {
   return queryOptions({
     queryKey: desktopUpdateQueryKeys.state(),
     queryFn: async () => {
-      const bridge = window.desktopBridge;
-      if (!bridge || typeof bridge.getUpdateState !== "function") return null;
+      const bridge = window.glass?.desktop;
+      if (!bridge) return null;
       return bridge.getUpdateState();
     },
     staleTime: Infinity,
@@ -30,8 +30,8 @@ export function useDesktopUpdateState() {
   const query = useQuery(desktopUpdateStateQueryOptions());
 
   useEffect(() => {
-    const bridge = window.desktopBridge;
-    if (!bridge || typeof bridge.onUpdateState !== "function") return;
+    const bridge = window.glass?.desktop;
+    if (!bridge) return;
 
     return bridge.onUpdateState((nextState) => {
       setDesktopUpdateStateQueryData(queryClient, nextState);

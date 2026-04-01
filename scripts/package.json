@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "prepare": "effect-language-service patch",
-    "claude-fast-mode-probe": "bun run claude-fast-mode-probe.ts",
-    "claude-haiku-thinking-probe": "bun run claude-haiku-thinking-probe.ts",
+    "claude-fast-mode-probe": "tsx claude-fast-mode-probe.ts",
+    "claude-haiku-thinking-probe": "tsx claude-haiku-thinking-probe.ts",
+    "release-mock": "node build-desktop-artifact.ts --mock-updates --skip-build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.77",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.89",
     "@effect/platform-node": "catalog:",
     "@glass/contracts": "workspace:*",
     "@glass/shared": "workspace:*",
@@ -19,8 +20,9 @@
   "devDependencies": {
     "@effect/language-service": "catalog:",
     "@effect/vitest": "catalog:",
-    "@types/bun": "catalog:",
+    "tsx": "^4.21.0",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "^2.8.2"
   }
 }

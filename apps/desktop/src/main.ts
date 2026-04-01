@@ -1,4 +1,3 @@
-import * as ChildProcess from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as OS from "node:os";
@@ -25,9 +24,11 @@ import type {
   DesktopUpdateState,
 } from "@glass/contracts";
 import { autoUpdater } from "electron-updater";
-import { NetService } from "@glass/shared/Net";
 import { RotatingFileSink } from "@glass/shared/logging";
 import { showDesktopConfirmDialog } from "./confirmDialog";
+import { PiConfigService } from "./pi-config-service";
+import { PiSessionService } from "./pi-session-service";
+import { ShellService } from "./shell-service";
 import { probeSign } from "./sign";
 import { syncShellEnvironment } from "./syncShellEnvironment";
 import { getAutoUpdateDisabledReason, shouldBroadcastDownloadProgress } from "./updateState";
@@ -47,18 +48,32 @@ import { isArm64HostRunningIntelBuild, resolveDesktopRuntimeInfo } from "./runti
 
 syncShellEnvironment();
 
-const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
-const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
-const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
+const SESSION_LIST_CHANNEL = "glass:session.list";
+const SESSION_CREATE_CHANNEL = "glass:session.create";
+const SESSION_GET_CHANNEL = "glass:session.get";
+const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
+const SESSION_ABORT_CHANNEL = "glass:session.abort";
+const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
+const SESSION_EVENT_CHANNEL = "glass:session.event";
+const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
+const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
+const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
+const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
+const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
+const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
+const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
+const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
+const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
+const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
 const BASE_DIR = process.env.GLASS_HOME?.trim() || Path.join(OS.homedir(), ".glass");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SCHEME = "glass";
@@ -82,18 +97,16 @@ const DESKTOP_UPDATE_ALLOW_PRERELEASE = false;
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 
 let mainWindow: BrowserWindow | null = null;
-let backendProcess: ChildProcess.ChildProcess | null = null;
-let backendPort = 0;
-let backendAuthToken = "";
-let backendWsUrl = "";
-let restartAttempt = 0;
-let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
 let desktopProtocolRegistered = false;
 let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
-let backendLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
+let removeSessionEvents: (() => void) | null = null;
+
+const pi = new PiConfigService();
+const shellService = new ShellService();
+const sessionService = new PiSessionService(pi, shellService);
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
 const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
@@ -112,32 +125,9 @@ function logScope(scope: string): string {
   return `${scope} run=${APP_RUN_ID}`;
 }
 
-function sanitizeLogValue(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function backendChildEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  delete env.GLASS_PORT;
-  delete env.GLASS_AUTH_TOKEN;
-  delete env.GLASS_MODE;
-  delete env.GLASS_NO_BROWSER;
-  delete env.GLASS_HOST;
-  delete env.GLASS_DESKTOP_WS_URL;
-  return env;
-}
-
 function writeDesktopLogHeader(message: string): void {
   if (!desktopLogSink) return;
   desktopLogSink.write(`[${logTimestamp()}] [${logScope("desktop")}] ${message}\n`);
-}
-
-function writeBackendSessionBoundary(phase: "START" | "END", details: string): void {
-  if (!backendLogSink) return;
-  const normalizedDetails = sanitizeLogValue(details);
-  backendLogSink.write(
-    `[${logTimestamp()}] ---- APP SESSION ${phase} run=${APP_RUN_ID} ${normalizedDetails} ----\n`,
-  );
 }
 
 function formatErrorMessage(error: unknown): string {
@@ -237,28 +227,12 @@ function initializePackagedLogging(): void {
       maxBytes: LOG_FILE_MAX_BYTES,
       maxFiles: LOG_FILE_MAX_FILES,
     });
-    backendLogSink = new RotatingFileSink({
-      filePath: Path.join(LOG_DIR, "server-child.log"),
-      maxBytes: LOG_FILE_MAX_BYTES,
-      maxFiles: LOG_FILE_MAX_FILES,
-    });
     installStdIoCapture();
     writeDesktopLogHeader(`runtime log capture enabled logDir=${LOG_DIR}`);
   } catch (error) {
     // Logging setup should never block app startup.
     console.error("[desktop] failed to initialize packaged logging", error);
   }
-}
-
-function captureBackendOutput(child: ChildProcess.ChildProcess): void {
-  if (!app.isPackaged || backendLogSink === null) return;
-  const writeChunk = (chunk: unknown): void => {
-    if (!backendLogSink) return;
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8");
-    backendLogSink.write(buffer);
-  };
-  child.stdout?.on("data", writeChunk);
-  child.stderr?.on("data", writeChunk);
 }
 
 initializePackagedLogging();
@@ -389,23 +363,9 @@ function resolveAboutCommitHash(): string | null {
   return aboutCommitHashCache;
 }
 
-function resolveBackendEntry(): string {
-  return Path.join(resolveAppRoot(), "apps/server/dist/index.mjs");
-}
-
-function resolveBackendCwd(): string {
-  if (!app.isPackaged) {
-    return resolveAppRoot();
-  }
-  return OS.homedir();
-}
-
 function resolveDesktopStaticDir(): string | null {
   const appRoot = resolveAppRoot();
-  const candidates = [
-    Path.join(appRoot, "apps/server/dist/client"),
-    Path.join(appRoot, "apps/web/dist"),
-  ];
+  const candidates = [Path.join(appRoot, "apps/web/dist")];
 
   for (const candidate of candidates) {
     if (FS.existsSync(Path.join(candidate, "index.html"))) {
@@ -458,7 +418,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
     isQuitting = true;
     dialog.showErrorBox("Glass failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
-  stopBackend();
+  sessionService.dispose();
   restoreStdIoCapture?.();
   app.quit();
 }
@@ -468,9 +428,7 @@ function registerDesktopProtocol(): void {
 
   const staticRoot = resolveDesktopStaticDir();
   if (!staticRoot) {
-    throw new Error(
-      "Desktop static bundle missing. Build apps/server (with bundled client) first.",
-    );
+    throw new Error("Desktop static bundle missing. Build apps/web first.");
   }
 
   const staticRootResolved = Path.resolve(staticRoot);
@@ -837,7 +795,7 @@ async function installDownloadedUpdate(): Promise<{ accepted: boolean; completed
   updateInstallInFlight = true;
   clearUpdatePollTimer();
   try {
-    await stopBackendAndWaitForExit();
+    sessionService.dispose();
     if (process.platform === "win32") {
       // Destroy all windows before launching the NSIS installer to avoid the installer finding live windows it needs to close.
       for (const win of BrowserWindow.getAllWindows()) {
@@ -982,185 +940,18 @@ function configureAutoUpdater(): void {
   }, AUTO_UPDATE_POLL_INTERVAL_MS);
   updatePollTimer.unref();
 }
-function scheduleBackendRestart(reason: string): void {
-  if (isQuitting || restartTimer) return;
 
-  const delayMs = Math.min(500 * 2 ** restartAttempt, 10_000);
-  restartAttempt += 1;
-  console.error(`[desktop] backend exited unexpectedly (${reason}); restarting in ${delayMs}ms`);
-
-  restartTimer = setTimeout(() => {
-    restartTimer = null;
-    startBackend();
-  }, delayMs);
-}
-
-function startBackend(): void {
-  if (isQuitting || backendProcess) return;
-
-  const backendEntry = resolveBackendEntry();
-  if (!FS.existsSync(backendEntry)) {
-    scheduleBackendRestart(`missing server entry at ${backendEntry}`);
-    return;
+function emitSessionEvent(event: unknown): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) continue;
+    window.webContents.send(SESSION_EVENT_CHANNEL, event);
   }
-
-  const captureBackendLogs = app.isPackaged && backendLogSink !== null;
-  const child = ChildProcess.spawn(process.execPath, [backendEntry, "--bootstrap-fd", "3"], {
-    cwd: resolveBackendCwd(),
-    // In Electron main, process.execPath points to the Electron binary.
-    // Run the child in Node mode so this backend process does not become a GUI app instance.
-    env: {
-      ...backendChildEnv(),
-      ELECTRON_RUN_AS_NODE: "1",
-    },
-    stdio: captureBackendLogs
-      ? ["ignore", "pipe", "pipe", "pipe"]
-      : ["ignore", "inherit", "inherit", "pipe"],
-  });
-  const bootstrapStream = child.stdio[3];
-  if (bootstrapStream && "write" in bootstrapStream) {
-    bootstrapStream.write(
-      `${JSON.stringify({
-        mode: "desktop",
-        noBrowser: true,
-        port: backendPort,
-        glassHome: BASE_DIR,
-        authToken: backendAuthToken,
-      })}\n`,
-    );
-    bootstrapStream.end();
-  } else {
-    child.kill("SIGTERM");
-    scheduleBackendRestart("missing desktop bootstrap pipe");
-    return;
-  }
-  backendProcess = child;
-  let backendSessionClosed = false;
-  const closeBackendSession = (details: string) => {
-    if (backendSessionClosed) return;
-    backendSessionClosed = true;
-    writeBackendSessionBoundary("END", details);
-  };
-  writeBackendSessionBoundary(
-    "START",
-    `pid=${child.pid ?? "unknown"} port=${backendPort} cwd=${resolveBackendCwd()}`,
-  );
-  captureBackendOutput(child);
-
-  child.once("spawn", () => {
-    restartAttempt = 0;
-  });
-
-  child.on("error", (error) => {
-    if (backendProcess === child) {
-      backendProcess = null;
-    }
-    closeBackendSession(`pid=${child.pid ?? "unknown"} error=${error.message}`);
-    scheduleBackendRestart(error.message);
-  });
-
-  child.on("exit", (code, signal) => {
-    if (backendProcess === child) {
-      backendProcess = null;
-    }
-    closeBackendSession(
-      `pid=${child.pid ?? "unknown"} code=${code ?? "null"} signal=${signal ?? "null"}`,
-    );
-    if (isQuitting) return;
-    const reason = `code=${code ?? "null"} signal=${signal ?? "null"}`;
-    scheduleBackendRestart(reason);
-  });
-}
-
-function stopBackend(): void {
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
-
-  const child = backendProcess;
-  backendProcess = null;
-  if (!child) return;
-
-  if (child.exitCode === null && child.signalCode === null) {
-    child.kill("SIGTERM");
-    setTimeout(() => {
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGKILL");
-      }
-    }, 2_000).unref();
-  }
-}
-
-async function stopBackendAndWaitForExit(timeoutMs = 5_000): Promise<void> {
-  if (restartTimer) {
-    clearTimeout(restartTimer);
-    restartTimer = null;
-  }
-
-  const child = backendProcess;
-  backendProcess = null;
-  if (!child) return;
-  const backendChild = child;
-  if (backendChild.exitCode !== null || backendChild.signalCode !== null) return;
-
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
-    let exitTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
-
-    function settle(): void {
-      if (settled) return;
-      settled = true;
-      backendChild.off("exit", onExit);
-      if (forceKillTimer) {
-        clearTimeout(forceKillTimer);
-      }
-      if (exitTimeoutTimer) {
-        clearTimeout(exitTimeoutTimer);
-      }
-      resolve();
-    }
-
-    function onExit(): void {
-      settle();
-    }
-
-    backendChild.once("exit", onExit);
-    backendChild.kill("SIGTERM");
-
-    forceKillTimer = setTimeout(() => {
-      if (backendChild.exitCode === null && backendChild.signalCode === null) {
-        backendChild.kill("SIGKILL");
-      }
-    }, 2_000);
-    forceKillTimer.unref();
-
-    exitTimeoutTimer = setTimeout(() => {
-      settle();
-    }, timeoutMs);
-    exitTimeoutTimer.unref();
-  });
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
-  ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
-    event.returnValue = backendWsUrl;
-  });
-
-  ipcMain.removeHandler(PICK_FOLDER_CHANNEL);
-  ipcMain.handle(PICK_FOLDER_CHANNEL, async () => {
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const result = owner
-      ? await dialog.showOpenDialog(owner, {
-          properties: ["openDirectory", "createDirectory"],
-        })
-      : await dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        });
-    if (result.canceled) return null;
-    return result.filePaths[0] ?? null;
+  removeSessionEvents?.();
+  removeSessionEvents = sessionService.listen((event) => {
+    emitSessionEvent(event);
   });
 
   ipcMain.removeHandler(CONFIRM_CHANNEL);
@@ -1246,19 +1037,134 @@ function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.removeHandler(OPEN_EXTERNAL_CHANNEL);
-  ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
+  ipcMain.removeHandler(SESSION_LIST_CHANNEL);
+  ipcMain.handle(SESSION_LIST_CHANNEL, async () => Effect.runPromise(sessionService.list()));
+
+  ipcMain.removeHandler(SESSION_CREATE_CHANNEL);
+  ipcMain.handle(SESSION_CREATE_CHANNEL, async () => Effect.runPromise(sessionService.create()));
+
+  ipcMain.removeHandler(SESSION_GET_CHANNEL);
+  ipcMain.handle(SESSION_GET_CHANNEL, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    return Effect.runPromise(sessionService.get(sessionId));
+  });
+
+  ipcMain.removeHandler(SESSION_PROMPT_CHANNEL);
+  ipcMain.handle(SESSION_PROMPT_CHANNEL, async (_event, sessionId: unknown, text: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    if (typeof text !== "string") {
+      throw new Error("Missing prompt text");
+    }
+    await Effect.runPromise(sessionService.prompt(sessionId, text));
+  });
+
+  ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
+  ipcMain.handle(SESSION_ABORT_CHANNEL, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    await Effect.runPromise(sessionService.abort(sessionId));
+  });
+
+  ipcMain.removeHandler(SESSION_SET_MODEL_CHANNEL);
+  ipcMain.handle(
+    SESSION_SET_MODEL_CHANNEL,
+    async (_event, sessionId: unknown, provider: unknown, model: unknown) => {
+      if (typeof sessionId !== "string" || !sessionId.trim()) {
+        throw new Error("Missing session id");
+      }
+      if (typeof provider !== "string" || !provider.trim()) {
+        throw new Error("Missing provider");
+      }
+      if (typeof model !== "string" || !model.trim()) {
+        throw new Error("Missing model");
+      }
+      await Effect.runPromise(sessionService.setModel(sessionId, provider, model));
+    },
+  );
+
+  ipcMain.removeHandler(PI_GET_CONFIG_CHANNEL);
+  ipcMain.handle(PI_GET_CONFIG_CHANNEL, async () =>
+    Effect.runPromise(pi.getConfig(shellService.cwd)),
+  );
+
+  ipcMain.removeHandler(PI_SET_DEFAULT_MODEL_CHANNEL);
+  ipcMain.handle(
+    PI_SET_DEFAULT_MODEL_CHANNEL,
+    async (_event, provider: unknown, model: unknown) => {
+      if (typeof provider !== "string" || !provider.trim()) {
+        throw new Error("Missing provider");
+      }
+      if (typeof model !== "string" || !model.trim()) {
+        throw new Error("Missing model");
+      }
+      await Effect.runPromise(pi.setDefaultModel(shellService.cwd, provider, model));
+    },
+  );
+
+  ipcMain.removeHandler(PI_CLEAR_DEFAULT_MODEL_CHANNEL);
+  ipcMain.handle(PI_CLEAR_DEFAULT_MODEL_CHANNEL, async () =>
+    Effect.runPromise(pi.clearDefaultModel(shellService.cwd)),
+  );
+
+  ipcMain.removeHandler(PI_SET_DEFAULT_THINKING_CHANNEL);
+  ipcMain.handle(PI_SET_DEFAULT_THINKING_CHANNEL, async (_event, thinking: unknown) => {
+    if (typeof thinking !== "string" || !thinking.trim()) {
+      throw new Error("Missing thinking level");
+    }
+    await Effect.runPromise(pi.setDefaultThinkingLevel(shellService.cwd, thinking));
+  });
+
+  ipcMain.removeHandler(PI_GET_API_KEY_CHANNEL);
+  ipcMain.handle(PI_GET_API_KEY_CHANNEL, async (_event, provider: unknown) => {
+    if (typeof provider !== "string" || !provider.trim()) {
+      throw new Error("Missing provider");
+    }
+    return Effect.runPromise(pi.getApiKey(provider));
+  });
+
+  ipcMain.removeHandler(PI_SET_API_KEY_CHANNEL);
+  ipcMain.handle(PI_SET_API_KEY_CHANNEL, async (_event, provider: unknown, key: unknown) => {
+    if (typeof provider !== "string" || !provider.trim()) {
+      throw new Error("Missing provider");
+    }
+    if (typeof key !== "string" || !key.trim()) {
+      throw new Error("Missing key");
+    }
+    await Effect.runPromise(pi.setApiKey(provider, key));
+  });
+
+  ipcMain.removeHandler(SHELL_GET_STATE_CHANNEL);
+  ipcMain.handle(SHELL_GET_STATE_CHANNEL, async () => Effect.runPromise(shellService.getState()));
+
+  ipcMain.removeHandler(SHELL_PICK_WORKSPACE_CHANNEL);
+  ipcMain.handle(SHELL_PICK_WORKSPACE_CHANNEL, async () => {
+    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    return Effect.runPromise(shellService.pickWorkspace(owner));
+  });
+
+  ipcMain.removeHandler(SHELL_OPEN_IN_EDITOR_CHANNEL);
+  ipcMain.handle(SHELL_OPEN_IN_EDITOR_CHANNEL, async (_event, path: unknown, editor: unknown) => {
+    if (typeof path !== "string" || !path.trim()) {
+      throw new Error("Missing path");
+    }
+    if (typeof editor !== "string" || !editor.trim()) {
+      throw new Error("Missing editor");
+    }
+    await Effect.runPromise(shellService.openInEditor(path, editor));
+  });
+
+  ipcMain.removeHandler(SHELL_OPEN_EXTERNAL_CHANNEL);
+  ipcMain.handle(SHELL_OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
     const externalUrl = getSafeExternalUrl(rawUrl);
     if (!externalUrl) {
       return false;
     }
-
-    try {
-      await shell.openExternal(externalUrl);
-      return true;
-    } catch {
-      return false;
-    }
+    return Effect.runPromise(shellService.openExternal(externalUrl));
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
@@ -1407,21 +1313,8 @@ configureAppIdentity();
 
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
-  backendPort = await Effect.service(NetService).pipe(
-    Effect.flatMap((net) => net.reserveLoopbackPort()),
-    Effect.provide(NetService.layer),
-    Effect.runPromise,
-  );
-  writeDesktopLogHeader(`reserved backend port via NetService port=${backendPort}`);
-  backendAuthToken = Crypto.randomBytes(24).toString("hex");
-  const baseUrl = `ws://127.0.0.1:${backendPort}`;
-  backendWsUrl = `${baseUrl}/?token=${encodeURIComponent(backendAuthToken)}`;
-  writeDesktopLogHeader(`bootstrap resolved websocket endpoint baseUrl=${baseUrl}`);
-
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
-  startBackend();
-  writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
   writeDesktopLogHeader("bootstrap main window created");
 }
@@ -1431,7 +1324,9 @@ app.on("before-quit", () => {
   updateInstallInFlight = false;
   writeDesktopLogHeader("before-quit received");
   clearUpdatePollTimer();
-  stopBackend();
+  removeSessionEvents?.();
+  removeSessionEvents = null;
+  sessionService.dispose();
   restoreStdIoCapture?.();
 });
 
@@ -1469,7 +1364,9 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGINT received");
     clearUpdatePollTimer();
-    stopBackend();
+    removeSessionEvents?.();
+    removeSessionEvents = null;
+    sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();
   });
@@ -1479,7 +1376,9 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGTERM received");
     clearUpdatePollTimer();
-    stopBackend();
+    removeSessionEvents?.();
+    removeSessionEvents = null;
+    sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();
   });

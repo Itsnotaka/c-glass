@@ -1,14 +1,9 @@
-import { ProjectId } from "@glass/contracts";
-import type { SessionMetadata } from "@mariozechner/pi-web-ui";
-
-export type GlassAgentUiState = "draft" | "idle" | "running" | "error";
+import type { PiSessionSummary } from "@glass/contracts";
 
 export interface GlassSidebarAgent {
   id: string;
   title: string;
-  projectId: ProjectId;
-  projectName: string;
-  state: GlassAgentUiState;
+  state: "draft" | "idle" | "running" | "error";
   unread: boolean;
   updatedAt: string;
   ago: string;
@@ -21,7 +16,7 @@ export interface GlassSidebarSection {
   agents: GlassSidebarAgent[];
 }
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 0) return "now";
   const sec = Math.floor(ms / 1000);
@@ -34,27 +29,25 @@ function timeAgo(iso: string): string {
   return `${day}d`;
 }
 
-const PI_LOCAL_PROJECT_ID = ProjectId.makeUnsafe("pi-local");
-
 export function buildPiSessionSidebarSections(
-  sessions: SessionMetadata[],
+  sessions: readonly PiSessionSummary[],
   selectedSessionId: string | null,
-): GlassSidebarSection[] {
+) {
   if (sessions.length === 0) return [];
 
-  const agents: GlassSidebarAgent[] = sessions.map((m) => ({
-    id: m.id,
-    title: m.title.trim() || "Untitled",
-    projectId: PI_LOCAL_PROJECT_ID,
-    projectName: "Chats",
-    state: "idle",
+  const agents: GlassSidebarAgent[] = sessions.map((item) => ({
+    id: item.id,
+    title: item.name?.trim() || item.firstMessage.trim() || "Untitled",
+    state: item.isStreaming ? "running" : "idle",
     unread: false,
-    updatedAt: m.lastModified,
-    ago: timeAgo(m.lastModified),
-    selected: selectedSessionId !== null && selectedSessionId === m.id,
+    updatedAt: item.modifiedAt,
+    ago: timeAgo(item.modifiedAt),
+    selected: selectedSessionId !== null && selectedSessionId === item.id,
   }));
 
-  agents.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+  agents.sort((left, right) =>
+    left.updatedAt < right.updatedAt ? 1 : left.updatedAt > right.updatedAt ? -1 : 0,
+  );
 
-  return [{ id: "pi-chats", label: "Chats", agents }];
+  return [{ id: "pi-chats", label: "Chats", agents }] satisfies GlassSidebarSection[];
 }

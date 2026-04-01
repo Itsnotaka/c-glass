@@ -25,7 +25,7 @@ export function GlassUpdatePill() {
   const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
 
   const handle = useCallback(() => {
-    const bridge = window.desktopBridge;
+    const bridge = window.glass?.desktop;
     if (!bridge || !state || disabled || action === "none") return;
 
     if (action === "download") {

@@ -1,10 +1,9 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { PiMessage } from "@glass/contracts";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-
 import { previewAgentMessage } from "../../lib/pi-message-preview";
-import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "../../lib/utils";
+import { ScrollArea } from "../ui/scroll-area";
 
 function HumanBubble(props: { text: string }) {
   return (
@@ -48,19 +47,25 @@ function ToolBlock(props: { text: string | null; error: boolean }) {
   );
 }
 
-export function GlassPiMessages(props: { messages: AgentMessage[] }) {
+export function GlassPiMessages(props: { messages: PiMessage[] }) {
   return (
     <ScrollArea className="min-h-0 flex-1" scrollFade scrollbarGutter>
       <ul className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-4 md:px-8">
-        {props.messages.map((m, i) => {
-          const key = String(i);
-          if (m.role === "assistant") {
-            return <AssistantBlock key={key} text={previewAgentMessage(m)} />;
+        {props.messages.map((message, index) => {
+          const id = String(index);
+          if (message.role === "assistant") {
+            return <AssistantBlock key={id} text={previewAgentMessage(message)} />;
           }
-          if (m.role === "toolResult") {
-            return <ToolBlock key={key} text={previewAgentMessage(m)} error={Boolean(m.isError)} />;
+          if (message.role === "toolResult") {
+            return (
+              <ToolBlock
+                key={id}
+                text={previewAgentMessage(message)}
+                error={Boolean(message.isError)}
+              />
+            );
           }
-          return <HumanBubble key={key} text={previewAgentMessage(m) ?? ""} />;
+          return <HumanBubble key={id} text={previewAgentMessage(message) || ""} />;
         })}
       </ul>
     </ScrollArea>

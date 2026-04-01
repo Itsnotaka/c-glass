@@ -1,10 +1,8 @@
-import type { PiConfig } from "@glass/contracts";
-import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
-import { modelsAreEqual, type Api, type Model } from "@mariozechner/pi-ai";
-import { ensureNativeApi } from "../nativeApi";
+import type { PiConfig, PiModelRef, PiThinkingLevel } from "@glass/contracts";
+import { getGlass } from "../host";
 import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "./pi-glass-constants";
 
-const PREFERRED: ReadonlyArray<readonly [string, string]> = [
+const PREFERRED = [
   ["amazon-bedrock", "us.anthropic.claude-opus-4-6-v1"],
   ["anthropic", "claude-opus-4-6"],
   ["openai", "gpt-5.4"],
@@ -28,67 +26,50 @@ const PREFERRED: ReadonlyArray<readonly [string, string]> = [
   ["opencode", "claude-opus-4-6"],
   ["opencode-go", "kimi-k2.5"],
   ["kimi-coding", "kimi-k2-thinking"],
-];
+] as const;
 
-type PiModel = PiConfig["models"][number];
-
-export type PiModelItem = {
+export interface PiModelItem extends PiModelRef {
   key: string;
-  provider: string;
-  id: string;
   name: string;
-  model: Model<Api>;
-};
+}
 
-export type PiDefaults = {
+export interface PiDefaults {
   provider: string | null;
   model: string | null;
-  thinkingLevel: ThinkingLevel | null;
-};
+  thinkingLevel: PiThinkingLevel | null;
+}
 
-function key(provider: string, id: string): string {
+function key(provider: string, id: string) {
   return `${provider}/${id}`;
 }
 
-function toModel(model: PiModel): Model<Api> {
-  return model as unknown as Model<Api>;
-}
-
-function item(model: PiModel): PiModelItem {
+function item(model: PiConfig["models"][number]) {
   return {
     key: key(model.provider, model.id),
     provider: model.provider,
     id: model.id,
     name: model.name || model.id,
-    model: toModel(model),
+    reasoning: model.reasoning,
   };
 }
 
-function sort(items: ReadonlyArray<PiModelItem>, cur?: Model<Api> | null): PiModelItem[] {
-  const out = [...items];
-  out.sort((a, b) => {
-    const aCur = modelsAreEqual(cur, a.model);
-    const bCur = modelsAreEqual(cur, b.model);
-    if (aCur && !bCur) return -1;
-    if (!aCur && bCur) return 1;
-
-    const byProvider = a.provider.localeCompare(b.provider);
-    if (byProvider !== 0) return byProvider;
-    return a.id.localeCompare(b.id);
-  });
-  return out;
+function same(left: PiModelRef | null | undefined, right: PiModelRef | null | undefined) {
+  if (!left || !right) return false;
+  return left.provider === right.provider && left.id === right.id;
 }
 
-function push(map: Map<string, PiModelItem>, model: PiModel | Model<Api>) {
-  const it = {
-    key: key(model.provider, model.id),
-    provider: model.provider,
-    id: model.id,
-    name: model.name ?? model.id,
-    model: model as Model<Api>,
-  } satisfies PiModelItem;
-  if (map.has(it.key)) return;
-  map.set(it.key, it);
+function sort(items: readonly PiModelItem[], cur?: PiModelRef | null) {
+  const out = [...items];
+  out.sort((left, right) => {
+    const a = same(cur, left);
+    const b = same(cur, right);
+    if (a && !b) return -1;
+    if (!a && b) return 1;
+    const byProvider = left.provider.localeCompare(right.provider);
+    if (byProvider !== 0) return byProvider;
+    return left.id.localeCompare(right.id);
+  });
+  return out;
 }
 
 function emit() {
@@ -97,29 +78,24 @@ function emit() {
 }
 
 async function cfg() {
-  return ensureNativeApi().server.getPiConfig();
+  return getGlass().pi.getConfig();
 }
 
-function fuzzyMatch(query: string, text: string): { matches: boolean; score: number } {
+function fuzzyMatch(query: string, text: string) {
   const a = query.toLowerCase();
   const b = text.toLowerCase();
 
-  const match = (q: string) => {
-    if (q.length === 0) {
-      return { matches: true, score: 0 };
-    }
-    if (q.length > b.length) {
-      return { matches: false, score: 0 };
-    }
+  const match = (cur: string) => {
+    if (!cur.length) return { matches: true, score: 0 };
+    if (cur.length > b.length) return { matches: false, score: 0 };
 
     let qi = 0;
     let score = 0;
     let last = -1;
     let run = 0;
 
-    for (let i = 0; i < b.length && qi < q.length; i++) {
-      if (b[i] !== q[qi]) continue;
-
+    for (let i = 0; i < b.length && qi < cur.length; i++) {
+      if (b[i] !== cur[qi]) continue;
       const edge = i === 0 || /[\s\-_./:]/.test(b[i - 1] ?? "");
       if (last === i - 1) {
         run++;
@@ -127,22 +103,15 @@ function fuzzyMatch(query: string, text: string): { matches: boolean; score: num
       }
       if (last !== i - 1) {
         run = 0;
-        if (last >= 0) {
-          score += (i - last - 1) * 2;
-        }
+        if (last >= 0) score += (i - last - 1) * 2;
       }
-      if (edge) {
-        score -= 10;
-      }
+      if (edge) score -= 10;
       score += i * 0.1;
       last = i;
       qi++;
     }
 
-    if (qi < q.length) {
-      return { matches: false, score: 0 };
-    }
-
+    if (qi < cur.length) return { matches: false, score: 0 };
     return { matches: true, score };
   };
 
@@ -158,22 +127,21 @@ function fuzzyMatch(query: string, text: string): { matches: boolean; score: num
       : "";
 
   if (!swap) return base;
-
   const next = match(swap);
   if (!next.matches) return base;
   return { matches: true, score: next.score + 5 };
 }
 
-export function filterPiModels(items: ReadonlyArray<PiModelItem>, query: string): PiModelItem[] {
+export function filterPiModels(items: readonly PiModelItem[], query: string) {
   const input = query.trim();
   if (!input) return [...items];
 
   const tokens = input
     .split(/\s+/)
-    .map((token) => token.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 
-  if (tokens.length === 0) return [...items];
+  if (!tokens.length) return [...items];
 
   const out: Array<{ item: PiModelItem; score: number }> = [];
 
@@ -191,113 +159,86 @@ export function filterPiModels(items: ReadonlyArray<PiModelItem>, query: string)
       score += match.score;
     }
 
-    if (ok) {
-      out.push({ item, score });
-    }
+    if (ok) out.push({ item, score });
   }
 
-  out.sort((a, b) => a.score - b.score);
+  out.sort((left, right) => left.score - right.score);
   return out.map((item) => item.item);
 }
 
-export async function readPiDefaults(): Promise<PiDefaults> {
+export async function readPiDefaults() {
   const data = await cfg();
   return {
     provider: data.defaults.provider,
     model: data.defaults.model,
     thinkingLevel: data.defaults.thinkingLevel,
-  };
+  } satisfies PiDefaults;
 }
 
-export async function listPiModels(cur?: Model<Api> | null): Promise<PiModelItem[]> {
+export async function listPiModels(cur?: PiModelRef | null) {
   const data = await cfg();
-  const map = new Map<string, PiModelItem>();
-
-  for (const model of data.models) {
-    push(map, model);
-  }
-
-  if (cur) {
-    push(map, cur);
-  }
-
-  const all = [...map.values()];
+  const all = data.models.map((model) => item(model));
   const available = new Set(data.available);
-  const next = all.filter(
-    (item) => available.has(item.key) || item.key === key(cur?.provider ?? "", cur?.id ?? ""),
-  );
-
-  if (next.length > 0) {
-    return sort(next, cur);
-  }
-
+  const next = all.filter((item) => available.has(item.key) || same(cur, item));
+  if (next.length > 0) return sort(next, cur);
   return sort(all, cur);
 }
 
-export async function resolvePiDefaultModel(cur?: Model<Api> | null): Promise<Model<Api> | null> {
+export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
   const data = await cfg();
-  const items = data.models.map(item);
+  const items = data.models.map((model) => item(model));
   const available = new Set(data.available);
 
   if (data.defaults.provider && data.defaults.model) {
     const hit = items.find(
       (item) => item.provider === data.defaults.provider && item.id === data.defaults.model,
     );
-    if (hit) {
-      return hit.model;
-    }
+    if (hit) return hit;
   }
 
   const pref = sort(
     items.filter((item) => {
-      if (!available.has(item.key)) {
-        return false;
-      }
+      if (!available.has(item.key)) return false;
       return PREFERRED.some((pair) => item.provider === pair[0] && item.id === pair[1]);
     }),
     cur,
   );
-  if (pref[0]) {
-    return pref[0].model;
-  }
+  if (pref[0]) return pref[0];
 
   const vis = await listPiModels(cur);
-  if (vis[0]) {
-    return vis[0].model;
-  }
-
-  return cur ? (cur as Model<Api>) : (items[0]?.model ?? null);
+  if (vis[0]) return vis[0];
+  return cur ?? items[0] ?? null;
 }
 
-export async function resolvePiDefaultThinkingLevel(): Promise<ThinkingLevel> {
+export async function resolvePiDefaultThinkingLevel() {
   const defs = await readPiDefaults();
   return defs.thinkingLevel ?? "off";
 }
 
-export async function writePiDefaultModel(model: Model<Api>): Promise<void> {
-  await ensureNativeApi().server.setPiDefaultModel(model.provider, model.id);
+export async function writePiDefaultModel(model: PiModelRef) {
+  await getGlass().pi.setDefaultModel(model.provider, model.id);
   emit();
 }
 
-export async function clearPiDefaultModel(): Promise<void> {
-  await ensureNativeApi().server.clearPiDefaultModel();
+export async function clearPiDefaultModel() {
+  await getGlass().pi.clearDefaultModel();
   emit();
 }
 
-export async function writePiDefaultThinkingLevel(level: ThinkingLevel): Promise<void> {
-  await ensureNativeApi().server.setPiDefaultThinkingLevel(level);
+export async function writePiDefaultThinkingLevel(level: PiThinkingLevel) {
+  await getGlass().pi.setDefaultThinkingLevel(level);
   emit();
 }
 
-export async function readPiApiKey(provider: string): Promise<string | null> {
-  return ensureNativeApi().server.getPiApiKey(provider);
+export async function readPiApiKey(provider: string) {
+  return getGlass().pi.getApiKey(provider);
 }
 
-export async function writePiApiKey(provider: string, key: string): Promise<void> {
-  await ensureNativeApi().server.setPiApiKey(provider, key);
+export async function writePiApiKey(provider: string, key: string) {
+  await getGlass().pi.setApiKey(provider, key);
   emit();
 }
 
-export function hasStoredPiDefault(defs: PiDefaults): boolean {
+export function hasStoredPiDefault(defs: PiDefaults) {
   return defs.provider !== null && defs.model !== null;
 }

@@ -1,6 +1,13 @@
 import { Schema } from "effect";
 import { TrimmedNonEmptyString } from "./baseSchemas";
 
+export interface PiModelRef {
+  provider: string;
+  id: string;
+  name?: string | null;
+  reasoning?: boolean;
+}
+
 export const PiThinkingLevel = Schema.Literals([
   "off",
   "minimal",
@@ -75,3 +82,12 @@ export const PiThinkingLevelInput = Schema.Struct({
   thinkingLevel: PiThinkingLevel,
 });
 export type PiThinkingLevelInput = typeof PiThinkingLevelInput.Type;
+
+export interface PiBridge {
+  getConfig: () => Promise<PiConfig>;
+  setDefaultModel: (provider: string, model: string) => Promise<void>;
+  clearDefaultModel: () => Promise<void>;
+  setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) => Promise<void>;
+  getApiKey: (provider: string) => Promise<string | null>;
+  setApiKey: (provider: string, key: string) => Promise<void>;
+}

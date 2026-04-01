@@ -14,59 +14,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version-file: package.json
+          version: 10.33.0
 
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version-file: package.json
+          cache: pnpm
 
-      - name: Cache Bun and Turbo
+      - name: Cache Turbo
         uses: actions/cache@v5
         with:
-          path: |
-            ~/.bun/install/cache
-            .turbo
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-${{ hashFiles('turbo.json') }}
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('turbo.json') }}
           restore-keys: |
-            ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml') }}-
 
       - name: Cache Playwright browsers
         uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Format
-        run: bun run fmt:check
+        run: pnpm run fmt:check
 
       - name: Lint
-        run: bun run lint
+        run: pnpm run lint
 
       - name: Typecheck
-        run: bun run typecheck
+        run: pnpm run typecheck
 
       - name: Test
-        run: bun run test
+        run: pnpm run test
 
       - name: Install browser test runtime
-        run: |
-          cd apps/web
-          bunx playwright install --with-deps chromium
+        run: pnpm --filter @glass/web exec playwright install --with-deps chromium
 
       - name: Browser test
-        run: bun run --cwd apps/web test:browser
+        run: pnpm --filter @glass/web run test:browser
 
       - name: Build desktop pipeline
-        run: bun run build:desktop
+        run: pnpm run build:desktop
 
       - name: Verify preload bundle output
         run: |
@@ -80,15 +77,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bun-version-file: package.json
+          version: 10.33.0
 
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Exercise release-only workflow steps
         run: node scripts/release-smoke.ts

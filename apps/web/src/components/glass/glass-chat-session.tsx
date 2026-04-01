@@ -18,6 +18,7 @@ export function GlassChatSession(props: { sessionId: string }) {
         busy={session.busy}
         model={session.model}
         variant="dock"
+        onAbort={session.abort}
         onModel={session.setModel}
         onSend={() => {
           session.send(draft);

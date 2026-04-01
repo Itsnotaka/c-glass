@@ -5,7 +5,7 @@
     "dist",
     "dist-electron",
     "node_modules",
-    "bun.lock",
+    "pnpm-lock.yaml",
     "*.tsbuildinfo",
     "**/routeTree.gen.ts",
     "apps/web/public/mockServiceWorker.js"

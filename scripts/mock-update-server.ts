@@ -1,5 +1,7 @@
+import { createReadStream, realpathSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import { createServer } from "node:http";
 import { resolve, relative } from "node:path";
-import { realpathSync } from "node:fs";
 
 const port = Number(process.env.GLASS_DESKTOP_MOCK_UPDATE_SERVER_PORT ?? 3000);
 const root =
@@ -19,26 +21,42 @@ function isWithinRoot(filePath: string): boolean {
   }
 }
 
-Bun.serve({
-  port,
-  hostname: "localhost",
-  fetch: async (request) => {
-    const url = new URL(request.url);
+const server = createServer((req, res) => {
+  void (async () => {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     const path = url.pathname;
     mockServerLog("info", `Request received for path: ${path}`);
     const filePath = resolve(root, `.${path}`);
     if (!isWithinRoot(filePath)) {
       mockServerLog("warn", `Attempted to access file outside of root: ${filePath}`);
-      return new Response("Not Found", { status: 404 });
+      res.writeHead(404);
+      res.end("Not Found");
+      return;
     }
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) {
+    try {
+      const st = await stat(filePath);
+      if (!st.isFile()) {
+        mockServerLog("warn", `Attempted to access non-file: ${filePath}`);
+        res.writeHead(404);
+        res.end("Not Found");
+        return;
+      }
+    } catch {
       mockServerLog("warn", `Attempted to access non-existent file: ${filePath}`);
-      return new Response("Not Found", { status: 404 });
+      res.writeHead(404);
+      res.end("Not Found");
+      return;
     }
     mockServerLog("info", `Serving file: ${filePath}`);
-    return new Response(file.stream());
-  },
+    res.writeHead(200);
+    createReadStream(filePath).pipe(res);
+  })().catch((error) => {
+    mockServerLog("error", String(error));
+    if (!res.headersSent) res.writeHead(500);
+    res.end("Internal Server Error");
+  });
 });
 
-mockServerLog("info", `running on http://localhost:${port}`);
+server.listen(port, "localhost", () => {
+  mockServerLog("info", `running on http://localhost:${port}`);
+});

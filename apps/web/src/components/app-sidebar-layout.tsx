@@ -14,8 +14,8 @@ function DesktopMenuBridge(props: { children: ReactNode }) {
   const settings = useGlassSettings();
 
   useEffect(() => {
-    const handler = window.desktopBridge?.onMenuAction;
-    if (typeof handler !== "function") return;
+    const handler = window.glass?.desktop.onMenuAction;
+    if (!handler) return;
 
     const unsub = handler((action) => {
       if (action !== "open-settings") return;
@@ -25,7 +25,7 @@ function DesktopMenuBridge(props: { children: ReactNode }) {
     return () => {
       unsub?.();
     };
-  }, [settings.openSettings]);
+  }, [settings]);
 
   return <>{props.children}</>;
 }

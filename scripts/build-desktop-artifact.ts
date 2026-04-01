@@ -4,11 +4,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
-import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
+import { readWorkspaceCatalog } from "./lib/read-workspace-catalog.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -457,7 +456,10 @@ function resolveDesktopRuntimeDependencies(
   }
 
   const runtimeDependencies = Object.fromEntries(
-    Object.entries(dependencies).filter(([dependencyName]) => dependencyName !== "electron"),
+    Object.entries(dependencies).filter(
+      ([dependencyName]) =>
+        dependencyName !== "electron" && dependencyName !== "electron-updater",
+    ),
   );
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
@@ -582,32 +584,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   const electronVersion = desktopPackageJson.dependencies.electron;
 
-  const serverDependencies = serverPackageJson.dependencies;
-  if (!serverDependencies || Object.keys(serverDependencies).length === 0) {
-    return yield* new BuildScriptError({
-      message: "Could not resolve production dependencies from apps/server/package.json.",
-    });
-  }
-
-  const resolvedServerDependencies = yield* Effect.try({
-    try: () =>
-      resolveCatalogDependencies(
-        serverDependencies,
-        rootPackageJson.workspaces.catalog,
-        "apps/server",
-      ),
-    catch: (cause) =>
-      new BuildScriptError({
-        message: "Could not resolve production dependencies from apps/server/package.json.",
-        cause,
-      }),
-  });
+  const catalog = readWorkspaceCatalog(repoRoot);
   const resolvedDesktopRuntimeDependencies = yield* Effect.try({
-    try: () =>
-      resolveDesktopRuntimeDependencies(
-        desktopPackageJson.dependencies,
-        rootPackageJson.workspaces.catalog,
-      ),
+    try: () => resolveDesktopRuntimeDependencies(desktopPackageJson.dependencies, catalog),
     catch: (cause) =>
       new BuildScriptError({
         message: "Could not resolve desktop runtime dependencies from apps/desktop/package.json.",
@@ -615,7 +594,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       }),
   });
 
-  const appVersion = options.version ?? serverPackageJson.version;
+  const appVersion = options.version ?? desktopPackageJson.version;
   const commitHash = resolveGitCommitHash(repoRoot);
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
   const stageRoot = yield* mkdir({
@@ -627,45 +606,45 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   const distDirs = {
     desktopDist: path.join(repoRoot, "apps/desktop/dist-electron"),
     desktopResources: path.join(repoRoot, "apps/desktop/resources"),
-    serverDist: path.join(repoRoot, "apps/server/dist"),
+    webDist: path.join(repoRoot, "apps/web/dist"),
   };
-  const bundledClientEntry = path.join(distDirs.serverDist, "client/index.html");
+  const bundledClientEntry = path.join(distDirs.webDist, "index.html");
 
   if (!options.skipBuild) {
-    yield* Effect.log("[desktop-artifact] Building desktop/server/web artifacts...");
+    yield* Effect.log("[desktop-artifact] Building desktop/web artifacts...");
     yield* runCommand(
       ChildProcess.make({
         cwd: repoRoot,
         ...commandOutputOptions(options.verbose),
-        // Windows needs shell mode to resolve .cmd shims (e.g. bun.cmd).
+        // Windows needs shell mode to resolve .cmd shims (e.g. pnpm.cmd).
         shell: process.platform === "win32",
-      })`bun run build:desktop`,
+      })`pnpm run build:desktop`,
     );
   }
 
   for (const [label, dir] of Object.entries(distDirs)) {
     if (!(yield* fs.exists(dir))) {
       return yield* new BuildScriptError({
-        message: `Missing ${label} at ${dir}. Run 'bun run build:desktop' first.`,
+        message: `Missing ${label} at ${dir}. Run 'pnpm run build:desktop' first.`,
       });
     }
   }
 
   if (!(yield* fs.exists(bundledClientEntry))) {
     return yield* new BuildScriptError({
-      message: `Missing bundled server client at ${bundledClientEntry}. Run 'bun run build:desktop' first.`,
+      message: `Missing web bundle at ${bundledClientEntry}. Run 'pnpm run build:desktop' first.`,
     });
   }
 
   yield* validateBundledClientAssets(path.dirname(bundledClientEntry));
 
   yield* fs.makeDirectory(path.join(stageAppDir, "apps/desktop"), { recursive: true });
-  yield* fs.makeDirectory(path.join(stageAppDir, "apps/server"), { recursive: true });
+  yield* fs.makeDirectory(path.join(stageAppDir, "apps/web"), { recursive: true });
 
   yield* Effect.log("[desktop-artifact] Staging release app...");
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
-  yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
+  yield* fs.copy(distDirs.webDist, path.join(stageAppDir, "apps/web/dist"));
 
   yield* assertPlatformBuildResources(options.platform, stageResourcesDir, options.verbose);
 
@@ -690,7 +669,6 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       options.mockUpdateServerPort,
     ),
     dependencies: {
-      ...resolvedServerDependencies,
       ...resolvedDesktopRuntimeDependencies,
     },
     devDependencies: {
@@ -706,9 +684,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     ChildProcess.make({
       cwd: stageAppDir,
       ...commandOutputOptions(options.verbose),
-      // Windows needs shell mode to resolve .cmd shims (e.g. bun.cmd).
+      // Windows needs shell mode to resolve .cmd shims (e.g. pnpm.cmd).
       shell: process.platform === "win32",
-    })`bun install --production`,
+    })`pnpm install --prod --config.node-linker=hoisted`,
   );
 
   const buildEnv: NodeJS.ProcessEnv = {
@@ -748,7 +726,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       ...commandOutputOptions(options.verbose),
       // Windows needs shell mode to resolve .cmd shims.
       shell: process.platform === "win32",
-    })`bunx electron-builder ${platformConfig.cliFlag} --${options.arch} --publish never`,
+    })`pnpm dlx electron-builder ${platformConfig.cliFlag} --${options.arch} --publish never`,
   );
 
   const stageDistDir = path.join(stageAppDir, "dist");
@@ -808,7 +786,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   ),
   skipBuild: Flag.boolean("skip-build").pipe(
     Flag.withDescription(
-      "Skip `bun run build:desktop` and use existing dist artifacts (env: GLASS_DESKTOP_SKIP_BUILD).",
+      "Skip `pnpm run build:desktop` and use existing dist artifacts (env: GLASS_DESKTOP_SKIP_BUILD).",
     ),
     Flag.optional,
   ),

@@ -3,8 +3,6 @@ node_modules
 .turbo
 .DS_Store
 *.log
-.pi/
-.plans/
 *.tsbuildinfo
 apps/*/dist
 .astro
@@ -15,7 +13,6 @@ build/
 .logs/
 release/
 release-mock/
-.t3
 .idea/
 apps/web/.playwright
 apps/web/playwright-report
@@ -23,4 +20,3 @@ apps/web/src/components/__screenshots__
 .vitest-*
 __screenshots__/
 .tanstack
-.pi-mono-reference

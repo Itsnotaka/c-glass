@@ -3,7 +3,6 @@
 import { Toast } from "@base-ui/react/toast";
 import { useEffect, type CSSProperties } from "react";
 import { useParams } from "@tanstack/react-router";
-import { ThreadId } from "@glass/contracts";
 import {
   CheckIcon,
   CircleAlertIcon,
@@ -16,11 +15,11 @@ import {
 
 import { cn } from "~/lib/utils";
 import { buttonVariants } from "~/components/ui/button";
-import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
+import { useCopyToClipboard } from "~/hooks/use-copy-to-clipboard";
 import { buildVisibleToastLayout, shouldHideCollapsedToastContent } from "./toast.logic";
 
 type ThreadToastData = {
-  threadId?: ThreadId | null;
+  threadId?: string | null;
   tooltipStyle?: boolean;
   dismissAfterVisibleMs?: number;
 };
@@ -71,18 +70,17 @@ interface ToastProviderProps extends Toast.Provider.Props {
 
 function shouldRenderForActiveThread(
   data: ThreadToastData | undefined,
-  activeThreadId: ThreadId | null,
+  activeThreadId: string | null,
 ): boolean {
   const toastThreadId = data?.threadId;
   if (!toastThreadId) return true;
   return toastThreadId === activeThreadId;
 }
 
-function useActiveThreadIdFromRoute(): ThreadId | null {
+function useActiveThreadIdFromRoute(): string | null {
   return useParams({
     strict: false,
-    select: (params) =>
-      typeof params.threadId === "string" ? ThreadId.makeUnsafe(params.threadId) : null,
+    select: (params) => (typeof params.threadId === "string" ? params.threadId : null),
   });
 }
 

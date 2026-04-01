@@ -1,35 +1,25 @@
-import { EDITORS, EditorId, NativeApi } from "@glass/contracts";
-import { getLocalStorageItem, setLocalStorageItem, useLocalStorage } from "./hooks/useLocalStorage";
+import { EDITORS, EditorId } from "@glass/contracts";
 import { useMemo } from "react";
+import { getLocalStorageItem, setLocalStorageItem, useLocalStorage } from "./hooks/useLocalStorage";
 
 const LAST_EDITOR_KEY = "glass:last-editor";
 
-export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
-  const [lastEditor, setLastEditor] = useLocalStorage(LAST_EDITOR_KEY, null, EditorId);
+export function usePreferredEditor(available: readonly EditorId[]) {
+  const [last, setLast] = useLocalStorage(LAST_EDITOR_KEY, null, EditorId);
 
-  const effectiveEditor = useMemo(() => {
-    if (lastEditor && availableEditors.includes(lastEditor)) return lastEditor;
-    return EDITORS.find((editor) => availableEditors.includes(editor.id))?.id ?? null;
-  }, [lastEditor, availableEditors]);
+  const cur = useMemo(() => {
+    if (last && available.includes(last)) return last;
+    return EDITORS.find((item) => available.includes(item.id))?.id ?? null;
+  }, [available, last]);
 
-  return [effectiveEditor, setLastEditor] as const;
+  return [cur, setLast] as const;
 }
 
-export function resolveAndPersistPreferredEditor(
-  availableEditors: readonly EditorId[],
-): EditorId | null {
-  const availableEditorIds = new Set(availableEditors);
+export function resolveAndPersistPreferredEditor(available: readonly EditorId[]) {
+  const ids = new Set(available);
   const stored = getLocalStorageItem(LAST_EDITOR_KEY, EditorId);
-  if (stored && availableEditorIds.has(stored)) return stored;
-  const editor = EDITORS.find((editor) => availableEditorIds.has(editor.id))?.id ?? null;
-  if (editor) setLocalStorageItem(LAST_EDITOR_KEY, editor, EditorId);
-  return editor ?? null;
-}
-
-export async function openInPreferredEditor(api: NativeApi, targetPath: string): Promise<EditorId> {
-  const { availableEditors } = await api.server.getConfig();
-  const editor = resolveAndPersistPreferredEditor(availableEditors);
-  if (!editor) throw new Error("No available editors found.");
-  await api.shell.openInEditor(targetPath, editor);
-  return editor;
+  if (stored && ids.has(stored)) return stored;
+  const next = EDITORS.find((item) => ids.has(item.id))?.id ?? null;
+  if (next) setLocalStorageItem(LAST_EDITOR_KEY, next, EditorId);
+  return next ?? null;
 }

@@ -1,6 +1,5 @@
+import type { PiModelRef } from "@glass/contracts";
 import { useEffect, useState } from "react";
-import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
-import type { Model } from "@mariozechner/pi-ai";
 import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "../lib/pi-glass-constants";
 import {
   hasStoredPiDefault,
@@ -11,18 +10,18 @@ import {
   type PiModelItem,
 } from "../lib/pi-models";
 
-type PiModelState = {
+interface PiModelState {
   items: PiModelItem[];
   loading: boolean;
-};
+}
 
-type PiDefaultState = PiModelState & {
-  model: Model<any> | null;
-  thinkingLevel: ThinkingLevel;
+interface PiDefaultState extends PiModelState {
+  model: PiModelItem | PiModelRef | null;
+  thinkingLevel: string;
   stored: boolean;
-};
+}
 
-export function usePiModels(cur?: Model<any> | null): PiModelState {
+export function usePiModels(cur?: PiModelRef | null) {
   const [state, setState] = useState<PiModelState>({ items: [], loading: true });
 
   useEffect(() => {
@@ -36,18 +35,17 @@ export function usePiModels(cur?: Model<any> | null): PiModelState {
     };
 
     load();
-    const onChange = () => load();
-    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, onChange);
+    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
     return () => {
       live = false;
-      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, onChange);
+      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
     };
   }, [cur]);
 
   return state;
 }
 
-export function usePiDefaults(): PiDefaultState {
+export function usePiDefaults() {
   const [state, setState] = useState<PiDefaultState>({
     items: [],
     model: null,
@@ -79,11 +77,10 @@ export function usePiDefaults(): PiDefaultState {
     };
 
     load();
-    const onChange = () => load();
-    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, onChange);
+    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
     return () => {
       live = false;
-      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, onChange);
+      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
     };
   }, []);
 

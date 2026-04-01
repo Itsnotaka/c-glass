@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,11 +16,11 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const workspaceFiles = [
   "package.json",
-  "bun.lock",
-  "apps/server/package.json",
+  "pnpm-workspace.yaml",
+  "pnpm-lock.yaml",
+  "apps/desktop/package.json",
   "apps/desktop/package.json",
   "apps/web/package.json",
-  "apps/marketing/package.json",
   "packages/contracts/package.json",
   "packages/shared/package.json",
   "scripts/package.json",
@@ -21,6 +29,9 @@ const workspaceFiles = [
 function copyWorkspaceManifestFixture(targetRoot: string): void {
   for (const relativePath of workspaceFiles) {
     const sourcePath = resolve(repoRoot, relativePath);
+    if (!existsSync(sourcePath)) {
+      throw new Error(`Missing workspace fixture: ${relativePath}`);
+    }
     const destinationPath = resolve(targetRoot, relativePath);
     mkdirSync(dirname(destinationPath), { recursive: true });
     cpSync(sourcePath, destinationPath);
@@ -94,17 +105,22 @@ try {
     },
   );
 
-  execFileSync("bun", ["install", "--lockfile-only", "--ignore-scripts"], {
+  execFileSync("pnpm", ["install", "--lockfile-only", "--ignore-scripts"], {
     cwd: tempRoot,
     stdio: "inherit",
   });
 
-  const lockfile = readFileSync(resolve(tempRoot, "bun.lock"), "utf8");
-  assertContains(
-    lockfile,
-    `"version": "9.9.9-smoke.0"`,
-    "Expected bun.lock to contain the smoke version.",
-  );
+  const bumped = JSON.parse(
+    readFileSync(resolve(tempRoot, "apps/desktop/package.json"), "utf8"),
+  ) as { version?: string };
+  if (bumped.version !== "9.9.9-smoke.0") {
+    throw new Error(
+      `Expected apps/desktop version 9.9.9-smoke.0 after lockfile refresh, got ${bumped.version}`,
+    );
+  }
+  if (!existsSync(resolve(tempRoot, "pnpm-lock.yaml"))) {
+    throw new Error("Expected pnpm-lock.yaml after pnpm install --lockfile-only.");
+  }
 
   const { arm64Path, x64Path } = writeMacManifestFixtures(tempRoot);
   execFileSync(

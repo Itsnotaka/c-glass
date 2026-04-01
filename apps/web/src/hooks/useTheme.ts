@@ -43,7 +43,7 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
 }
 
 function syncDesktopTheme(theme: Theme) {
-  const bridge = window.desktopBridge;
+  const bridge = window.glass?.desktop;
   if (!bridge || lastDesktopTheme === theme) {
     return;
   }

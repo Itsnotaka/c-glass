@@ -1,7 +1,7 @@
+import type { PiModelItem } from "../../lib/pi-models";
+import type { PiModelRef } from "@glass/contracts";
 import { cva, type VariantProps } from "class-variance-authority";
 import { ArrowUpIcon, PlusIcon, SquareIcon } from "lucide-react";
-import type { Model } from "@mariozechner/pi-ai";
-
 import { usePiModels } from "../../hooks/use-pi-models";
 import { PiModelPicker } from "./pi-model-picker";
 
@@ -32,14 +32,15 @@ const constraint = cva("", {
   },
 });
 
-type Props = {
+interface Props extends Required<VariantProps<typeof root>> {
   draft: string;
-  onDraft: (v: string) => void;
+  onDraft: (value: string) => void;
   onSend: () => void;
-  onModel: (model: Model<any>) => void;
-  model: Model<any> | null;
+  onAbort: () => void;
+  onModel: (model: PiModelItem) => void;
+  model: PiModelRef | null;
   busy: boolean;
-} & Required<VariantProps<typeof root>>;
+}
 
 export function GlassPiComposer(props: Props) {
   const empty = !props.draft.trim();
@@ -52,15 +53,18 @@ export function GlassPiComposer(props: Props) {
           <div className="glass-inline-composer">
             <textarea
               value={props.draft}
-              onChange={(e) => props.onDraft(e.target.value)}
+              onChange={(event) => props.onDraft(event.target.value)}
               placeholder="Message..."
               rows={1}
               className="field-sizing-content"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!props.busy && !empty) props.onSend();
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey) return;
+                event.preventDefault();
+                if (props.busy) {
+                  props.onAbort();
+                  return;
                 }
+                if (!empty) props.onSend();
               }}
             />
             <div className="glass-inline-composer-toolbar">
@@ -86,7 +90,11 @@ export function GlassPiComposer(props: Props) {
                 type="button"
                 disabled={!props.busy && empty}
                 onClick={() => {
-                  if (!props.busy && !empty) props.onSend();
+                  if (props.busy) {
+                    props.onAbort();
+                    return;
+                  }
+                  if (!empty) props.onSend();
                 }}
                 className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
                 aria-label={props.busy ? "Stop" : "Send"}

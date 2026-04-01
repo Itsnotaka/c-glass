@@ -12,7 +12,12 @@ export default defineConfig([
     ...shared,
     entry: ["src/main.ts"],
     clean: true,
-    noExternal: (id) => id.startsWith("@glass/"),
+    noExternal: (id) =>
+      id.startsWith("@glass/") ||
+      id.startsWith("@mariozechner/pi-coding-agent") ||
+      id.startsWith("@mariozechner/pi-agent-core") ||
+      id.startsWith("@mariozechner/pi-ai") ||
+      id.startsWith("electron-updater"),
   },
   {
     ...shared,

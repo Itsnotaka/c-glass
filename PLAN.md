@@ -2,7 +2,7 @@
 
 ## North star
 
-Ship a **coherent Glass application surface**: a dark, minimal desktop shell (sidebar, canvas, native titlebar affordances) with **Pi-backed chat** as the primary interaction, while **preserving** the existing Electron host, server harness, and `contracts` / `shared` boundaries.
+Ship a **coherent Glass application surface**: a dark, minimal desktop shell (sidebar, canvas, native titlebar affordances) with **Pi-backed chat** as the primary interaction, while preserving the Electron host and the `contracts` / `shared` boundaries.
 
 **Milestone 1 (this document’s focus)** is **full UI alignment on the first page** — the experience users see at `/` with no thread selected: quiet canvas, centered composer, quick actions, and sidebar chrome that match the Cursor Glass reference shape. Deeper parity (thread chrome, settings-as-dialog, marketplace) follows in later milestones.
 
@@ -10,11 +10,11 @@ Ship a **coherent Glass application surface**: a dark, minimal desktop shell (si
 
 ## What “Glass app” means
 
-| Layer                   | Role                                                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Glass shell**         | Layout, navigation, tokens, Electron-specific chrome (traffic-light spacer, drag regions, update controls).                                                  |
-| **Glass chat**          | Pi `Agent` session UI: messages, composer, provider key flow, IndexedDB persistence. **No** embedded Lit `ChatPanel` from pi-web-ui — React components only. |
-| **Harness (unchanged)** | `apps/server` orchestration, Codex app-server, WebSocket protocol. Renderer observes via existing APIs where used.                                           |
+| Layer            | Role                                                                                                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Glass shell**  | Layout, navigation, tokens, Electron-specific chrome (traffic-light spacer, drag regions, update controls).                                                 |
+| **Glass chat**   | Pi-backed session UI: messages, composer, provider key flow, and host snapshots/events. No embedded Lit `ChatPanel` from pi-web-ui — React components only. |
+| **Desktop host** | Electron main owns Pi config, session lifecycle, and shell actions. The renderer stays read-only over `window.glass` snapshots and events.                  |
 
 The **Glass app** is the product-facing combination of shell + chat. **Extraction** means making that combination **identifiable, ownable, and eventually isolatable** inside the monorepo without rewriting the harness.
 
@@ -29,12 +29,12 @@ Glass lives under `apps/web/src/components/glass/`, with styles in `apps/web/src
 ### Target boundaries (incremental)
 
 1. **Ownership**
-   - **Glass-owned**: everything under `components/glass/`, `glass.css`, `_chat` route tree, and small adapters (`lib/pi-*.ts`, `nativeApi` usage from Glass-only entry paths).
+   - **Glass-owned**: everything under `components/glass/`, `glass.css`, `_chat` route tree, and small adapters (`lib/pi-*.ts`, `host.ts`, and bridge-only entry paths).
    - **Shared**: `@glass/contracts`, `@glass/shared`, TanStack Router root, global providers (toast, query client).
    - **Harness / legacy**: remain in `apps/web` until explicitly retired; Glass paths must not depend on them for shell rendering.
 
 2. **Physical extraction (later, optional)**
-   - **Phase A — logical module**: enforce imports so `components/glass/**` only depends on shared packages, `lib/pi-*`, `lib/local-native-api`, and UI primitives — not on `ChatView`, legacy sidebar implementations, or Codex-only components.
+   - **Phase A — logical module**: enforce imports so `components/glass/**` only depends on shared packages, `lib/pi-*`, bridge helpers, and UI primitives — not on legacy sidebar implementations or removed Codex-only components.
    - **Phase B — package (when stable)**: move Glass UI to something like `packages/glass-ui` (presentational + shell) or `apps/glass-shell` (route slice only), with `apps/web` as a thin host that mounts Glass routes and shared providers. **Do not** block Milestone 1 on this split; use it to prevent entanglement.
 
 3. **Router contract**
@@ -73,7 +73,7 @@ Align with the Cursor Glass–style shell:
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Empty vs thread** | Index route uses a **hero layout** (centered composer + quick actions). Thread route uses **conversation layout** (scrollable transcript, composer docked bottom, optional top bar for title/context). |
 | **Composer**        | Hero and dock variants share one implementation with clear props; send/stop behavior and disabled states are consistent.                                                                               |
-| **Quick actions**   | Wired to real affordances: e.g. prefill composer with a planning prompt; `nativeApi.shell.openInEditor` with workspace cwd when available (graceful no-op in web-only).                                |
+| **Quick actions**   | Wired to real affordances: e.g. prefill composer with a planning prompt; `window.glass.shell.openInEditor` with workspace cwd when available.                                                          |
 | **Sidebar footer**  | Update pill, check-for-update, settings entry — aligned with Glass visuals; settings opens via **Glass-appropriate** UX (dialog or dedicated route — pick one product-wide).                           |
 | **Marketplace**     | Placeholder acceptable for M1 if visually consistent with shell; no broken layout.                                                                                                                     |
 | **A11y / focus**    | Composer is focusable and keyboard-send works; quick actions and sidebar items have labels.                                                                                                            |
@@ -100,14 +100,14 @@ Align with the Cursor Glass–style shell:
 ## Non-goals (unchanged in spirit)
 
 - Rebuilding the full VS Code workbench or Cursor’s private services.
-- Replacing provider orchestration in `apps/server` with a second agent loop in the renderer.
+- Reintroducing a separate server/WebSocket orchestration layer for the canonical desktop runtime.
 - Perfect pixel parity with proprietary Cursor builds — **shape and behavior** are the target.
 
 ---
 
 ## Pi & reference (concise)
 
-- Runtime: `@mariozechner/pi-agent-core` (`Agent`), `@mariozechner/pi-ai` (`getModel`), IndexedDB persistence via pi-web-ui **storage** patterns — see `src/lib/pi-glass-storage.ts` and AGENTS.md.
+- Runtime: Pi-on-disk via `SessionManager` in `@mariozechner/pi-coding-agent`, with live `AgentSession` ownership in Electron main and renderer reads over the `window.glass` bridge.
 - Optional local clone: `.pi-mono-reference/` (gitignored) for reading only.
 
 ---

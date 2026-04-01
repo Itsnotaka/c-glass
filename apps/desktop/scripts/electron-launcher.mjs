@@ -140,5 +140,9 @@ export function resolveElectronPath() {
     return electronBinaryPath;
   }
 
-  return buildMacLauncher(electronBinaryPath);
+  if (process.env.GLASS_DESKTOP_USE_PACKAGED_LAUNCHER === "1") {
+    return buildMacLauncher(electronBinaryPath);
+  }
+
+  return electronBinaryPath;
 }

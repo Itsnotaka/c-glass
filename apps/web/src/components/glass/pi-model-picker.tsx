@@ -1,8 +1,7 @@
+import type { PiModelRef } from "@glass/contracts";
 import type { VariantProps } from "class-variance-authority";
 import { ChevronDownIcon, HexagonIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-
-import type { Model } from "@mariozechner/pi-ai";
 import { filterPiModels, type PiModelItem } from "../../lib/pi-models";
 import { cn } from "../../lib/utils";
 import { Button, buttonVariants } from "../ui/button";
@@ -16,25 +15,24 @@ import {
   ComboboxTrigger,
 } from "../ui/combobox";
 
-function value(model: Model<any> | null | undefined): string {
+function value(model: PiModelRef | null | undefined) {
   if (!model) return "";
   return `${model.provider}/${model.id}`;
 }
 
-function tagFor(model: Model<any>): string {
-  if (model.reasoning) return "Thinking";
-  return "Fast";
+function tag(item: PiModelRef) {
+  return item.reasoning ? "Thinking" : "Fast";
 }
 
 export function PiModelPicker(props: {
-  items: ReadonlyArray<PiModelItem>;
-  model: Model<any> | null;
+  items: readonly PiModelItem[];
+  model: PiModelRef | null;
   disabled?: boolean;
   triggerVariant?: VariantProps<typeof buttonVariants>["variant"];
   triggerClassName?: string;
   side?: "top" | "bottom" | "left" | "right";
   align?: "start" | "center" | "end";
-  onSelect: (model: Model<any>) => void;
+  onSelect: (model: PiModelItem) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -42,7 +40,7 @@ export function PiModelPicker(props: {
   const cur = useMemo(
     () =>
       props.items.find(
-        (item) => item.model.provider === props.model?.provider && item.id === props.model?.id,
+        (item) => item.provider === props.model?.provider && item.id === props.model?.id,
       ),
     [props.items, props.model],
   );
@@ -89,7 +87,7 @@ export function PiModelPicker(props: {
               className="shrink-0 rounded border border-[var(--glass-stroke-tertiary)] bg-[var(--glass-sidebar-hover)]/60 px-1.5 py-px text-[10px] font-medium text-muted-foreground tabular-nums"
               aria-hidden
             >
-              {tagFor(cur.model)}
+              {tag(cur)}
             </span>
           ) : null}
         </span>
@@ -125,7 +123,7 @@ export function PiModelPicker(props: {
               className="mx-1 my-0.5 rounded-md border-0 py-1.5 ps-2 hover:bg-[var(--glass-sidebar-hover)] data-highlighted:bg-[var(--glass-sidebar-hover)] data-selected:bg-[var(--glass-sidebar-active)] data-selected:shadow-none [&[data-highlighted][data-selected]]:bg-[var(--glass-sidebar-active)]"
               onClick={() => {
                 setOpen(false);
-                props.onSelect(item.model);
+                props.onSelect(item);
               }}
             >
               <div className="flex w-full min-w-0 items-center gap-2.5">
@@ -143,7 +141,7 @@ export function PiModelPicker(props: {
                   </div>
                 </div>
                 <span className="shrink-0 rounded border border-[var(--glass-stroke-tertiary)] bg-[var(--glass-sidebar-hover)]/40 px-1.5 py-px text-[10px] font-medium tabular-nums text-muted-foreground">
-                  {tagFor(item.model)}
+                  {tag(item)}
                 </span>
               </div>
             </ComboboxItem>

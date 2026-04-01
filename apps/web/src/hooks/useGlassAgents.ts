@@ -1,48 +1,48 @@
-import { ThreadId } from "@glass/contracts";
-import type { SessionMetadata } from "@mariozechner/pi-web-ui";
+import type { PiSessionSummary } from "@glass/contracts";
 import { useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-
-import { PI_GLASS_SESSIONS_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { getGlass } from "../host";
 import { buildPiSessionSidebarSections, type GlassSidebarSection } from "../lib/glassViewModel";
-import { ensurePiGlassStorage } from "../lib/pi-glass-storage";
 
-export function useGlassAgents(): {
-  sections: GlassSidebarSection[];
-  routeThreadId: ThreadId | null;
-} {
-  const [sessions, setSessions] = useState<SessionMetadata[]>([]);
+export function useGlassAgents() {
+  const [sessions, setSessions] = useState<PiSessionSummary[]>([]);
 
   const routeThreadId = useParams({
     strict: false,
-    select: (params) => (params.threadId ? ThreadId.makeUnsafe(params.threadId) : null),
+    select: (params) => params.threadId ?? null,
   });
 
   useEffect(() => {
-    let alive = true;
+    let live = true;
 
-    const refresh = async () => {
-      try {
-        const storage = await ensurePiGlassStorage();
-        const meta = await storage.sessions.getAllMetadata();
-        if (alive) {
-          setSessions(meta);
-        }
-      } catch {}
+    const load = () => {
+      void getGlass()
+        .session.list()
+        .then((items) => {
+          if (!live) return;
+          setSessions(items);
+        })
+        .catch(() => {});
     };
 
-    void refresh();
-    window.addEventListener(PI_GLASS_SESSIONS_CHANGED_EVENT, refresh);
+    load();
+    const off = getGlass().session.onEvent(() => {
+      load();
+    });
+
     return () => {
-      alive = false;
-      window.removeEventListener(PI_GLASS_SESSIONS_CHANGED_EVENT, refresh);
+      live = false;
+      off();
     };
   }, []);
 
   const sections = useMemo(
-    () => buildPiSessionSidebarSections(sessions, routeThreadId ? String(routeThreadId) : null),
-    [sessions, routeThreadId],
+    () => buildPiSessionSidebarSections(sessions, routeThreadId),
+    [routeThreadId, sessions],
   );
 
-  return { sections, routeThreadId };
+  return { sections, routeThreadId } satisfies {
+    sections: GlassSidebarSection[];
+    routeThreadId: string | null;
+  };
 }

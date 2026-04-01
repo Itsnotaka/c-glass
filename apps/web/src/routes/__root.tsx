@@ -3,15 +3,11 @@ import {
   createRootRouteWithContext,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
 import { QueryClient } from "@tanstack/react-query";
-
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider } from "../components/ui/toast";
-import { EMPTY_ORCHESTRATION_READ_MODEL } from "../lib/pi-glass-constants";
-import { useStore } from "../store";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -23,21 +19,10 @@ export const Route = createRootRouteWithContext<{
   }),
 });
 
-function PiGlassBootstrap() {
-  const syncServerReadModel = useStore((store) => store.syncServerReadModel);
-
-  useEffect(() => {
-    syncServerReadModel(EMPTY_ORCHESTRATION_READ_MODEL);
-  }, [syncServerReadModel]);
-
-  return null;
-}
-
 function RootRouteView() {
   return (
     <ToastProvider>
       <AnchoredToastProvider>
-        <PiGlassBootstrap />
         <AppSidebarLayout>
           <Outlet />
         </AppSidebarLayout>
@@ -89,7 +74,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   );
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -101,7 +86,7 @@ function errorMessage(error: unknown): string {
   return "An unexpected router error occurred.";
 }
 
-function errorDetails(error: unknown): string {
+function errorDetails(error: unknown) {
   if (error instanceof Error) {
     return error.stack ?? error.message;
   }

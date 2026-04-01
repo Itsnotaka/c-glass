@@ -1,10 +1,9 @@
 import { useCallback, useState } from "react";
-
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
-import { readNativeApi } from "../../nativeApi";
+import { getGlass } from "../../host";
 import { GlassPiComposer } from "./glass-pi-composer";
-import { GlassQuickActions } from "./glass-quick-actions";
 import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
+import { GlassQuickActions } from "./glass-quick-actions";
 import { usePiSession } from "./use-pi-session";
 
 export function GlassHeroCanvas() {
@@ -17,13 +16,12 @@ export function GlassHeroCanvas() {
   };
 
   const open = useCallback(() => {
-    const api = readNativeApi();
-    if (!api) return;
-    void api.server
-      .getConfig()
-      .then((cfg) => {
-        const editor = resolveAndPersistPreferredEditor(cfg.availableEditors);
-        if (editor) void api.shell.openInEditor(cfg.cwd, editor);
+    void getGlass()
+      .shell.getState()
+      .then((state) => {
+        const editor = resolveAndPersistPreferredEditor(state.availableEditors);
+        if (!editor) return;
+        return getGlass().shell.openInEditor(state.cwd, editor);
       })
       .catch(() => {});
   }, []);
@@ -37,6 +35,7 @@ export function GlassHeroCanvas() {
           busy={session.busy}
           model={session.model}
           variant="hero"
+          onAbort={session.abort}
           onModel={session.setModel}
           onSend={() => send(draft)}
         />

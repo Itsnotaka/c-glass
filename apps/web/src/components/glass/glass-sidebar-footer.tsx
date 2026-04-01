@@ -19,7 +19,7 @@ export function GlassSidebarFooter() {
   const [checking, setChecking] = useState(false);
 
   const check = useCallback(() => {
-    const bridge = window.desktopBridge;
+    const bridge = window.glass?.desktop;
     if (!bridge || !canCheckForUpdate(state)) return;
     setChecking(true);
     void bridge

@@ -7,14 +7,9 @@ import { waitForResources } from "./wait-for-resources.mjs";
 
 const port = Number(process.env.ELECTRON_RENDERER_PORT ?? 5733);
 const devServerUrl = `http://localhost:${port}`;
-const requiredFiles = [
-  "dist-electron/main.js",
-  "dist-electron/preload.js",
-  "../server/dist/index.mjs",
-];
+const requiredFiles = ["dist-electron/main.js", "dist-electron/preload.js"];
 const watchedDirectories = [
   { directory: "dist-electron", files: new Set(["main.js", "preload.js"]) },
-  { directory: "../server/dist", files: new Set(["index.mjs"]) },
 ];
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;

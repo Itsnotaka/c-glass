@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { homedir } from "node:os";
-
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { NetService } from "@glass/shared/Net";
@@ -9,86 +8,71 @@ import { Config, Data, Effect, Hash, Layer, Logger, Option, Path, Schema } from 
 import { Argument, Command, Flag } from "effect/unstable/cli";
 import { ChildProcess } from "effect/unstable/process";
 
-const BASE_SERVER_PORT = 3773;
 const BASE_WEB_PORT = 5733;
 const MAX_HASH_OFFSET = 3000;
 const MAX_PORT = 65535;
 
+const MODE_ARGS = {
+  dev: ["run", "dev", "--ui=tui", "--filter=@glass/desktop"],
+  "dev:web": ["run", "dev", "--filter=@glass/web"],
+  "dev:desktop": ["run", "dev", "--filter=@glass/desktop"],
+} as const;
+
+const MODES = Object.keys(MODE_ARGS) as Array<keyof typeof MODE_ARGS>;
+
 export const DEFAULT_GLASS_HOME = Effect.map(Effect.service(Path.Path), (path) =>
   path.join(homedir(), ".glass"),
 );
-
-const MODE_ARGS = {
-  dev: [
-    "run",
-    "dev",
-    "--ui=tui",
-    "--filter=@glass/contracts",
-    "--filter=@glass/web",
-    "--filter=@glass/server",
-    "--parallel",
-  ],
-  "dev:server": ["run", "dev", "--filter=@glass/server"],
-  "dev:web": ["run", "dev", "--filter=@glass/web"],
-  "dev:desktop": ["run", "dev", "--filter=@glass/desktop", "--filter=@glass/web", "--parallel"],
-} as const satisfies Record<string, ReadonlyArray<string>>;
-
-type DevMode = keyof typeof MODE_ARGS;
-type PortAvailabilityCheck<R = never> = (port: number) => Effect.Effect<boolean, never, R>;
-
-const DEV_RUNNER_MODES = Object.keys(MODE_ARGS) as Array<DevMode>;
 
 class DevRunnerError extends Data.TaggedError("DevRunnerError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
-const optionalStringConfig = (name: string): Config.Config<string | undefined> =>
+const optionalString = (name: string) =>
   Config.string(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalBooleanConfig = (name: string): Config.Config<boolean | undefined> =>
-  Config.boolean(name).pipe(
-    Config.option,
-    Config.map((value) => Option.getOrUndefined(value)),
-  );
-const optionalPortConfig = (name: string): Config.Config<number | undefined> =>
+
+const optionalPort = (name: string) =>
   Config.port(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalIntegerConfig = (name: string): Config.Config<number | undefined> =>
+
+const optionalInteger = (name: string) =>
   Config.int(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalUrlConfig = (name: string): Config.Config<URL | undefined> =>
+
+const optionalUrl = (name: string) =>
   Config.url(name).pipe(
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
 
 const OffsetConfig = Config.all({
-  portOffset: optionalIntegerConfig("GLASS_PORT_OFFSET"),
-  devInstance: optionalStringConfig("GLASS_DEV_INSTANCE"),
+  portOffset: optionalInteger("GLASS_PORT_OFFSET"),
+  devInstance: optionalString("GLASS_DEV_INSTANCE"),
 });
 
-export function resolveOffset(config: {
+export function resolveOffset(input: {
   readonly portOffset: number | undefined;
   readonly devInstance: string | undefined;
-}): { readonly offset: number; readonly source: string } {
-  if (config.portOffset !== undefined) {
-    if (config.portOffset < 0) {
-      throw new Error(`Invalid GLASS_PORT_OFFSET: ${config.portOffset}`);
+}) {
+  if (input.portOffset !== undefined) {
+    if (input.portOffset < 0) {
+      throw new Error(`Invalid GLASS_PORT_OFFSET: ${input.portOffset}`);
     }
     return {
-      offset: config.portOffset,
-      source: `GLASS_PORT_OFFSET=${config.portOffset}`,
+      offset: input.portOffset,
+      source: `GLASS_PORT_OFFSET=${input.portOffset}`,
     };
   }
 
-  const seed = config.devInstance?.trim();
+  const seed = input.devInstance?.trim();
   if (!seed) {
     return { offset: 0, source: "default ports" };
   }
@@ -97,313 +81,80 @@ export function resolveOffset(config: {
     return { offset: Number(seed), source: `numeric GLASS_DEV_INSTANCE=${seed}` };
   }
 
-  const offset = ((Hash.string(seed) >>> 0) % MAX_HASH_OFFSET) + 1;
-  return { offset, source: `hashed GLASS_DEV_INSTANCE=${seed}` };
+  return {
+    offset: ((Hash.string(seed) >>> 0) % MAX_HASH_OFFSET) + 1,
+    source: `hashed GLASS_DEV_INSTANCE=${seed}`,
+  };
 }
 
-function resolveBaseDir(baseDir: string | undefined): Effect.Effect<string, never, Path.Path> {
+function resolveBaseDir(baseDir: string | undefined) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;
-    const configured = baseDir?.trim();
-
-    if (configured) {
-      return path.resolve(configured);
-    }
-
+    const value = baseDir?.trim();
+    if (value) return path.resolve(value);
     return yield* DEFAULT_GLASS_HOME;
   });
 }
 
-interface CreateDevRunnerEnvInput {
-  readonly mode: DevMode;
+function createEnv(input: {
   readonly baseEnv: NodeJS.ProcessEnv;
-  readonly serverOffset: number;
-  readonly webOffset: number;
   readonly glassHome: string | undefined;
-  readonly authToken: string | undefined;
-  readonly noBrowser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
-  readonly logWebSocketEvents: boolean | undefined;
-  readonly host: string | undefined;
   readonly port: number | undefined;
   readonly devUrl: URL | undefined;
-}
-
-export function createDevRunnerEnv({
-  mode,
-  baseEnv,
-  serverOffset,
-  webOffset,
-  glassHome,
-  authToken,
-  noBrowser,
-  autoBootstrapProjectFromCwd,
-  logWebSocketEvents,
-  host,
-  port,
-  devUrl,
-}: CreateDevRunnerEnvInput): Effect.Effect<NodeJS.ProcessEnv, never, Path.Path> {
+  readonly webOffset: number;
+}) {
   return Effect.gen(function* () {
-    const serverPort = port ?? BASE_SERVER_PORT + serverOffset;
-    const webPort = BASE_WEB_PORT + webOffset;
-    const resolvedBaseDir = yield* resolveBaseDir(glassHome);
-    const isDesktopMode = mode === "dev:desktop";
-
-    const output: NodeJS.ProcessEnv = {
-      ...baseEnv,
+    const webPort = input.port ?? BASE_WEB_PORT + input.webOffset;
+    const home = yield* resolveBaseDir(input.glassHome);
+    return {
+      ...input.baseEnv,
       PORT: String(webPort),
       ELECTRON_RENDERER_PORT: String(webPort),
-      VITE_DEV_SERVER_URL: devUrl?.toString() ?? `http://localhost:${webPort}`,
-      GLASS_HOME: resolvedBaseDir,
-    };
-
-    if (!isDesktopMode) {
-      output.GLASS_PORT = String(serverPort);
-      output.VITE_WS_URL = `ws://localhost:${serverPort}`;
-    } else {
-      delete output.GLASS_PORT;
-      delete output.VITE_WS_URL;
-      delete output.GLASS_AUTH_TOKEN;
-      delete output.GLASS_MODE;
-      delete output.GLASS_NO_BROWSER;
-      delete output.GLASS_HOST;
-    }
-
-    if (!isDesktopMode && host !== undefined) {
-      output.GLASS_HOST = host;
-    }
-
-    if (!isDesktopMode && authToken !== undefined) {
-      output.GLASS_AUTH_TOKEN = authToken;
-    } else if (!isDesktopMode) {
-      delete output.GLASS_AUTH_TOKEN;
-    }
-
-    if (!isDesktopMode && noBrowser !== undefined) {
-      output.GLASS_NO_BROWSER = noBrowser ? "1" : "0";
-    } else if (!isDesktopMode) {
-      delete output.GLASS_NO_BROWSER;
-    }
-
-    if (autoBootstrapProjectFromCwd !== undefined) {
-      output.GLASS_AUTO_BOOTSTRAP_PROJECT_FROM_CWD = autoBootstrapProjectFromCwd ? "1" : "0";
-    } else {
-      delete output.GLASS_AUTO_BOOTSTRAP_PROJECT_FROM_CWD;
-    }
-
-    if (logWebSocketEvents !== undefined) {
-      output.GLASS_LOG_WS_EVENTS = logWebSocketEvents ? "1" : "0";
-    } else {
-      delete output.GLASS_LOG_WS_EVENTS;
-    }
-
-    if (mode === "dev") {
-      output.GLASS_MODE = "web";
-      delete output.GLASS_DESKTOP_WS_URL;
-    }
-
-    if (mode === "dev:server" || mode === "dev:web") {
-      output.GLASS_MODE = "web";
-      delete output.GLASS_DESKTOP_WS_URL;
-    }
-
-    if (isDesktopMode) {
-      delete output.GLASS_DESKTOP_WS_URL;
-    }
-
-    return output;
+      VITE_DEV_SERVER_URL: input.devUrl?.toString() ?? `http://localhost:${webPort}`,
+      GLASS_HOME: home,
+    } satisfies NodeJS.ProcessEnv;
   });
 }
 
-function portPairForOffset(offset: number): {
-  readonly serverPort: number;
-  readonly webPort: number;
-} {
-  return {
-    serverPort: BASE_SERVER_PORT + offset,
-    webPort: BASE_WEB_PORT + offset,
-  };
-}
-
-const defaultCheckPortAvailability: PortAvailabilityCheck<NetService> = (port) =>
-  Effect.gen(function* () {
-    const net = yield* NetService;
-    return yield* net.isPortAvailableOnLoopback(port);
-  });
-
-interface FindFirstAvailableOffsetInput<R = NetService> {
-  readonly startOffset: number;
-  readonly requireServerPort: boolean;
-  readonly requireWebPort: boolean;
-  readonly checkPortAvailability?: PortAvailabilityCheck<R>;
-}
-
-export function findFirstAvailableOffset<R = NetService>({
-  startOffset,
-  requireServerPort,
-  requireWebPort,
-  checkPortAvailability,
-}: FindFirstAvailableOffsetInput<R>): Effect.Effect<number, DevRunnerError, R> {
+function findOffset(input: { readonly start: number; readonly explicit: boolean }) {
   return Effect.gen(function* () {
-    const checkPort = (checkPortAvailability ??
-      defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
+    if (input.explicit) return input.start;
+    const net = yield* NetService;
 
-    for (let candidate = startOffset; ; candidate += 1) {
-      const { serverPort, webPort } = portPairForOffset(candidate);
-      const serverPortOutOfRange = serverPort > MAX_PORT;
-      const webPortOutOfRange = webPort > MAX_PORT;
-
-      if (
-        (requireServerPort && serverPortOutOfRange) ||
-        (requireWebPort && webPortOutOfRange) ||
-        (!requireServerPort && !requireWebPort && (serverPortOutOfRange || webPortOutOfRange))
-      ) {
-        break;
-      }
-
-      const checks: Array<Effect.Effect<boolean, never, R>> = [];
-      if (requireServerPort) {
-        checks.push(checkPort(serverPort));
-      }
-      if (requireWebPort) {
-        checks.push(checkPort(webPort));
-      }
-
-      if (checks.length === 0) {
-        return candidate;
-      }
-
-      const availability = yield* Effect.all(checks);
-      if (availability.every(Boolean)) {
-        return candidate;
-      }
+    for (let offset = input.start; ; offset += 1) {
+      const port = BASE_WEB_PORT + offset;
+      if (port > MAX_PORT) break;
+      const free = yield* net.isPortAvailableOnLoopback(port);
+      if (free) return offset;
     }
 
     return yield* new DevRunnerError({
-      message: `No available dev ports found from offset ${startOffset}. Tried server=${BASE_SERVER_PORT}+n web=${BASE_WEB_PORT}+n up to port ${MAX_PORT}.`,
+      message: `No available web port found from offset ${input.start}.`,
     });
   });
 }
 
-interface ResolveModePortOffsetsInput<R = NetService> {
-  readonly mode: DevMode;
-  readonly startOffset: number;
-  readonly hasExplicitServerPort: boolean;
-  readonly hasExplicitDevUrl: boolean;
-  readonly checkPortAvailability?: PortAvailabilityCheck<R>;
-}
-
-export function resolveModePortOffsets<R = NetService>({
-  mode,
-  startOffset,
-  hasExplicitServerPort,
-  hasExplicitDevUrl,
-  checkPortAvailability,
-}: ResolveModePortOffsetsInput<R>): Effect.Effect<
-  { readonly serverOffset: number; readonly webOffset: number },
-  DevRunnerError,
-  R
-> {
-  return Effect.gen(function* () {
-    const checkPort = (checkPortAvailability ??
-      defaultCheckPortAvailability) as PortAvailabilityCheck<R>;
-
-    if (mode === "dev:web") {
-      if (hasExplicitDevUrl) {
-        return { serverOffset: startOffset, webOffset: startOffset };
-      }
-
-      const webOffset = yield* findFirstAvailableOffset({
-        startOffset,
-        requireServerPort: false,
-        requireWebPort: true,
-        checkPortAvailability: checkPort,
-      });
-      return { serverOffset: startOffset, webOffset };
-    }
-
-    if (mode === "dev:server") {
-      if (hasExplicitServerPort) {
-        return { serverOffset: startOffset, webOffset: startOffset };
-      }
-
-      const serverOffset = yield* findFirstAvailableOffset({
-        startOffset,
-        requireServerPort: true,
-        requireWebPort: false,
-        checkPortAvailability: checkPort,
-      });
-      return { serverOffset, webOffset: serverOffset };
-    }
-
-    const sharedOffset = yield* findFirstAvailableOffset({
-      startOffset,
-      requireServerPort: !hasExplicitServerPort,
-      requireWebPort: !hasExplicitDevUrl,
-      checkPortAvailability: checkPort,
-    });
-
-    return { serverOffset: sharedOffset, webOffset: sharedOffset };
-  });
-}
-
-interface DevRunnerCliInput {
-  readonly mode: DevMode;
+function runDevRunnerWithInput(input: {
+  readonly mode: keyof typeof MODE_ARGS;
   readonly glassHome: string | undefined;
-  readonly authToken: string | undefined;
-  readonly noBrowser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
-  readonly logWebSocketEvents: boolean | undefined;
-  readonly host: string | undefined;
   readonly port: number | undefined;
   readonly devUrl: URL | undefined;
   readonly dryRun: boolean;
-  readonly turboArgs: ReadonlyArray<string>;
-}
-
-const readOptionalBooleanEnv = (name: string): boolean | undefined => {
-  const value = process.env[name];
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value === "1" || value.toLowerCase() === "true") {
-    return true;
-  }
-  if (value === "0" || value.toLowerCase() === "false") {
-    return false;
-  }
-  return undefined;
-};
-
-const resolveOptionalBooleanOverride = (
-  explicitValue: boolean | undefined,
-  envValue: boolean | undefined,
-): boolean | undefined => {
-  if (explicitValue === true) {
-    return true;
-  }
-
-  if (explicitValue === false) {
-    return envValue;
-  }
-
-  return envValue;
-};
-
-export function runDevRunnerWithInput(input: DevRunnerCliInput) {
+  readonly turboArgs: readonly string[];
+}) {
   return Effect.gen(function* () {
-    const { portOffset, devInstance } = yield* OffsetConfig.asEffect().pipe(
+    const cfg = yield* OffsetConfig.asEffect().pipe(
       Effect.mapError(
         (cause) =>
           new DevRunnerError({
-            message: "Failed to read GLASS_PORT_OFFSET/GLASS_DEV_INSTANCE configuration.",
+            message: "Failed to read GLASS_PORT_OFFSET/GLASS_DEV_INSTANCE.",
             cause,
           }),
       ),
     );
 
-    const { offset, source } = yield* Effect.try({
-      try: () => resolveOffset({ portOffset, devInstance }),
+    const base = yield* Effect.try({
+      try: () => resolveOffset(cfg),
       catch: (cause) =>
         new DevRunnerError({
           message: cause instanceof Error ? cause.message : String(cause),
@@ -411,52 +162,25 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
         }),
     });
 
-    const envOverrides = {
-      noBrowser: readOptionalBooleanEnv("GLASS_NO_BROWSER"),
-      autoBootstrapProjectFromCwd: readOptionalBooleanEnv("GLASS_AUTO_BOOTSTRAP_PROJECT_FROM_CWD"),
-      logWebSocketEvents: readOptionalBooleanEnv("GLASS_LOG_WS_EVENTS"),
-    };
-
-    const { serverOffset, webOffset } = yield* resolveModePortOffsets({
-      mode: input.mode,
-      startOffset: offset,
-      hasExplicitServerPort: input.port !== undefined,
-      hasExplicitDevUrl: input.devUrl !== undefined,
+    const webOffset = yield* findOffset({
+      start: base.offset,
+      explicit: input.port !== undefined || input.devUrl !== undefined,
     });
 
-    const env = yield* createDevRunnerEnv({
-      mode: input.mode,
+    const env = yield* createEnv({
       baseEnv: process.env,
-      serverOffset,
-      webOffset,
       glassHome: input.glassHome,
-      authToken: input.authToken,
-      noBrowser: resolveOptionalBooleanOverride(input.noBrowser, envOverrides.noBrowser),
-      autoBootstrapProjectFromCwd: resolveOptionalBooleanOverride(
-        input.autoBootstrapProjectFromCwd,
-        envOverrides.autoBootstrapProjectFromCwd,
-      ),
-      logWebSocketEvents: resolveOptionalBooleanOverride(
-        input.logWebSocketEvents,
-        envOverrides.logWebSocketEvents,
-      ),
-      host: input.host,
       port: input.port,
       devUrl: input.devUrl,
+      webOffset,
     });
 
-    const selectionSuffix =
-      serverOffset !== offset || webOffset !== offset
-        ? ` selectedOffset(server=${serverOffset},web=${webOffset})`
-        : "";
-
+    const picked = webOffset !== base.offset ? ` selectedOffset=${webOffset}` : "";
     yield* Effect.logInfo(
-      `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} serverPort=${String(env.GLASS_PORT)} webPort=${String(env.PORT)} baseDir=${String(env.GLASS_HOME)}`,
+      `[dev-runner] mode=${input.mode} source=${base.source}${picked} webPort=${String(env.PORT)} baseDir=${String(env.GLASS_HOME)}`,
     );
 
-    if (input.dryRun) {
-      return;
-    }
+    if (input.dryRun) return;
 
     const child = yield* ChildProcess.make(
       "turbo",
@@ -467,21 +191,15 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
         stderr: "inherit",
         env,
         extendEnv: false,
-        // Windows needs shell mode to resolve .cmd shims (e.g. bun.cmd).
         shell: process.platform === "win32",
-        // Keep turbo in the same process group so terminal signals (Ctrl+C)
-        // reach it directly. Effect defaults to detached: true on non-Windows,
-        // which would put turbo in a new group and require manual forwarding.
         detached: false,
         forceKillAfter: "1500 millis",
       },
     );
 
-    const exitCode = yield* child.exitCode;
-    if (exitCode !== 0) {
-      return yield* new DevRunnerError({
-        message: `turbo exited with code ${exitCode}`,
-      });
+    const code = yield* child.exitCode;
+    if (code !== 0) {
+      return yield* new DevRunnerError({ message: `turbo exited with code ${code}` });
     }
   }).pipe(
     Effect.mapError((cause) =>
@@ -495,50 +213,24 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
   );
 }
 
-const devRunnerCli = Command.make("dev-runner", {
-  mode: Argument.choice("mode", DEV_RUNNER_MODES).pipe(
-    Argument.withDescription("Development mode to run."),
-  ),
+const cli = Command.make("dev-runner", {
+  mode: Argument.choice("mode", MODES).pipe(Argument.withDescription("Development mode to run.")),
   glassHome: Flag.string("home-dir").pipe(
-    Flag.withDescription("Base directory for all Glass data (equivalent to GLASS_HOME)."),
-    Flag.withFallbackConfig(optionalStringConfig("GLASS_HOME")),
-  ),
-  authToken: Flag.string("auth-token").pipe(
-    Flag.withDescription("Auth token (forwards to GLASS_AUTH_TOKEN)."),
-    Flag.withAlias("token"),
-    Flag.withFallbackConfig(optionalStringConfig("GLASS_AUTH_TOKEN")),
-  ),
-  noBrowser: Flag.boolean("no-browser").pipe(
-    Flag.withDescription("Browser auto-open toggle (equivalent to GLASS_NO_BROWSER)."),
-    Flag.withFallbackConfig(optionalBooleanConfig("GLASS_NO_BROWSER")),
-  ),
-  autoBootstrapProjectFromCwd: Flag.boolean("auto-bootstrap-project-from-cwd").pipe(
-    Flag.withDescription(
-      "Auto-bootstrap toggle (equivalent to GLASS_AUTO_BOOTSTRAP_PROJECT_FROM_CWD).",
-    ),
-    Flag.withFallbackConfig(optionalBooleanConfig("GLASS_AUTO_BOOTSTRAP_PROJECT_FROM_CWD")),
-  ),
-  logWebSocketEvents: Flag.boolean("log-websocket-events").pipe(
-    Flag.withDescription("WebSocket event logging toggle (equivalent to GLASS_LOG_WS_EVENTS)."),
-    Flag.withAlias("log-ws-events"),
-    Flag.withFallbackConfig(optionalBooleanConfig("GLASS_LOG_WS_EVENTS")),
-  ),
-  host: Flag.string("host").pipe(
-    Flag.withDescription("Server host/interface override (forwards to GLASS_HOST)."),
-    Flag.withFallbackConfig(optionalStringConfig("GLASS_HOST")),
+    Flag.withDescription("Base directory for Glass desktop logs and state."),
+    Flag.withFallbackConfig(optionalString("GLASS_HOME")),
   ),
   port: Flag.integer("port").pipe(
     Flag.withSchema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
-    Flag.withDescription("Server port override (forwards to GLASS_PORT)."),
-    Flag.withFallbackConfig(optionalPortConfig("GLASS_PORT")),
+    Flag.withDescription("Web dev server port override."),
+    Flag.withFallbackConfig(optionalPort("PORT")),
   ),
   devUrl: Flag.string("dev-url").pipe(
     Flag.withSchema(Schema.URLFromString),
-    Flag.withDescription("Web dev URL override (forwards to VITE_DEV_SERVER_URL)."),
-    Flag.withFallbackConfig(optionalUrlConfig("VITE_DEV_SERVER_URL")),
+    Flag.withDescription("Explicit renderer dev URL override."),
+    Flag.withFallbackConfig(optionalUrl("VITE_DEV_SERVER_URL")),
   ),
   dryRun: Flag.boolean("dry-run").pipe(
-    Flag.withDescription("Resolve mode/ports/env and print, but do not spawn turbo."),
+    Flag.withDescription("Resolve mode/env and print without spawning turbo."),
     Flag.withDefault(false),
   ),
   turboArgs: Argument.string("turbo-arg").pipe(
@@ -546,21 +238,17 @@ const devRunnerCli = Command.make("dev-runner", {
     Argument.variadic(),
   ),
 }).pipe(
-  Command.withDescription("Run monorepo development modes with deterministic port/env wiring."),
+  Command.withDescription("Run desktop/web development modes with minimal Pi-host env wiring."),
   Command.withHandler((input) => runDevRunnerWithInput(input)),
 );
 
-const cliRuntimeLayer = Layer.mergeAll(
+const layer = Layer.mergeAll(
   Logger.layer([Logger.consolePretty()]),
   NodeServices.layer,
   NetService.layer,
 );
-
-const runtimeProgram = Command.run(devRunnerCli, { version: "0.0.0" }).pipe(
-  Effect.scoped,
-  Effect.provide(cliRuntimeLayer),
-);
+const program = Command.run(cli, { version: "0.0.0" }).pipe(Effect.scoped, Effect.provide(layer));
 
 if (import.meta.main) {
-  NodeRuntime.runMain(runtimeProgram);
+  NodeRuntime.runMain(program);
 }

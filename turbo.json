@@ -1,18 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": [
-    "PORT",
-    "VITE_WS_URL",
-    "VITE_DEV_SERVER_URL",
-    "ELECTRON_RENDERER_PORT",
-    "GLASS_LOG_WS_EVENTS",
-    "GLASS_MODE",
-    "GLASS_PORT",
-    "GLASS_NO_BROWSER",
-    "GLASS_HOME",
-    "GLASS_AUTH_TOKEN",
-    "GLASS_DESKTOP_WS_URL"
-  ],
+  "globalEnv": ["PORT", "VITE_DEV_SERVER_URL", "ELECTRON_RENDERER_PORT", "GLASS_HOME"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -22,6 +10,10 @@
       "dependsOn": ["@glass/contracts#build"],
       "cache": false,
       "persistent": true
+    },
+    "release-mock": {
+      "cache": false,
+      "outputs": []
     },
     "typecheck": {
       "dependsOn": ["^typecheck"],
