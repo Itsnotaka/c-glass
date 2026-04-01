@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": [".pi/**", ".pi-mono-reference/**"],
+  "workspaces": {
+    "apps/web": {
+      "entry": ["src/main.tsx"],
+      "project": ["src/**/*.ts", "src/**/*.tsx"]
+    }
+  }
+}
