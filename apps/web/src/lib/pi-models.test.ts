@@ -26,11 +26,10 @@ describe("filterPiModels", () => {
     item("openai-codex", "gpt-5.2-codex"),
   ];
 
-  it("prefers tighter TUI-style fuzzy matches", () => {
+  it("matches the Pi TUI fuzzy filter semantics", () => {
     const out = filterPiModels(items, "opus 46");
 
-    expect(out[0]?.id).toBe("claude-opus-4-6");
-    expect(out[1]?.id).toBe("claude-opus-4-5");
+    expect(out.map((item) => item.id)).toEqual(["claude-opus-4-6"]);
   });
 
   it("matches across provider and model id tokens", () => {

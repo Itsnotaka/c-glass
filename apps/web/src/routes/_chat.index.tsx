@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { GlassHeroCanvas } from "../components/glass/glass-hero-canvas";
-import { GlassMarketplaceView } from "../components/glass/GlassMarketplaceView";
-import { GlassShell } from "../components/glass/GlassShell";
-import { useGlassShellView } from "../components/glass/GlassShellContext";
+import { GlassMarketplaceView } from "../components/glass/glass-marketplace-view";
+import { GlassShell } from "../components/glass/glass-shell";
+import { useGlassShellView } from "../components/glass/glass-shell-context";
 import { isElectron } from "../env";
 import { SidebarTrigger } from "../components/ui/sidebar";
-import { GlassWorkspacePicker } from "../components/glass/GlassWorkspacePicker";
+import { GlassWorkspacePicker } from "../components/glass/glass-workspace-picker";
 
 function ChatIndexRouteView() {
   const view = useGlassShellView();

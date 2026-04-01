@@ -37,6 +37,7 @@ import {
 import { KeybindingRule } from "./keybindings";
 import { ProjectSearchEntriesInput, ProjectWriteFileInput } from "./project";
 import { OpenInEditorInput } from "./editor";
+import { PiApiKeyInput, PiDefaultModelInput, PiProviderInput, PiThinkingLevelInput } from "./pi";
 import { ServerConfigUpdatedPayload, ServerProviderUpdatedPayload } from "./server";
 import { ServerSettingsPatch } from "./settings";
 
@@ -69,6 +70,12 @@ export const WS_METHODS = {
   serverUpsertKeybinding: "server.upsertKeybinding",
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
+  serverGetPiConfig: "server.getPiConfig",
+  serverSetPiDefaultModel: "server.setPiDefaultModel",
+  serverClearPiDefaultModel: "server.clearPiDefaultModel",
+  serverSetPiDefaultThinkingLevel: "server.setPiDefaultThinkingLevel",
+  serverGetPiApiKey: "server.getPiApiKey",
+  serverSetPiApiKey: "server.setPiApiKey",
 } as const;
 
 export const WS_CHANNELS = {
@@ -118,6 +125,12 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.serverUpsertKeybinding, KeybindingRule),
   tagRequestBody(WS_METHODS.serverGetSettings, Schema.Struct({})),
   tagRequestBody(WS_METHODS.serverUpdateSettings, Schema.Struct({ patch: ServerSettingsPatch })),
+  tagRequestBody(WS_METHODS.serverGetPiConfig, Schema.Struct({})),
+  tagRequestBody(WS_METHODS.serverSetPiDefaultModel, PiDefaultModelInput),
+  tagRequestBody(WS_METHODS.serverClearPiDefaultModel, Schema.Struct({})),
+  tagRequestBody(WS_METHODS.serverSetPiDefaultThinkingLevel, PiThinkingLevelInput),
+  tagRequestBody(WS_METHODS.serverGetPiApiKey, PiProviderInput),
+  tagRequestBody(WS_METHODS.serverSetPiApiKey, PiApiKeyInput),
 ]);
 
 export const WebSocketRequest = Schema.Struct({

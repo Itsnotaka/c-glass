@@ -2,7 +2,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { useState } from "react";
 
 import type { GlassSidebarSection } from "../../lib/glassViewModel";
-import { GlassAgentRow } from "./GlassAgentRow";
+import { GlassAgentRow } from "./glass-agent-row";
 
 function Section(props: { section: GlassSidebarSection; onSelectAgent: (id: string) => void }) {
   const [open, setOpen] = useState(true);

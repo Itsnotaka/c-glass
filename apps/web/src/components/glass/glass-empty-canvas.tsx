@@ -1,8 +1,8 @@
 import { isElectron } from "../../env";
 import { GlassChatSession } from "./glass-chat-session";
-import { GlassWorkspacePicker } from "./GlassWorkspacePicker";
+import { GlassWorkspacePicker } from "./glass-workspace-picker";
 
-export function GlassEmptyCanvas({ sessionId }: { sessionId: string }) {
+export function GlassEmptyCanvas(props: { sessionId: string }) {
   return (
     <div className="glass-pi-shell flex min-h-0 min-w-0 flex-1 flex-col bg-glass-canvas">
       {isElectron ? (
@@ -12,7 +12,7 @@ export function GlassEmptyCanvas({ sessionId }: { sessionId: string }) {
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <GlassChatSession sessionId={sessionId} />
+        <GlassChatSession sessionId={props.sessionId} />
       </div>
     </div>
   );

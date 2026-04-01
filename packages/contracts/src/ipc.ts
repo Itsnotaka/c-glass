@@ -51,6 +51,7 @@ import type {
   OrchestrationReadModel,
 } from "./orchestration";
 import { EditorId } from "./editor";
+import { PiConfig, type PiThinkingLevel } from "./pi";
 import { ServerSettings, ServerSettingsPatch } from "./settings";
 
 export interface ContextMenuItem<T extends string = string> {
@@ -176,6 +177,12 @@ export interface NativeApi {
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
+    getPiConfig: () => Promise<PiConfig>;
+    setPiDefaultModel: (provider: string, model: string) => Promise<void>;
+    clearPiDefaultModel: () => Promise<void>;
+    setPiDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) => Promise<void>;
+    getPiApiKey: (provider: string) => Promise<string | null>;
+    setPiApiKey: (provider: string, key: string) => Promise<void>;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;

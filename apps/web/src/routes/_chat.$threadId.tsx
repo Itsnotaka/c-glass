@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GlassEmptyCanvas } from "../components/glass/GlassEmptyCanvas";
-import { GlassShell } from "../components/glass/GlassShell";
+import { GlassEmptyCanvas } from "../components/glass/glass-empty-canvas";
+import { GlassShell } from "../components/glass/glass-shell";
 import { isElectron } from "../env";
 import { SidebarTrigger } from "../components/ui/sidebar";
 

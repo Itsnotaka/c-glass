@@ -4,8 +4,8 @@ import { useHandleNewThread } from "../../hooks/useHandleNewThread";
 import { useProjectById } from "../../storeSelectors";
 
 export function GlassWorkspacePicker() {
-  const { defaultProjectId } = useHandleNewThread();
-  const project = useProjectById(defaultProjectId);
+  const thread = useHandleNewThread();
+  const project = useProjectById(thread.defaultProjectId);
 
   return (
     <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground/60">

@@ -81,6 +81,14 @@ import { ProjectFaviconResolver } from "./project/Services/ProjectFaviconResolve
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries.ts";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem.ts";
 import { WorkspacePaths } from "./workspace/Services/WorkspacePaths.ts";
+import {
+  clearPiModel,
+  getPiKey,
+  readPi,
+  setPiKey,
+  setPiModel,
+  setPiThinking,
+} from "./pi-connector";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -873,6 +881,44 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       case WS_METHODS.serverUpdateSettings: {
         const body = stripRequestTag(request.body);
         return yield* serverSettingsManager.updateSettings(body.patch);
+      }
+
+      case WS_METHODS.serverGetPiConfig: {
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        return yield* Effect.sync(() => readPi(cwd, home));
+      }
+
+      case WS_METHODS.serverSetPiDefaultModel: {
+        const body = stripRequestTag(request.body);
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        yield* Effect.sync(() => setPiModel(cwd, home, body.provider, body.model));
+        return undefined;
+      }
+
+      case WS_METHODS.serverClearPiDefaultModel: {
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        yield* Effect.sync(() => clearPiModel(cwd, home));
+        return undefined;
+      }
+
+      case WS_METHODS.serverSetPiDefaultThinkingLevel: {
+        const body = stripRequestTag(request.body);
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        yield* Effect.sync(() => setPiThinking(cwd, home, body.thinkingLevel));
+        return undefined;
+      }
+
+      case WS_METHODS.serverGetPiApiKey: {
+        const body = stripRequestTag(request.body);
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        return yield* Effect.promise(() => getPiKey(cwd, home, body.provider));
+      }
+
+      case WS_METHODS.serverSetPiApiKey: {
+        const body = stripRequestTag(request.body);
+        const home = (yield* serverSettingsManager.getSettings).providers.pi.homePath;
+        yield* Effect.sync(() => setPiKey(cwd, home, body.provider, body.key));
+        return undefined;
       }
 
       default: {

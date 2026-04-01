@@ -1,12 +1,8 @@
+import type { PiConfig } from "@glass/contracts";
 import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
-import { getModels, getProviders, modelsAreEqual, type Model } from "@mariozechner/pi-ai";
-import type { AppStorage } from "@mariozechner/pi-web-ui";
-import { ensurePiGlassStorage } from "./pi-glass-storage";
+import { modelsAreEqual, type Api, type Model } from "@mariozechner/pi-ai";
+import { ensureNativeApi } from "../nativeApi";
 import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "./pi-glass-constants";
-
-const DEFAULT_PROVIDER_KEY = "defaultProvider";
-const DEFAULT_MODEL_KEY = "defaultModel";
-const DEFAULT_THINKING_LEVEL_KEY = "defaultThinkingLevel";
 
 const PREFERRED: ReadonlyArray<readonly [string, string]> = [
   ["amazon-bedrock", "us.anthropic.claude-opus-4-6-v1"],
@@ -34,12 +30,14 @@ const PREFERRED: ReadonlyArray<readonly [string, string]> = [
   ["kimi-coding", "kimi-k2-thinking"],
 ];
 
+type PiModel = PiConfig["models"][number];
+
 export type PiModelItem = {
   key: string;
   provider: string;
   id: string;
   name: string;
-  model: Model<any>;
+  model: Model<Api>;
 };
 
 export type PiDefaults = {
@@ -48,33 +46,25 @@ export type PiDefaults = {
   thinkingLevel: ThinkingLevel | null;
 };
 
-function trim(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const s = v.trim();
-  return s || null;
-}
-
-function isThinkingLevel(v: unknown): v is ThinkingLevel {
-  return (
-    v === "off" || v === "minimal" || v === "low" || v === "medium" || v === "high" || v === "xhigh"
-  );
-}
-
 function key(provider: string, id: string): string {
   return `${provider}/${id}`;
 }
 
-function item(model: Model<any>): PiModelItem {
+function toModel(model: PiModel): Model<Api> {
+  return model as unknown as Model<Api>;
+}
+
+function item(model: PiModel): PiModelItem {
   return {
     key: key(model.provider, model.id),
     provider: model.provider,
     id: model.id,
-    name: model.name ?? model.id,
-    model,
+    name: model.name || model.id,
+    model: toModel(model),
   };
 }
 
-function sort(items: ReadonlyArray<PiModelItem>, cur?: Model<any> | null): PiModelItem[] {
+function sort(items: ReadonlyArray<PiModelItem>, cur?: Model<Api> | null): PiModelItem[] {
   const out = [...items];
   out.sort((a, b) => {
     const aCur = modelsAreEqual(cur, a.model);
@@ -89,32 +79,25 @@ function sort(items: ReadonlyArray<PiModelItem>, cur?: Model<any> | null): PiMod
   return out;
 }
 
-function push(map: Map<string, PiModelItem>, model: Model<any>) {
-  const it = item(model);
+function push(map: Map<string, PiModelItem>, model: PiModel | Model<Api>) {
+  const it = {
+    key: key(model.provider, model.id),
+    provider: model.provider,
+    id: model.id,
+    name: model.name ?? model.id,
+    model: model as Model<Api>,
+  } satisfies PiModelItem;
   if (map.has(it.key)) return;
   map.set(it.key, it);
 }
 
-async function all(storage: AppStorage, cur?: Model<any> | null): Promise<PiModelItem[]> {
-  const map = new Map<string, PiModelItem>();
+function emit() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
+}
 
-  for (const provider of getProviders()) {
-    for (const model of getModels(provider)) {
-      push(map, model);
-    }
-  }
-
-  for (const provider of await storage.customProviders.getAll()) {
-    for (const model of provider.models ?? []) {
-      push(map, { ...model, provider: provider.name });
-    }
-  }
-
-  if (cur) {
-    push(map, cur);
-  }
-
-  return [...map.values()];
+async function cfg() {
+  return ensureNativeApi().server.getPiConfig();
 }
 
 function fuzzyMatch(query: string, text: string): { matches: boolean; score: number } {
@@ -217,57 +200,60 @@ export function filterPiModels(items: ReadonlyArray<PiModelItem>, query: string)
   return out.map((item) => item.item);
 }
 
-export async function readPiDefaults(storage?: AppStorage): Promise<PiDefaults> {
-  const app = storage ?? (await ensurePiGlassStorage());
-  const provider = trim(await app.settings.get(DEFAULT_PROVIDER_KEY));
-  const model = trim(await app.settings.get(DEFAULT_MODEL_KEY));
-  const raw = await app.settings.get(DEFAULT_THINKING_LEVEL_KEY);
-  const thinkingLevel = isThinkingLevel(raw) ? raw : null;
-
+export async function readPiDefaults(): Promise<PiDefaults> {
+  const data = await cfg();
   return {
-    provider,
-    model,
-    thinkingLevel,
+    provider: data.defaults.provider,
+    model: data.defaults.model,
+    thinkingLevel: data.defaults.thinkingLevel,
   };
 }
 
-export async function listPiModels(cur?: Model<any> | null): Promise<PiModelItem[]> {
-  const storage = await ensurePiGlassStorage();
-  const keys = new Set(await storage.providerKeys.list());
-  const base = await all(storage, cur);
+export async function listPiModels(cur?: Model<Api> | null): Promise<PiModelItem[]> {
+  const data = await cfg();
+  const map = new Map<string, PiModelItem>();
 
-  if (keys.size === 0) {
-    return sort(base, cur);
+  for (const model of data.models) {
+    push(map, model);
   }
 
-  const next = base.filter((item) => keys.has(item.provider) || modelsAreEqual(cur, item.model));
-  if (next.length === 0) {
-    return sort(base, cur);
+  if (cur) {
+    push(map, cur);
   }
 
-  return sort(next, cur);
+  const all = [...map.values()];
+  const available = new Set(data.available);
+  const next = all.filter(
+    (item) => available.has(item.key) || item.key === key(cur?.provider ?? "", cur?.id ?? ""),
+  );
+
+  if (next.length > 0) {
+    return sort(next, cur);
+  }
+
+  return sort(all, cur);
 }
 
-export async function resolvePiDefaultModel(cur?: Model<any> | null): Promise<Model<any> | null> {
-  const storage = await ensurePiGlassStorage();
-  const defs = await readPiDefaults(storage);
-  const items = await all(storage, cur);
+export async function resolvePiDefaultModel(cur?: Model<Api> | null): Promise<Model<Api> | null> {
+  const data = await cfg();
+  const items = data.models.map(item);
+  const available = new Set(data.available);
 
-  if (defs.provider && defs.model) {
-    const found = items.find((item) => item.provider === defs.provider && item.id === defs.model);
-    if (found) {
-      return found.model;
+  if (data.defaults.provider && data.defaults.model) {
+    const hit = items.find(
+      (item) => item.provider === data.defaults.provider && item.id === data.defaults.model,
+    );
+    if (hit) {
+      return hit.model;
     }
   }
 
   const pref = sort(
     items.filter((item) => {
-      for (const pair of PREFERRED) {
-        if (item.provider === pair[0] && item.id === pair[1]) {
-          return true;
-        }
+      if (!available.has(item.key)) {
+        return false;
       }
-      return false;
+      return PREFERRED.some((pair) => item.provider === pair[0] && item.id === pair[1]);
     }),
     cur,
   );
@@ -280,7 +266,7 @@ export async function resolvePiDefaultModel(cur?: Model<any> | null): Promise<Mo
     return vis[0].model;
   }
 
-  return cur ?? items[0]?.model ?? null;
+  return cur ? (cur as Model<Api>) : (items[0]?.model ?? null);
 }
 
 export async function resolvePiDefaultThinkingLevel(): Promise<ThinkingLevel> {
@@ -288,28 +274,27 @@ export async function resolvePiDefaultThinkingLevel(): Promise<ThinkingLevel> {
   return defs.thinkingLevel ?? "off";
 }
 
-function emit() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
-}
-
-export async function writePiDefaultModel(model: Model<any>): Promise<void> {
-  const storage = await ensurePiGlassStorage();
-  await storage.settings.set(DEFAULT_PROVIDER_KEY, model.provider);
-  await storage.settings.set(DEFAULT_MODEL_KEY, model.id);
+export async function writePiDefaultModel(model: Model<Api>): Promise<void> {
+  await ensureNativeApi().server.setPiDefaultModel(model.provider, model.id);
   emit();
 }
 
 export async function clearPiDefaultModel(): Promise<void> {
-  const storage = await ensurePiGlassStorage();
-  await storage.settings.delete(DEFAULT_PROVIDER_KEY);
-  await storage.settings.delete(DEFAULT_MODEL_KEY);
+  await ensureNativeApi().server.clearPiDefaultModel();
   emit();
 }
 
 export async function writePiDefaultThinkingLevel(level: ThinkingLevel): Promise<void> {
-  const storage = await ensurePiGlassStorage();
-  await storage.settings.set(DEFAULT_THINKING_LEVEL_KEY, level);
+  await ensureNativeApi().server.setPiDefaultThinkingLevel(level);
+  emit();
+}
+
+export async function readPiApiKey(provider: string): Promise<string | null> {
+  return ensureNativeApi().server.getPiApiKey(provider);
+}
+
+export async function writePiApiKey(provider: string, key: string): Promise<void> {
+  await ensureNativeApi().server.setPiApiKey(provider, key);
   emit();
 }
 

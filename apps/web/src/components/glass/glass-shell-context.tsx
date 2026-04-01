@@ -7,10 +7,10 @@ const GlassShellContext = createContext<{
   setCenterMode: (mode: GlassCenterMode) => void;
 } | null>(null);
 
-export function GlassShellProvider({ children }: { children: ReactNode }) {
+export function GlassShellProvider(props: { children: ReactNode }) {
   const [centerMode, setCenterMode] = useState<GlassCenterMode>("main");
   const value = useMemo(() => ({ centerMode, setCenterMode }), [centerMode]);
-  return <GlassShellContext.Provider value={value}>{children}</GlassShellContext.Provider>;
+  return <GlassShellContext.Provider value={value}>{props.children}</GlassShellContext.Provider>;
 }
 
 export function useGlassShellView() {

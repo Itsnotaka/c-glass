@@ -17,15 +17,12 @@ import {
 import { toastManager } from "../ui/toast";
 
 export function GlassUpdatePill() {
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
   const state = useDesktopUpdateState().data ?? null;
   const [dismissed, setDismissed] = useState(false);
 
-  const visible = isElectron && shouldShowDesktopUpdateButton(state) && !dismissed;
   const disabled = isDesktopUpdateButtonDisabled(state);
   const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
-  const tooltip = state ? getDesktopUpdateButtonTooltip(state) : "";
-  const retry = state?.errorContext === "install" && typeof state.message === "string";
 
   const handle = useCallback(() => {
     const bridge = window.desktopBridge;
@@ -33,7 +30,7 @@ export function GlassUpdatePill() {
 
     if (action === "download") {
       void bridge.downloadUpdate().then((result) => {
-        setDesktopUpdateStateQueryData(queryClient, result.state);
+        setDesktopUpdateStateQueryData(qc, result.state);
         if (result.completed) {
           toastManager.add({
             type: "success",
@@ -46,20 +43,19 @@ export function GlassUpdatePill() {
     }
 
     if (action === "install") {
-      const ok = window.confirm(getDesktopUpdateInstallConfirmationMessage(state));
-      if (!ok) return;
+      if (!window.confirm(getDesktopUpdateInstallConfirmationMessage(state))) return;
       void bridge.installUpdate().then((result) => {
-        setDesktopUpdateStateQueryData(queryClient, result.state);
+        setDesktopUpdateStateQueryData(qc, result.state);
       });
     }
-  }, [action, disabled, queryClient, state]);
+  }, [action, disabled, qc, state]);
 
-  if (!visible) return null;
+  if (!isElectron || !shouldShowDesktopUpdateButton(state) || dismissed) return null;
 
   return (
     <button
       type="button"
-      title={tooltip}
+      title={state ? getDesktopUpdateButtonTooltip(state) : ""}
       disabled={disabled}
       onClick={handle}
       onDoubleClick={() => setDismissed(true)}
@@ -68,7 +64,11 @@ export function GlassUpdatePill() {
       {action === "install" ? (
         <>
           <RefreshCwIcon className="size-3.5 shrink-0" />
-          <span className="truncate">{retry ? "Retry update" : "Restart to update"}</span>
+          <span className="truncate">
+            {state?.errorContext === "install" && typeof state.message === "string"
+              ? "Retry update"
+              : "Restart to update"}
+          </span>
         </>
       ) : state?.status === "downloading" ? (
         <>

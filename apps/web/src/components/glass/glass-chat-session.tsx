@@ -5,9 +5,9 @@ import { GlassPiMessages } from "./glass-pi-messages";
 import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
 import { usePiSession } from "./use-pi-session";
 
-export function GlassChatSession({ sessionId }: { sessionId: string }) {
+export function GlassChatSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
-  const session = usePiSession(sessionId);
+  const session = usePiSession(props.sessionId);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-canvas">

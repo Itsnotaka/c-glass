@@ -214,6 +214,15 @@ export function createWsNativeApi(): NativeApi {
       upsertKeybinding: (input) => transport.request(WS_METHODS.serverUpsertKeybinding, input),
       getSettings: () => transport.request(WS_METHODS.serverGetSettings),
       updateSettings: (patch) => transport.request(WS_METHODS.serverUpdateSettings, { patch }),
+      getPiConfig: () => transport.request(WS_METHODS.serverGetPiConfig),
+      setPiDefaultModel: (provider, model) =>
+        transport.request(WS_METHODS.serverSetPiDefaultModel, { provider, model }),
+      clearPiDefaultModel: () => transport.request(WS_METHODS.serverClearPiDefaultModel),
+      setPiDefaultThinkingLevel: (thinkingLevel) =>
+        transport.request(WS_METHODS.serverSetPiDefaultThinkingLevel, { thinkingLevel }),
+      getPiApiKey: (provider) => transport.request(WS_METHODS.serverGetPiApiKey, { provider }),
+      setPiApiKey: (provider, key) =>
+        transport.request(WS_METHODS.serverSetPiApiKey, { provider, key }),
     },
     orchestration: {
       getSnapshot: () => transport.request(ORCHESTRATION_WS_METHODS.getSnapshot),

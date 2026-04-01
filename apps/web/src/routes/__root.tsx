@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { QueryClient } from "@tanstack/react-query";
 
 import { APP_DISPLAY_NAME } from "../branding";
-import { AppSidebarLayout } from "../components/AppSidebarLayout";
+import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider } from "../components/ui/toast";
 import { EMPTY_ORCHESTRATION_READ_MODEL } from "../lib/pi-glass-constants";

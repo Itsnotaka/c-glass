@@ -227,12 +227,6 @@ body {
   line-height: 140%;
 }
 
-.glass-quick-action-shortcut {
-  font-size: 11px;
-  margin-left: 2px;
-  opacity: 0.5;
-}
-
 /* ── Conversation-mode docked composer (Cursor: agent-panel-followup-input--conversation-overlay) ── */
 
 .glass-dock-composer {
@@ -267,4 +261,23 @@ body {
     rgba(0, 0, 0, 0.22) 84%,
     transparent
   );
+}
+
+/* Model picker dropdown — align with Cursor-style dark glass (composer model menu).
+   !important beats Tailwind `bg-popover` merged on ComboboxPopup. */
+.glass-model-picker-popup {
+  border-color: var(--glass-stroke-tertiary) !important;
+  background: color-mix(in srgb, var(--background) 78%, var(--foreground) 6%) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent),
+    0 16px 48px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.dark .glass-model-picker-popup {
+  background: color-mix(in srgb, var(--background) 82%, var(--color-white, #fff) 4%) !important;
+  box-shadow:
+    0 0 0 1px var(--glass-stroke-tertiary),
+    0 16px 48px rgba(0, 0, 0, 0.55) !important;
 }

@@ -1,5 +1,4 @@
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -10,11 +9,12 @@ import {
 } from "../../lib/desktopUpdateReactQuery";
 import { canCheckForUpdate } from "../desktopUpdate.logic";
 import { toastManager } from "../ui/toast";
-import { GlassUpdatePill } from "./GlassUpdatePill";
+import { useGlassSettings } from "./glass-settings-context";
+import { GlassUpdatePill } from "./glass-update-pill";
 
 export function GlassSidebarFooter() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const settings = useGlassSettings();
+  const qc = useQueryClient();
   const state = useDesktopUpdateState().data ?? null;
   const [checking, setChecking] = useState(false);
 
@@ -25,16 +25,14 @@ export function GlassSidebarFooter() {
     void bridge
       .checkForUpdate()
       .then((result) => {
-        setDesktopUpdateStateQueryData(queryClient, result.state);
+        setDesktopUpdateStateQueryData(qc, result.state);
         if (!result.checked) return;
         if (result.state.status === "up-to-date") {
           toastManager.add({ type: "success", title: "Already up to date" });
         }
       })
       .finally(() => setChecking(false));
-  }, [queryClient, state]);
-
-  const showCheck = isElectron && canCheckForUpdate(state);
+  }, [qc, state]);
 
   return (
     <div className="mt-auto flex shrink-0 flex-col border-t border-glass-panel-border px-1 py-1.5">
@@ -42,7 +40,7 @@ export function GlassSidebarFooter() {
       <div className="flex items-center justify-between px-2 py-1">
         <span className="text-[11px] text-muted-foreground/50">Glass</span>
         <div className="flex items-center gap-0.5">
-          {showCheck && (
+          {isElectron && canCheckForUpdate(state) && (
             <button
               type="button"
               onClick={check}
@@ -56,7 +54,7 @@ export function GlassSidebarFooter() {
           )}
           <button
             type="button"
-            onClick={() => void navigate({ to: "/settings" })}
+            onClick={settings.openSettings}
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-[var(--glass-sidebar-hover)] hover:text-foreground"
             aria-label="Settings"
           >

@@ -1,52 +1,60 @@
 import { useEffect, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
 
-import { GlassSidebar } from "./glass/GlassSidebar";
-import { GlassShellProvider } from "./glass/GlassShellContext";
-import { Sidebar, SidebarProvider, SidebarRail } from "./ui/sidebar";
+import { GlassSettingsProvider, useGlassSettings } from "./glass/glass-settings-context";
+import { GlassSettingsDialog } from "./glass/glass-settings-dialog";
+import { GlassShellProvider } from "./glass/glass-shell-context";
+import { Sidebar } from "./sidebar";
+import { Sidebar as SidebarFrame, SidebarProvider, SidebarRail } from "./ui/sidebar";
 
 const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
 const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;
 
-export function AppSidebarLayout({ children }: { children: ReactNode }) {
-  const navigate = useNavigate();
+function DesktopMenuBridge(props: { children: ReactNode }) {
+  const settings = useGlassSettings();
 
   useEffect(() => {
-    const onMenuAction = window.desktopBridge?.onMenuAction;
-    if (typeof onMenuAction !== "function") {
-      return;
-    }
+    const handler = window.desktopBridge?.onMenuAction;
+    if (typeof handler !== "function") return;
 
-    const unsubscribe = onMenuAction((action) => {
+    const unsub = handler((action) => {
       if (action !== "open-settings") return;
-      void navigate({ to: "/settings" });
+      settings.openSettings();
     });
 
     return () => {
-      unsubscribe?.();
+      unsub?.();
     };
-  }, [navigate]);
+  }, [settings.openSettings]);
 
+  return <>{props.children}</>;
+}
+
+export function AppSidebarLayout(props: { children: ReactNode }) {
   return (
     <GlassShellProvider>
-      <SidebarProvider defaultOpen className="glass-app min-h-0">
-        <Sidebar
-          side="left"
-          collapsible="offcanvas"
-          className="border-r border-glass-panel-border bg-glass-sidebar text-foreground"
-          resizable={{
-            minWidth: THREAD_SIDEBAR_MIN_WIDTH,
-            shouldAcceptWidth: ({ nextWidth, wrapper }) =>
-              wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-            storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-          }}
-        >
-          <GlassSidebar />
-          <SidebarRail />
-        </Sidebar>
-        {children}
-      </SidebarProvider>
+      <GlassSettingsProvider>
+        <DesktopMenuBridge>
+          <SidebarProvider defaultOpen className="glass-app min-h-0">
+            <SidebarFrame
+              side="left"
+              collapsible="offcanvas"
+              className="border-r border-glass-panel-border bg-glass-sidebar text-foreground"
+              resizable={{
+                minWidth: THREAD_SIDEBAR_MIN_WIDTH,
+                shouldAcceptWidth: (ctx) =>
+                  ctx.wrapper.clientWidth - ctx.nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
+                storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
+              }}
+            >
+              <Sidebar />
+              <SidebarRail />
+            </SidebarFrame>
+            {props.children}
+          </SidebarProvider>
+          <GlassSettingsDialog />
+        </DesktopMenuBridge>
+      </GlassSettingsProvider>
     </GlassShellProvider>
   );
 }

@@ -177,7 +177,18 @@ Use these as implementation references when designing protocol handling, UX flow
 - **Pi chat** uses `@mariozechner/pi-agent-core` (`Agent`, `AgentMessage`, `AgentEvent`) and `@mariozechner/pi-ai` (`getModel`) in the renderer. **IndexedDB session** and provider keys use the `@mariozechner/pi-web-ui` **storage** layer (`AppStorage`, `SessionsStore`, etc.) in `src/lib/pi-glass-storage.ts`; **do not** embed the Lit `ChatPanel` from pi-web-ui. Use [`badlogic/pi-mono`](https://github.com/badlogic/pi-mono) `packages/web-ui` as a **reference** for how to wire transport and persistence. Glass UI lives in `glass-chat-session.tsx`, `glass-pi-messages.tsx`, `glass-pi-composer.tsx`, `glass-provider-key-dialog.tsx` with helpers in `src/lib/pi-*.ts`.
 - Local doc mirror for pi-mono: clone to `.pi-mono-reference/` (gitignored) and read `README.md` at the repo root.
 - For **local / Pi-only** development without the Codex WebSocket server, **`apps/web/src/nativeApi.ts`** uses **`createLocalGlassNativeApi`** (`src/lib/local-native-api.ts`).
+- Settings live in a dialog, not a route: `glass-settings-context.tsx` + `glass-settings-dialog.tsx` in `components/glass/`. Footer and desktop menu open it via context — no `/settings` route navigation from Glass shell.
+- `glass-hero-canvas.tsx` renders the index route empty state (centered hero composer + quick actions). `use-pi-session.ts` is the shared Pi session initialization hook used by both hero and thread views; duplicate init logic between hero and thread belongs there.
+- Desktop build: `bun run dist:desktop:dmg:arm64` builds a macOS ARM64 DMG to `release/`. Auto-updates only activate in packaged builds (`app.isPackaged`). Mock update server: `bun run start:mock-update-server` serves `release-mock/`; `GLASS_DESKTOP_MOCK_UPDATES` env overrides the update feed URL to localhost.
+- Font aligned with Cursor: `system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` (DM Sans removed from `index.html`); `--radius: 0.5rem` (8px). Cursor radius px scale: `xs:2 sm:4 md:6 lg:8 xl:12 2xl:14 3xl:16`.
+- Tailwind v4 CSS variable arbitrary values: use `hover:bg-[var(--glass-sidebar-hover)]` (not custom CSS utility classes that define `.hover:bg-*` selectors — Tailwind v4 does not escape those correctly).
 
 ## Knip
 
 Root `knip.json` ignores `.pi/**`, `.pi-mono-reference/**`, and `**/dist/**` so `bunx knip` stays usable. Run from the repo root after `bun install`.
+
+## Learned User Preferences
+
+- Align UI with Cursor Glass source: inspect `/Applications/Cursor.app/Contents/Resources/app/` bundle CSS/JS directly for exact tokens, radius values, font stacks, and HTML structure rather than guessing or using t3-code defaults.
+- Use CVA for component variants; make `variant` required (not optional `?`) when all call sites always pass it.
+- Prefer Glass UI components over t3-code/shadcn defaults; avoid pulling in new shadcn defaults that conflict with Glass shell aesthetics. When a missing Glass-specific component is needed, ask the user before reaching for a generic shadcn widget.

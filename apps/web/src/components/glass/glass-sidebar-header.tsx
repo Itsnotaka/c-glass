@@ -1,10 +1,10 @@
 import { LayoutGridIcon, PlusIcon } from "lucide-react";
 
 import { isElectron } from "../../env";
-import { useGlassShellView } from "./GlassShellContext";
+import { useGlassShellView } from "./glass-shell-context";
 
 export function GlassSidebarHeader(props: { onNewAgent: () => void }) {
-  const { setCenterMode } = useGlassShellView();
+  const shell = useGlassShellView();
 
   return (
     <div className="flex shrink-0 flex-col">
@@ -20,7 +20,7 @@ export function GlassSidebarHeader(props: { onNewAgent: () => void }) {
         </button>
         <button
           type="button"
-          onClick={() => setCenterMode("marketplace")}
+          onClick={() => shell.setCenterMode("marketplace")}
           className="glass-agent-row font-normal"
         >
           <LayoutGridIcon className="size-4 shrink-0 opacity-60" />

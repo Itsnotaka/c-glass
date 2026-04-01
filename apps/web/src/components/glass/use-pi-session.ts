@@ -5,15 +5,14 @@ import type { AgentEvent, ThinkingLevel } from "@mariozechner/pi-agent-core";
 import { Agent, type AgentState } from "@mariozechner/pi-agent-core";
 import type { Model } from "@mariozechner/pi-ai";
 
-import {
-  PI_GLASS_SESSIONS_CHANGED_EVENT,
-  PI_GLASS_SETTINGS_CHANGED_EVENT,
-} from "../../lib/pi-glass-constants";
+import { PI_GLASS_SESSIONS_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import { convertToLlm } from "../../lib/pi-convert-to-llm";
 import { ensurePiGlassStorage } from "../../lib/pi-glass-storage";
 import {
+  readPiApiKey,
   resolvePiDefaultModel,
   resolvePiDefaultThinkingLevel,
+  writePiApiKey,
   writePiDefaultModel,
 } from "../../lib/pi-models";
 import { shouldPersistSession, titleFromMessages } from "../../lib/pi-session-title";
@@ -69,7 +68,7 @@ export function usePiSession(sessionId: string | null) {
         initialState: init,
         convertToLlm,
         getApiKey: async (provider) => {
-          const cur = await storage.providerKeys.get(provider);
+          const cur = await readPiApiKey(provider);
           if (cur) return cur;
           return new Promise<string | undefined>((resolve) => {
             resolverRef.current = resolve;
@@ -187,16 +186,14 @@ export function usePiSession(sessionId: string | null) {
   };
 
   const resolve = async (key: string | undefined) => {
-    const resolve = resolverRef.current;
+    const pending = resolverRef.current;
     resolverRef.current = null;
     const name = provider;
     setProvider(null);
     if (key && name) {
-      const storage = await ensurePiGlassStorage();
-      await storage.providerKeys.set(name, key);
-      window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
+      await writePiApiKey(name, key);
     }
-    resolve?.(key);
+    pending?.(key);
   };
 
   return {

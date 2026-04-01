@@ -26,7 +26,7 @@ function AssistantBlock(props: { text: string | null }) {
   }
   return (
     <li className="py-1">
-      <div className="chat-markdown text-[13px] leading-relaxed text-foreground">
+      <div className="chat-markdown text-[13px]/5 text-foreground">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{props.text}</ReactMarkdown>
       </div>
     </li>
