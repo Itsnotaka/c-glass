@@ -4,10 +4,10 @@ packages:
   - "scripts"
 
 catalog:
-  effect: 4.0.0-beta.43
-  "@effect/platform-node": 4.0.0-beta.43
-  "@effect/vitest": 4.0.0-beta.43
-  "@effect/language-service": 0.84.2
+  effect: ^4.0.0-beta.43
+  "@effect/platform-node": ^4.0.0-beta.43
+  "@effect/vitest": ^4.0.0-beta.43
+  "@effect/language-service": ^0.84.3
   "@types/node": ^25.5.0
   tsdown: ^0.21.7
   typescript: ^6.0.2

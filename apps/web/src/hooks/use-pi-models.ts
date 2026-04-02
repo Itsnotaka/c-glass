@@ -23,12 +23,15 @@ interface PiDefaultState extends PiModelState {
 
 export function usePiModels(cur?: PiModelRef | null) {
   const [state, setState] = useState<PiModelState>({ items: [], loading: true });
+  const provider = cur?.provider ?? "";
+  const id = cur?.id ?? "";
 
   useEffect(() => {
     let live = true;
+    const ref = provider && id ? { provider, id } : null;
 
     const load = () => {
-      void listPiModels(cur).then((items) => {
+      void listPiModels(ref).then((items) => {
         if (!live) return;
         setState({ items, loading: false });
       });
@@ -40,7 +43,7 @@ export function usePiModels(cur?: PiModelRef | null) {
       live = false;
       window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
     };
-  }, [cur]);
+  }, [id, provider]);
 
   return state;
 }

@@ -35,11 +35,11 @@ export function AppSidebarLayout(props: { children: ReactNode }) {
     <GlassShellProvider>
       <GlassSettingsProvider>
         <DesktopMenuBridge>
-          <SidebarProvider defaultOpen className="glass-app min-h-0">
+          <SidebarProvider defaultOpen className="min-h-dvh bg-glass-surface">
             <SidebarFrame
               side="left"
               collapsible="offcanvas"
-              className="border-r border-glass-panel-border bg-glass-sidebar text-foreground"
+              className="border-r border-glass-border/80 bg-glass-sidebar text-foreground backdrop-blur-xl"
               resizable={{
                 minWidth: THREAD_SIDEBAR_MIN_WIDTH,
                 shouldAcceptWidth: (ctx) =>

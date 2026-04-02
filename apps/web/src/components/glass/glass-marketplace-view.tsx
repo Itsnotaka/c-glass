@@ -12,7 +12,7 @@ export function GlassMarketplaceView() {
         type="button"
         variant="ghost"
         size="sm"
-        className="gap-2 rounded-lg text-muted-foreground hover:bg-[var(--glass-sidebar-hover)] hover:text-foreground"
+        className="gap-2 rounded-lg text-muted-foreground hover:bg-glass-hover hover:text-foreground"
         onClick={() => shell.setCenterMode("main")}
       >
         <ArrowLeftIcon className="size-4 opacity-80" />

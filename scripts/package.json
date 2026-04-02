@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.89",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.90",
     "@effect/platform-node": "catalog:",
     "@glass/contracts": "workspace:*",
     "@glass/shared": "workspace:*",
@@ -23,6 +23,6 @@
     "tsx": "^4.21.0",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "yaml": "^2.8.2"
+    "yaml": "^2.8.3"
   }
 }

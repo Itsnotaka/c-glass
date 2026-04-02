@@ -46,11 +46,10 @@ function readJson(path) {
   }
 }
 
-function wait(ms) {
-  return new Promise((resolve) => {
+const wait = (ms) =>
+  new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
 
 function alive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) {
@@ -82,9 +81,7 @@ async function waitForExit(pid, timeoutMs) {
   }
 }
 
-function escape(value) {
-  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
-}
+const escape = (value) => value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
 
 async function claim() {
   mkdirSync(runDir, { recursive: true });

@@ -11,7 +11,7 @@ function ChatThreadRouteView() {
   return (
     <GlassShell>
       {!isElectron && (
-        <header className="border-b border-glass-panel-border px-3 py-2 md:hidden">
+        <header className="border-b border-glass-border/80 bg-glass-menubar/80 px-3 py-2 backdrop-blur-xl md:hidden">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="size-7 shrink-0" />
             <span className="text-sm font-medium text-foreground">Agents</span>

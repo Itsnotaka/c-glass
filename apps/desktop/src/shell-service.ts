@@ -1,15 +1,19 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import * as OS from "node:os";
 import * as Path from "node:path";
 
 import { dialog, shell } from "electron";
 import * as Effect from "effect/Effect";
 import { EDITORS } from "@glass/contracts";
-
-function strip(value: string) {
-  return value.replace(/^"+|"+$/g, "");
-}
 
 function pathValue(env: NodeJS.ProcessEnv) {
   return env.PATH ?? env.Path ?? env.path ?? "";
@@ -69,7 +73,7 @@ function available(command: string, env: NodeJS.ProcessEnv = process.env) {
   if (!raw) return false;
   const dirs = raw
     .split(delimiter(platform))
-    .map((entry) => strip(entry.trim()))
+    .map((entry) => entry.trim().replace(/^"+|"+$/g, ""))
     .filter(Boolean);
   return dirs.some((dir) => list.some((item) => executable(Path.join(dir, item), platform, ext)));
 }
@@ -80,13 +84,9 @@ function fileManager() {
   return "xdg-open";
 }
 
-function supportsGoto(target: string) {
-  return /:\d+(?::\d+)?$/.test(target);
-}
-
 function resolveLaunch(path: string, editor: (typeof EDITORS)[number]) {
   if (editor.command) {
-    if (editor.supportsGoto && supportsGoto(path)) {
+    if (editor.supportsGoto && /:\d+(?::\d+)?$/.test(path)) {
       return { command: editor.command, args: ["--goto", path] };
     }
     return { command: editor.command, args: [path] };
@@ -135,13 +135,42 @@ function defaultCwd() {
   return OS.homedir();
 }
 
+function saved(path: string | null) {
+  if (!path || !existsSync(path)) return null;
+  return Effect.runSync(
+    Effect.match(
+      Effect.sync(() => {
+        const data = JSON.parse(readFileSync(path, "utf8")) as { cwd?: unknown };
+        if (typeof data.cwd !== "string" || !data.cwd.trim()) return null;
+        if (!statSync(data.cwd).isDirectory()) return null;
+        return data.cwd;
+      }),
+      {
+        onFailure: () => null,
+        onSuccess: (cwd) => cwd,
+      },
+    ),
+  );
+}
+
 export class ShellService {
-  cwd = defaultCwd();
+  cwd: string;
+  private path: string | null;
+
+  constructor(path?: string) {
+    this.path = path ?? null;
+    this.cwd = saved(this.path) ?? defaultCwd();
+  }
+
+  private save() {
+    if (!this.path) return;
+    mkdirSync(Path.dirname(this.path), { recursive: true });
+    writeFileSync(this.path, JSON.stringify({ cwd: this.cwd }), "utf8");
+  }
 
   availableEditors() {
-    return EDITORS.filter((item) => available(item.command ?? fileManager())).map(
-      (item) => item.id,
-    );
+    const list = EDITORS.filter((item) => available(item.command ?? fileManager()));
+    return list.map((item) => item.id);
   }
 
   getState() {
@@ -165,6 +194,7 @@ export class ShellService {
         const next = result.canceled ? null : (result.filePaths[0] ?? null);
         if (!next) return null;
         this.cwd = next;
+        this.save();
         return {
           cwd: this.cwd,
           name: Path.basename(this.cwd) || this.cwd,

@@ -5,7 +5,7 @@ function match(query: string) {
   return window.matchMedia(query).matches;
 }
 
-export function useMediaQuery(query: string) {
+function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => match(query));
 
   useEffect(() => {
@@ -24,6 +24,4 @@ export function useMediaQuery(query: string) {
   return matches;
 }
 
-export function useIsMobile() {
-  return useMediaQuery("(max-width: 767px)");
-}
+export const useIsMobile = () => useMediaQuery("(max-width: 767px)");

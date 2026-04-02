@@ -5,7 +5,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { PiModelPicker } from "../glass/pi-model-picker";
 import { usePiDefaults } from "../../hooks/use-pi-models";
-import { useTheme } from "../../hooks/useTheme";
+import { useTheme } from "../../hooks/use-theme";
 import { getGlass } from "../../host";
 import {
   clearPiDefaultModel,
@@ -20,13 +20,13 @@ import {
   PI_GLASS_SETTINGS_CHANGED_EVENT,
   PI_GLASS_SHELL_CHANGED_EVENT,
 } from "../../lib/pi-glass-constants";
-import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
+import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 function Panel(props: { title: string; body: ReactNode; foot?: ReactNode }) {
   return (
-    <section className="rounded-xl border border-glass-panel-border bg-[var(--glass-sidebar-hover)]/20 p-4">
+    <section className="rounded-xl border border-glass-border/80 bg-glass-hover/30 p-4 backdrop-blur-sm">
       <div className="text-sm font-medium text-foreground">{props.title}</div>
       <div className="mt-3">{props.body}</div>
       {props.foot ? <div className="mt-3">{props.foot}</div> : null}
@@ -260,7 +260,7 @@ function KeysPanel() {
           </div>
           <div className="space-y-2">
             {cur?.credentialType === "oauth" || cur?.oauthSupported ? (
-              <div className="rounded-lg border border-glass-panel-border bg-muted/20 px-3 py-2 text-muted-foreground">
+              <div className="rounded-lg border border-glass-border/80 bg-muted/20 px-3 py-2 text-muted-foreground">
                 {cur.oauthSupported
                   ? `This provider uses OAuth in Pi${stored ? " and is currently logged in." : "."}`
                   : `This provider is currently using OAuth-style credentials from your local Pi config${stored ? "." : ", but Glass will not overwrite them as an API key."}`}

@@ -96,7 +96,8 @@ export class PiConfigService {
   }
 
   settings(cwd: string) {
-    return SettingsManager.create(cwd, getAgentDir());
+    const agent = getAgentDir();
+    return SettingsManager.create(cwd, agent);
   }
 
   paths(cwd: string) {

@@ -21,13 +21,9 @@ const ASSOCIATIONS_PATH = path.join(
   "apps/web/src/vscode-icons-language-associations.json",
 );
 
-function normalizeExtension(value) {
-  return value.trim().toLowerCase().replace(/^\./, "");
-}
+const normalizeExtension = (value) => value.trim().toLowerCase().replace(/^\./, "");
 
-function normalizeFileName(value) {
-  return value.trim().toLowerCase();
-}
+const normalizeFileName = (value) => value.trim().toLowerCase();
 
 function putIfAbsent(target, key, value) {
   if (!(key in target)) {

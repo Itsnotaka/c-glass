@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useDeferredValue, useState } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { GlassPiComposer } from "./glass-pi-composer";
 import { GlassPiMessages } from "./glass-pi-messages";
@@ -7,11 +8,33 @@ import { usePiSession } from "./use-pi-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [sid, setSid] = useState(props.sessionId);
   const session = usePiSession(props.sessionId);
+  const flip = useCallback(() => {
+    setExpanded((cur) => !cur);
+  }, []);
+  const messages = useDeferredValue(session.messages);
+
+  if (sid !== props.sessionId) {
+    setSid(props.sessionId);
+    if (draft !== "") {
+      setDraft("");
+    }
+  }
+
+  useHotkey(
+    "Mod+O",
+    (event) => {
+      event.preventDefault();
+      setExpanded((cur) => !cur);
+    },
+    { preventDefault: true },
+  );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-canvas">
-      <GlassPiMessages messages={session.messages} />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-editor">
+      <GlassPiMessages messages={messages} expanded={expanded} onFlip={flip} />
       <GlassPiComposer
         draft={draft}
         onDraft={setDraft}

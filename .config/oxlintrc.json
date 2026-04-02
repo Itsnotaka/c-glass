@@ -1,0 +1,34 @@
+{
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "dist",
+    "dist-electron",
+    "node_modules",
+    "pnpm-lock.yaml",
+    "*.tsbuildinfo",
+    "**/routeTree.gen.ts",
+    ".pi/**",
+    ".config/oxlint-glass-plugin.mjs"
+  ],
+  "plugins": ["eslint", "oxc", "react", "unicorn", "typescript"],
+  "jsPlugins": ["./oxlint-glass-plugin.mjs"],
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "react-in-jsx-scope": "off",
+    "eslint/no-shadow": "off",
+    "eslint/no-await-in-loop": "off",
+    "glass/no-tiny-wrapper-function": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "rules": {
+        "glass/no-tiny-wrapper-function": "off"
+      }
+    }
+  ]
+}

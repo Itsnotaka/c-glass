@@ -1,7 +1,13 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
+import { SidebarInset } from "../components/ui/sidebar";
+
 function ChatRouteLayout() {
-  return <Outlet />;
+  return (
+    <SidebarInset className="isolate h-dvh min-h-0 overflow-hidden overscroll-y-none bg-glass-editor text-foreground">
+      <Outlet />
+    </SidebarInset>
+  );
 }
 
 export const Route = createFileRoute("/_chat")({

@@ -1,6 +1,6 @@
 import * as ChildProcess from "node:child_process";
 
-export type Sign = "signed" | "adhoc" | "unsigned";
+type Sign = "signed" | "adhoc" | "unsigned";
 
 export function parseSign(raw: string): Sign {
   if (/^Authority=/m.test(raw)) {

@@ -231,13 +231,9 @@ export function mergeMacUpdateManifests(
   };
 }
 
-function quoteYamlString(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
 function serializeScalarValue(value: MacUpdateScalar): string {
   if (typeof value === "string") {
-    return quoteYamlString(value);
+    return `'${value.replace(/'/g, "''")}'`;
   }
   return String(value);
 }
@@ -259,7 +255,7 @@ export function serializeMacUpdateManifest(manifest: MacUpdateManifest): string 
     lines.push(`${key}: ${serializeScalarValue(value)}`);
   }
 
-  lines.push(`releaseDate: ${quoteYamlString(manifest.releaseDate)}`);
+  lines.push(`releaseDate: '${manifest.releaseDate.replace(/'/g, "''")}'`);
   lines.push("");
   return lines.join("\n");
 }

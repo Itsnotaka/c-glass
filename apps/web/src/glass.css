@@ -1,283 +1,56 @@
-/* Glass shell tokens */
 :root {
-  --glass-canvas: var(--background);
-  --glass-chat-surface: var(--glass-canvas);
-  --glass-sidebar: color-mix(in srgb, var(--card) 86%, var(--background) 14%);
-  --glass-panel: var(--card);
-  --glass-panel-border: var(--border);
-  --glass-sidebar-hover: color-mix(in srgb, var(--foreground) 5%, transparent);
-  --glass-sidebar-active: color-mix(in srgb, var(--foreground) 10%, transparent);
-  --glass-bubble: var(--glass-panel);
-  --glass-stroke-tertiary: var(--glass-panel-border);
-  --glass-stroke-secondary: color-mix(
+  --glass-font-ui:
+    "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --glass-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  --glass-header-height: 35px;
+  --glass-sidebar-gap: 52px;
+  --glass-radius-card: 12px;
+  --glass-radius-chip: 20px;
+  --glass-color-sidebar: color-mix(in srgb, var(--color-white) 88%, oklch(0.96 0.01 255));
+  --glass-color-chat: color-mix(in srgb, var(--color-white) 90%, oklch(0.96 0.01 255));
+  --glass-color-editor: color-mix(in srgb, var(--color-white) 97%, oklch(0.97 0.01 255));
+  --glass-color-surface: color-mix(in srgb, var(--color-white) 94%, oklch(0.96 0.01 255));
+  --glass-color-elevated: color-mix(in srgb, var(--color-white) 84%, oklch(0.94 0.01 255));
+  --glass-color-bubble: color-mix(in srgb, var(--glass-color-elevated) 88%, transparent);
+  --glass-color-bubble-opaque: color-mix(
     in srgb,
-    var(--glass-panel-border) 60%,
-    var(--foreground) 20%
+    var(--glass-color-elevated) 94%,
+    var(--background)
   );
-  --glass-duration-fast: 100ms;
-  --glass-duration-normal: 150ms;
-  --sidebar: var(--glass-sidebar);
-  --sidebar-foreground: var(--foreground);
-  --sidebar-primary: var(--foreground);
-  --sidebar-primary-foreground: var(--background);
-  --sidebar-accent: var(--glass-sidebar-hover);
-  --sidebar-accent-foreground: var(--foreground);
-  --sidebar-border: var(--glass-panel-border);
-  --sidebar-ring: var(--ring);
+  --glass-color-menubar: color-mix(in srgb, var(--glass-color-editor) 82%, transparent);
+  --glass-color-border: color-mix(in srgb, var(--color-black) 10%, transparent);
+  --glass-color-stroke: color-mix(in srgb, var(--glass-color-border) 88%, transparent);
+  --glass-color-stroke-strong: color-mix(
+    in srgb,
+    var(--glass-color-border) 72%,
+    var(--foreground) 16%
+  );
+  --glass-color-hover: color-mix(in srgb, var(--color-black) 4%, transparent);
+  --glass-color-active: color-mix(in srgb, var(--color-black) 7%, transparent);
+  --glass-shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.18);
 }
 
 .dark {
-  --glass-canvas: var(--background);
-  --glass-chat-surface: var(--glass-canvas);
-  --glass-sidebar: color-mix(in srgb, var(--background) 92%, var(--color-white, #fff) 8%);
-  --glass-panel: color-mix(in srgb, var(--background) 88%, var(--color-white, #fff) 12%);
-  --glass-sidebar-hover: --alpha(var(--color-white, #fff) / 6%);
-  --glass-sidebar-active: --alpha(var(--color-white, #fff) / 12%);
-  --glass-bubble: color-mix(in srgb, var(--background) 82%, var(--color-white, #fff) 18%);
-  --glass-stroke-tertiary: --alpha(var(--color-white, #fff) / 8%);
-  --glass-stroke-secondary: --alpha(var(--color-white, #fff) / 14%);
-  --sidebar: var(--glass-sidebar);
-  --sidebar-accent: var(--glass-sidebar-hover);
-}
-
-.bg-glass-canvas {
-  background: var(--glass-canvas);
-}
-
-.bg-glass-sidebar {
-  background: var(--glass-sidebar);
-}
-
-.bg-glass-panel {
-  background: var(--glass-panel);
-}
-
-.border-glass-panel-border {
-  border-color: var(--glass-panel-border);
-}
-
-.bg-glass-sidebar-active {
-  background: var(--glass-sidebar-active);
-}
-
-.bg-glass-sidebar-hover {
-  background: var(--glass-sidebar-hover);
-}
-
-.glass-pi-shell {
-  --background: var(--glass-canvas);
-  --card: var(--glass-panel);
-  --border: var(--glass-panel-border);
-}
-
-.glass-app {
-  min-height: 100vh;
-  min-height: 100dvh;
-  background-color: var(--glass-canvas);
-}
-
-.glass-shell-main {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--glass-canvas);
+  --glass-color-sidebar: color-mix(in srgb, var(--background) 88%, var(--color-white) 8%);
+  --glass-color-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
+  --glass-color-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
+  --glass-color-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);
+  --glass-color-elevated: color-mix(in srgb, var(--background) 84%, var(--color-white) 12%);
+  --glass-color-menubar: color-mix(in srgb, var(--glass-color-editor) 80%, transparent);
+  --glass-color-border: color-mix(in srgb, var(--color-white) 10%, transparent);
+  --glass-color-hover: color-mix(in srgb, var(--color-white) 6%, transparent);
+  --glass-color-active: color-mix(in srgb, var(--color-white) 10%, transparent);
+  --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.32);
 }
 
 body {
-  background-color: var(--glass-canvas);
-}
-
-/* Sidebar traffic-light spacer for macOS Electron */
-.glass-traffic-spacer {
-  height: 52px;
-  -webkit-app-region: drag;
-}
-
-/* Compact sidebar agent row */
-.glass-agent-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 28px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.4;
-  cursor: pointer;
-  transition: background-color var(--glass-duration-fast) ease;
-  color: var(--muted-foreground);
-}
-
-.glass-agent-row:hover {
-  background: var(--glass-sidebar-hover);
-  color: var(--foreground);
-}
-
-.glass-agent-row[data-selected="true"] {
-  background: var(--glass-sidebar-active);
-  color: var(--foreground);
-}
-
-/* ── Empty-state hero shell (Cursor: agent-panel-empty-state-shell) ── */
-
-.glass-empty-state {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 48px 24px;
-  outline: none;
-}
-
-.glass-empty-state-column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  max-width: min(100%, 640px);
-  box-sizing: border-box;
-  padding-inline: 16px;
-  gap: 8px;
-  padding-bottom: 32px;
-  padding-top: 8px;
-}
-
-/* ── Composer card (Cursor: ui-prompt-input__container in glass mode) ── */
-
-.glass-inline-composer {
-  border: 1px solid var(--glass-stroke-tertiary);
-  border-radius: 12px;
-  background: var(--glass-bubble);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-  transition: border-color var(--glass-duration-fast) ease;
-}
-
-.glass-inline-composer:focus-within {
-  border-color: var(--glass-stroke-secondary);
-}
-
-.glass-inline-composer textarea {
-  border: none;
-  background: transparent;
-  resize: none;
-  outline: none;
-  padding: 10px 12px 4px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--foreground);
-  min-height: 36px;
-  max-height: 200px;
-}
-
-.glass-inline-composer textarea::placeholder {
-  color: var(--muted-foreground);
-}
-
-.glass-inline-composer-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 6px 6px;
-  gap: 4px;
-}
-
-/* ── Quick-action chips (Cursor: project-mode-quick-action-*) ── */
-
-.glass-quick-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.glass-quick-action-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 21px;
-  padding: 8px;
-  border-radius: 20px;
-  border: 1px solid var(--glass-stroke-tertiary);
-  background: var(--glass-bubble);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition:
-    background-color var(--glass-duration-fast) ease,
-    border-color var(--glass-duration-fast) ease;
-}
-
-.glass-quick-action-chip:hover {
-  background: var(--glass-sidebar-hover);
-  border-color: var(--glass-stroke-secondary);
-}
-
-.glass-quick-action-label {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 140%;
-}
-
-/* ── Conversation-mode docked composer (Cursor: agent-panel-followup-input--conversation-overlay) ── */
-
-.glass-dock-composer {
-  position: relative;
-  isolation: isolate;
-  padding-bottom: 10px;
-}
-
-.glass-dock-composer::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: -96px;
-  background: var(--glass-chat-surface);
-  pointer-events: none;
-  z-index: 0;
-  mask-image: linear-gradient(
-    0deg,
-    #000 0,
-    rgba(0, 0, 0, 0.86) 28%,
-    rgba(0, 0, 0, 0.56) 62%,
-    rgba(0, 0, 0, 0.22) 84%,
-    transparent
-  );
-  -webkit-mask-image: linear-gradient(
-    0deg,
-    #000 0,
-    rgba(0, 0, 0, 0.86) 28%,
-    rgba(0, 0, 0, 0.56) 62%,
-    rgba(0, 0, 0, 0.22) 84%,
-    transparent
-  );
-}
-
-/* Model picker dropdown — align with Cursor-style dark glass (composer model menu).
-   !important beats Tailwind `bg-popover` merged on ComboboxPopup. */
-.glass-model-picker-popup {
-  border-color: var(--glass-stroke-tertiary) !important;
-  background: color-mix(in srgb, var(--background) 78%, var(--foreground) 6%) !important;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--foreground) 6%, transparent),
-    0 16px 48px rgba(0, 0, 0, 0.45) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-.dark .glass-model-picker-popup {
-  background: color-mix(in srgb, var(--background) 82%, var(--color-white, #fff) 4%) !important;
-  box-shadow:
-    0 0 0 1px var(--glass-stroke-tertiary),
-    0 16px 48px rgba(0, 0, 0, 0.55) !important;
+  background:
+    radial-gradient(
+      1200px 420px at 50% -12%,
+      color-mix(in srgb, var(--foreground) 4%, transparent),
+      transparent 58%
+    ),
+    var(--glass-color-surface);
 }

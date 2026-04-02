@@ -35,7 +35,7 @@ export const setLocalStorageItem = <T, E>(key: string, value: T, schema: Schema.
   isomorphicLocalStorage.setItem(key, valueToSet);
 };
 
-export const removeLocalStorageItem = (key: string) => {
+const removeLocalStorageItem = (key: string) => {
   isomorphicLocalStorage.removeItem(key);
 };
 

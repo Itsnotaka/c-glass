@@ -36,14 +36,47 @@ export interface PiUserAttachmentMessage {
 export interface PiAssistantMessage {
   role: "assistant";
   content: PiBlock[];
+  stopReason?: string;
   errorMessage?: string;
 }
 
 export interface PiToolResultMessage {
   role: "toolResult";
+  toolCallId?: string;
   content: PiBlock[];
   toolName?: string;
   isError?: boolean;
+}
+
+export interface PiBashExecutionMessage {
+  role: "bashExecution";
+  command: string;
+  output: string;
+  exitCode?: number;
+  cancelled: boolean;
+  truncated: boolean;
+  fullOutputPath?: string;
+  excludeFromContext?: boolean;
+}
+
+export interface PiCustomMessage {
+  role: "custom";
+  customType: string;
+  content: string | PiBlock[];
+  display: boolean;
+  details?: unknown;
+}
+
+export interface PiBranchSummaryMessage {
+  role: "branchSummary";
+  summary: string;
+  fromId: string;
+}
+
+export interface PiCompactionSummaryMessage {
+  role: "compactionSummary";
+  summary: string;
+  tokensBefore: number;
 }
 
 export interface PiSystemMessage {
@@ -61,6 +94,10 @@ export type PiMessage =
   | PiUserAttachmentMessage
   | PiAssistantMessage
   | PiToolResultMessage
+  | PiBashExecutionMessage
+  | PiCustomMessage
+  | PiBranchSummaryMessage
+  | PiCompactionSummaryMessage
   | PiSystemMessage
   | PiUnknownMessage;
 
@@ -179,6 +216,18 @@ export interface PiSessionSummary {
   isStreaming: boolean;
 }
 
+export interface PiSessionPending {
+  steering: string[];
+  followUp: string[];
+}
+
+export interface PiSessionMeta {
+  model: PiModelRef | null;
+  thinkingLevel: PiThinkingLevel;
+  isStreaming: boolean;
+  pending: PiSessionPending;
+}
+
 export interface PiSessionSnapshot {
   id: string;
   file: string | null;
@@ -189,10 +238,7 @@ export interface PiSessionSnapshot {
   messages: PiMessage[];
   tree: PiSessionTreeNode[];
   isStreaming: boolean;
-  pending: {
-    steering: string[];
-    followUp: string[];
-  };
+  pending: PiSessionPending;
 }
 
 export interface PiSessionEvent {
@@ -200,19 +246,69 @@ export interface PiSessionEvent {
   [key: string]: unknown;
 }
 
-export interface PiSessionEventEnvelope {
+export interface PiSessionSummaryUpsert {
+  lane: "summary";
+  type: "upsert";
   sessionId: string;
   summary: PiSessionSummary;
+  event?: PiSessionEvent;
+}
+
+export interface PiSessionSummaryRemove {
+  lane: "summary";
+  type: "remove";
+  sessionId: string;
+  event?: PiSessionEvent;
+}
+
+export type PiSessionSummaryEvent = PiSessionSummaryUpsert | PiSessionSummaryRemove;
+
+export interface PiSessionSyncDelta {
+  type: "sync";
   snapshot: PiSessionSnapshot;
+}
+
+export interface PiSessionAppendDelta {
+  type: "append";
+  message: PiMessage;
+  meta: PiSessionMeta;
+}
+
+export interface PiSessionReplaceDelta {
+  type: "replace";
+  message: PiMessage;
+  meta: PiSessionMeta;
+}
+
+export interface PiSessionMetaDelta {
+  type: "meta";
+  meta: PiSessionMeta;
+}
+
+export type PiSessionDelta =
+  | PiSessionSyncDelta
+  | PiSessionAppendDelta
+  | PiSessionReplaceDelta
+  | PiSessionMetaDelta;
+
+export interface PiSessionActiveEvent {
+  lane: "active";
+  sessionId: string;
+  delta: PiSessionDelta;
   event: PiSessionEvent;
 }
+
+export type PiSessionBridgeEvent = PiSessionSummaryEvent | PiSessionActiveEvent;
 
 export interface SessionBridge {
   list: () => Promise<PiSessionSummary[]>;
   create: () => Promise<PiSessionSnapshot>;
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
+  watch: (sessionId: string) => Promise<PiSessionSnapshot>;
+  unwatch: () => Promise<void>;
   prompt: (sessionId: string, text: string) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
-  onEvent: (listener: (event: PiSessionEventEnvelope) => void) => () => void;
+  onSummary: (listener: (event: PiSessionSummaryEvent) => void) => () => void;
+  onActive: (listener: (event: PiSessionActiveEvent) => void) => () => void;
 }

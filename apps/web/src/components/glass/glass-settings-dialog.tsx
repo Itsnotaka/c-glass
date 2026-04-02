@@ -1,5 +1,5 @@
 import { Dialog, DialogPopup, DialogHeader, DialogTitle, DialogPanel } from "../ui/dialog";
-import { GeneralSettingsPanel } from "../settings/SettingsPanels";
+import { GeneralSettingsPanel } from "../settings/settings-panels";
 import { useGlassSettings } from "./glass-settings-context";
 
 export function GlassSettingsDialog() {

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
+import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { getGlass } from "../../host";
 import { GlassPiComposer } from "./glass-pi-composer";
 import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
@@ -27,8 +27,8 @@ export function GlassHeroCanvas() {
   }, []);
 
   return (
-    <div className="glass-empty-state">
-      <div className="glass-empty-state-column">
+    <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
+      <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
         <GlassPiComposer
           draft={draft}
           onDraft={setDraft}

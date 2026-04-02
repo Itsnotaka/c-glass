@@ -36,7 +36,7 @@ export function PiModelPicker(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const filtered = useMemo(() => filterPiModels(props.items, query), [props.items, query]);
+  const list = useMemo(() => filterPiModels(props.items, query), [props.items, query]);
   const cur = useMemo(
     () =>
       props.items.find(
@@ -53,7 +53,7 @@ export function PiModelPicker(props: {
   return (
     <Combobox
       items={props.items.map((item) => item.key)}
-      filteredItems={filtered.map((item) => item.key)}
+      filteredItems={list.map((item) => item.key)}
       autoHighlight
       onOpenChange={(next) => {
         if (props.disabled) {
@@ -83,10 +83,7 @@ export function PiModelPicker(props: {
             {cur?.name ?? cur?.id ?? props.model?.id ?? "Select model"}
           </span>
           {cur ? (
-            <span
-              className="shrink-0 rounded border border-[var(--glass-stroke-tertiary)] bg-[var(--glass-sidebar-hover)]/60 px-1.5 py-px text-[10px] font-medium text-muted-foreground tabular-nums"
-              aria-hidden
-            >
+            <span className="shrink-0 rounded-full border border-glass-stroke bg-glass-hover/70 px-1.5 py-px text-[10px] font-medium text-muted-foreground tabular-nums">
               {tag(cur)}
             </span>
           ) : null}
@@ -97,12 +94,12 @@ export function PiModelPicker(props: {
         align={props.align ?? "end"}
         side={props.side ?? "bottom"}
         sideOffset={6}
-        className="glass-model-picker-popup w-[min(100vw-24px,22rem)] overflow-hidden p-0 before:shadow-none"
+        className="w-[min(100vw-24px,22rem)] overflow-hidden rounded-xl border border-glass-stroke bg-glass-bubble-opaque p-0 shadow-glass-popup backdrop-blur-xl before:shadow-none"
       >
-        <div className="border-b border-[var(--glass-stroke-tertiary)] px-2.5 pt-2.5 pb-2">
+        <div className="border-b border-glass-stroke px-2.5 pt-2.5 pb-2">
           <ComboboxInput
             startAddon={<SearchIcon className="size-3.5 text-muted-foreground/70" aria-hidden />}
-            className="[&_input]:font-sans [&_[data-slot=input-control]]:rounded-md [&_[data-slot=input-control]]:border-0 [&_[data-slot=input-control]]:bg-[var(--glass-sidebar-hover)]/55 [&_[data-slot=input-control]]:shadow-none [&_[data-slot=input-control]]:ring-0 dark:[&_[data-slot=input-control]]:bg-[color-mix(in_srgb,var(--foreground)_8%,transparent)]"
+            className="[&_input]:font-glass [&_[data-slot=input-control]]:rounded-lg [&_[data-slot=input-control]]:border-0 [&_[data-slot=input-control]]:bg-glass-hover/60 [&_[data-slot=input-control]]:shadow-none [&_[data-slot=input-control]]:ring-0"
             inputClassName="placeholder:text-muted-foreground/55"
             placeholder="Search models"
             showTrigger={false}
@@ -115,12 +112,12 @@ export function PiModelPicker(props: {
           {props.items.length === 0 ? "No Pi models available yet." : "No matching models."}
         </ComboboxEmpty>
         <ComboboxList className="max-h-72 py-1.5">
-          {filtered.map((item, index) => (
+          {list.map((item, index) => (
             <ComboboxItem
               key={item.key}
               index={index}
               value={item.key}
-              className="mx-1 my-0.5 rounded-md border-0 py-1.5 ps-2 hover:bg-[var(--glass-sidebar-hover)] data-highlighted:bg-[var(--glass-sidebar-hover)] data-selected:bg-[var(--glass-sidebar-active)] data-selected:shadow-none [&[data-highlighted][data-selected]]:bg-[var(--glass-sidebar-active)]"
+              className="mx-1 my-0.5 rounded-lg border-0 py-1.5 ps-2 hover:bg-glass-hover data-highlighted:bg-glass-hover data-selected:bg-glass-active data-selected:shadow-none [&[data-highlighted][data-selected]]:bg-glass-active"
               onClick={() => {
                 setOpen(false);
                 props.onSelect(item);
@@ -140,7 +137,7 @@ export function PiModelPicker(props: {
                     {item.provider}
                   </div>
                 </div>
-                <span className="shrink-0 rounded border border-[var(--glass-stroke-tertiary)] bg-[var(--glass-sidebar-hover)]/40 px-1.5 py-px text-[10px] font-medium tabular-nums text-muted-foreground">
+                <span className="shrink-0 rounded-full border border-glass-stroke bg-glass-hover/50 px-1.5 py-px text-[10px] font-medium tabular-nums text-muted-foreground">
                   {tag(item)}
                 </span>
               </div>

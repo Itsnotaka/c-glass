@@ -7,7 +7,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { Button } from "../components/ui/button";
-import { AnchoredToastProvider, ToastProvider } from "../components/ui/toast";
+import { Toaster } from "../components/ui/sonner";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -21,13 +21,12 @@ export const Route = createRootRouteWithContext<{
 
 function RootRouteView() {
   return (
-    <ToastProvider>
-      <AnchoredToastProvider>
-        <AppSidebarLayout>
-          <Outlet />
-        </AppSidebarLayout>
-      </AnchoredToastProvider>
-    </ToastProvider>
+    <>
+      <AppSidebarLayout>
+        <Outlet />
+      </AppSidebarLayout>
+      <Toaster />
+    </>
   );
 }
 

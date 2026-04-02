@@ -13,7 +13,7 @@ export interface GlassSidebarAgent {
 export interface GlassSidebarSection {
   id: string;
   label: string;
-  agents: GlassSidebarAgent[];
+  ids: readonly string[];
 }
 
 function timeAgo(iso: string) {
@@ -29,25 +29,22 @@ function timeAgo(iso: string) {
   return `${day}d`;
 }
 
-export function buildPiSessionSidebarSections(
-  sessions: readonly PiSessionSummary[],
+export function buildPiSessionSidebarSections(ids: readonly string[]) {
+  if (ids.length === 0) return [];
+  return [{ id: "pi-chats", label: "Chats", ids }] satisfies GlassSidebarSection[];
+}
+
+export function buildPiSessionSidebarAgent(
+  session: PiSessionSummary,
   selectedSessionId: string | null,
 ) {
-  if (sessions.length === 0) return [];
-
-  const agents: GlassSidebarAgent[] = sessions.map((item) => ({
-    id: item.id,
-    title: item.name?.trim() || item.firstMessage.trim() || "Untitled",
-    state: item.isStreaming ? "running" : "idle",
+  return {
+    id: session.id,
+    title: session.name?.trim() || session.firstMessage.trim() || "Untitled",
+    state: session.isStreaming ? "running" : "idle",
     unread: false,
-    updatedAt: item.modifiedAt,
-    ago: timeAgo(item.modifiedAt),
-    selected: selectedSessionId !== null && selectedSessionId === item.id,
-  }));
-
-  agents.sort((left, right) =>
-    left.updatedAt < right.updatedAt ? 1 : left.updatedAt > right.updatedAt ? -1 : 0,
-  );
-
-  return [{ id: "pi-chats", label: "Chats", agents }] satisfies GlassSidebarSection[];
+    updatedAt: session.modifiedAt,
+    ago: timeAgo(session.modifiedAt),
+    selected: selectedSessionId !== null && selectedSessionId === session.id,
+  } satisfies GlassSidebarAgent;
 }

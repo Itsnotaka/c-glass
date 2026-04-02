@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parse } from "yaml";
 
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
-import { readWorkspaceCatalog } from "./lib/read-workspace-catalog.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -464,7 +464,46 @@ function resolveDesktopRuntimeDependencies(
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
 }
 
-function resolveGitHubPublishConfig():
+function readCatalog(root: string): Record<string, unknown> {
+  const fp = join(root, "pnpm-workspace.yaml");
+  const doc = parse(readFileSync(fp, "utf8")) as { catalog?: Record<string, unknown> };
+  const catalog = doc.catalog;
+  if (!catalog || typeof catalog !== "object") {
+    throw new Error(`Missing catalog in ${fp}`);
+  }
+  return catalog;
+}
+
+function parseGitHubRepository(raw: string):
+  | {
+      readonly owner: string;
+      readonly repo: string;
+    }
+  | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  const gitHubMatch = trimmed.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (gitHubMatch?.[1] && gitHubMatch[2]) {
+    return {
+      owner: gitHubMatch[1],
+      repo: gitHubMatch[2],
+    };
+  }
+
+  const [owner, repo, ...rest] = trimmed.split("/");
+  if (!owner || !repo || rest.length > 0) return undefined;
+
+  const normalizedRepo = repo.replace(/\.git$/i, "");
+  if (!normalizedRepo) return undefined;
+
+  return {
+    owner,
+    repo: normalizedRepo,
+  };
+}
+
+function resolveGitHubPublishConfig(repoRoot: string):
   | {
       readonly provider: "github";
       readonly owner: string;
@@ -472,19 +511,31 @@ function resolveGitHubPublishConfig():
       readonly releaseType: "release";
     }
   | undefined {
-  const rawRepo =
-    process.env.GLASS_DESKTOP_UPDATE_REPOSITORY?.trim() ||
-    process.env.GITHUB_REPOSITORY?.trim() ||
-    "";
-  if (!rawRepo) return undefined;
+  const envRepo =
+    parseGitHubRepository(process.env.GLASS_DESKTOP_UPDATE_REPOSITORY ?? "") ??
+    parseGitHubRepository(process.env.GITHUB_REPOSITORY ?? "");
+  if (envRepo) {
+    return {
+      provider: "github",
+      owner: envRepo.owner,
+      repo: envRepo.repo,
+      releaseType: "release",
+    };
+  }
 
-  const [owner, repo, ...rest] = rawRepo.split("/");
-  if (!owner || !repo || rest.length > 0) return undefined;
+  const probe = spawnSync("git", ["config", "--get", "remote.origin.url"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (probe.status !== 0) return undefined;
+
+  const gitRepo = parseGitHubRepository(probe.stdout);
+  if (!gitRepo) return undefined;
 
   return {
     provider: "github",
-    owner,
-    repo,
+    owner: gitRepo.owner,
+    repo: gitRepo.repo,
     releaseType: "release",
   };
 }
@@ -497,6 +548,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   mockUpdates: boolean,
   mockUpdateServerPort: string | undefined,
 ) {
+  const repoRoot = yield* RepoRoot;
   const buildConfig: Record<string, unknown> = {
     appId: "com.glass.app",
     productName,
@@ -505,7 +557,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       buildResources: "apps/desktop/resources",
     },
   };
-  const publishConfig = resolveGitHubPublishConfig();
+  const publishConfig = resolveGitHubPublishConfig(repoRoot);
   if (publishConfig) {
     buildConfig.publish = [publishConfig];
   } else if (mockUpdates) {
@@ -583,7 +635,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
   const electronVersion = desktopPackageJson.dependencies.electron;
 
-  const catalog = readWorkspaceCatalog(repoRoot);
+  const catalog = readCatalog(repoRoot);
   const resolvedDesktopRuntimeDependencies = yield* Effect.try({
     try: () => resolveDesktopRuntimeDependencies(desktopPackageJson.dependencies, catalog),
     catch: (cause) =>

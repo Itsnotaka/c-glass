@@ -1,8 +1,11 @@
-import type { PiModelRef, PiSessionSnapshot } from "@glass/contracts";
-import { useEffect, useRef, useState } from "react";
+import type { PiModelRef } from "@glass/contracts";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { getGlass } from "../../host";
-import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "../../lib/pi-glass-constants";
+import {
+  PI_GLASS_SETTINGS_CHANGED_EVENT,
+  PI_GLASS_SHELL_CHANGED_EVENT,
+} from "../../lib/pi-glass-constants";
 import {
   readPiProvider,
   resolvePiDefaultModel,
@@ -10,33 +13,28 @@ import {
   writePiDefaultModel,
   type PiModelItem,
 } from "../../lib/pi-models";
+import { usePiSnapshot, usePiStore } from "../../lib/pi-session-store";
 
 function authError(message: string) {
   const text = message.toLowerCase();
   return text.includes("api key") || text.includes("auth") || text.includes("credential");
 }
 
-function same(left: PiModelRef | null | undefined, right: PiModelRef | null | undefined) {
-  if (!left || !right) return false;
-  return left.provider === right.provider && left.id === right.id;
-}
-
 export function usePiSession(sessionId: string | null) {
   const navigate = useNavigate();
-  const [snap, setSnap] = useState<PiSessionSnapshot | null>(null);
+  const snap = usePiSnapshot(sessionId) ?? null;
+  const applyActs = usePiStore((state) => state.applyActs);
+  const putSnap = usePiStore((state) => state.putSnap);
   const [draftModel, setDraftModel] = useState<PiModelRef | null>(null);
-  const [pick, setPick] = useState<PiModelRef | null>(null);
+  const [tick, setTick] = useState(0);
   const [provider, setProvider] = useState<{
     name: string;
     mode: "api_key" | "oauth";
     oauthSupported: boolean;
   } | null>(null);
   const pending = useRef<(() => Promise<void>) | null>(null);
-  const sid = useRef(sessionId);
-
-  useEffect(() => {
-    sid.current = sessionId;
-  }, [sessionId]);
+  const queued = useRef<Parameters<typeof applyActs>[0]>([]);
+  const frame = useRef<number | null>(null);
 
   useEffect(() => {
     if (sessionId) return;
@@ -44,8 +42,6 @@ export function usePiSession(sessionId: string | null) {
     let live = true;
 
     const load = () => {
-      setPick(null);
-      setSnap(null);
       void resolvePiDefaultModel().then((model) => {
         if (!live) return;
         setDraftModel(model);
@@ -61,41 +57,68 @@ export function usePiSession(sessionId: string | null) {
   }, [sessionId]);
 
   useEffect(() => {
+    const bump = () => {
+      setTick((cur) => cur + 1);
+    };
+
+    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, bump);
+    return () => {
+      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, bump);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!sessionId) return;
 
     let live = true;
-    setPick(null);
     setDraftModel(null);
-    setSnap((cur) => (cur?.id === sessionId ? cur : null));
     void getGlass()
-      .session.get(sessionId)
+      .session.watch(sessionId)
       .then((next) => {
         if (!live) return;
-        setSnap(next);
+        putSnap(next);
       })
       .catch(() => {});
 
     return () => {
       live = false;
+      void getGlass().session.unwatch();
     };
-  }, [sessionId]);
+  }, [putSnap, sessionId, tick]);
 
   useEffect(() => {
-    const off = getGlass().session.onEvent((event) => {
+    if (!sessionId) return;
+
+    const cancel = () => {
+      const id = frame.current;
+      frame.current = null;
+      if (id !== null) {
+        window.cancelAnimationFrame(id);
+      }
+    };
+
+    const off = getGlass().session.onActive((event) => {
       if (event.sessionId !== sessionId) return;
-      setSnap(event.snapshot);
+      queued.current.push(event);
+      if (frame.current !== null) return;
+      frame.current = window.requestAnimationFrame(() => {
+        frame.current = null;
+        const next = queued.current;
+        queued.current = [];
+        if (next.length === 0) return;
+        startTransition(() => {
+          applyActs(next);
+        });
+      });
     });
     return () => {
+      cancel();
+      queued.current = [];
       off();
     };
-  }, [sessionId]);
+  }, [applyActs, sessionId, tick]);
 
-  useEffect(() => {
-    if (!pick || !same(pick, snap?.model)) return;
-    setPick(null);
-  }, [pick, snap?.model]);
-
-  const model = pick ?? snap?.model ?? draftModel;
+  const model = snap?.model ?? draftModel;
 
   const showProvider = async (task: () => Promise<void>, name: string) => {
     if (!model?.provider) throw new Error("Missing model provider");
@@ -112,7 +135,7 @@ export function usePiSession(sessionId: string | null) {
     if (sessionId) return sessionId;
     if (snap?.id) return snap.id;
     const next = await getGlass().session.create();
-    setSnap(next);
+    putSnap(next);
     void navigate({
       to: "/$threadId",
       params: { threadId: next.id },
@@ -153,22 +176,6 @@ export function usePiSession(sessionId: string | null) {
       }
       try {
         await getGlass().session.setModel(sessionId, next.provider, next.id);
-        setPick(next);
-        setSnap((cur) =>
-          cur && cur.id === sessionId
-            ? {
-                ...cur,
-                model: next,
-              }
-            : cur,
-        );
-        void getGlass()
-          .session.get(sessionId)
-          .then((cur) => {
-            if (sid.current !== sessionId) return;
-            setSnap(cur);
-          })
-          .catch(() => {});
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (!authError(message)) throw err;

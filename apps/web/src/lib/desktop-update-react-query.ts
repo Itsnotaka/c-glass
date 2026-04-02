@@ -2,7 +2,7 @@ import { queryOptions, useQuery, useQueryClient, type QueryClient } from "@tanst
 import { useEffect } from "react";
 import type { DesktopUpdateState } from "@glass/contracts";
 
-export const desktopUpdateQueryKeys = {
+const desktopUpdateQueryKeys = {
   all: ["desktop", "update"] as const,
   state: () => ["desktop", "update", "state"] as const,
 };
@@ -12,7 +12,7 @@ export const setDesktopUpdateStateQueryData = (
   state: DesktopUpdateState | null,
 ) => queryClient.setQueryData(desktopUpdateQueryKeys.state(), state);
 
-export function desktopUpdateStateQueryOptions() {
+function desktopUpdateStateQueryOptions() {
   return queryOptions({
     queryKey: desktopUpdateQueryKeys.state(),
     queryFn: async () => {

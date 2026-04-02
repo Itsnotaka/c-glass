@@ -6,9 +6,9 @@ import { isElectron } from "../../env";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
-} from "../../lib/desktopUpdateReactQuery";
-import { canCheckForUpdate } from "../desktopUpdate.logic";
-import { toastManager } from "../ui/toast";
+} from "../../lib/desktop-update-react-query";
+import { canCheckForUpdate } from "../desktop-update.logic";
+import { toast } from "sonner";
 import { useGlassSettings } from "./glass-settings-context";
 import { GlassUpdatePill } from "./glass-update-pill";
 
@@ -28,14 +28,14 @@ export function GlassSidebarFooter() {
         setDesktopUpdateStateQueryData(qc, result.state);
         if (!result.checked) return;
         if (result.state.status === "up-to-date") {
-          toastManager.add({ type: "success", title: "Already up to date" });
+          toast.success("Already up to date");
         }
       })
       .finally(() => setChecking(false));
   }, [qc, state]);
 
   return (
-    <div className="mt-auto flex shrink-0 flex-col border-t border-glass-panel-border px-1 py-1.5">
+    <div className="mt-auto flex shrink-0 flex-col border-t border-glass-border/80 px-1 py-1.5">
       <GlassUpdatePill />
       <div className="flex items-center justify-between px-2 py-1">
         <span className="text-[11px] text-muted-foreground/50">Glass</span>
@@ -45,7 +45,7 @@ export function GlassSidebarFooter() {
               type="button"
               onClick={check}
               disabled={checking}
-              className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-[var(--glass-sidebar-hover)] hover:text-foreground disabled:opacity-40"
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40"
               aria-label="Check for updates"
               title="Check for updates"
             >
@@ -55,7 +55,7 @@ export function GlassSidebarFooter() {
           <button
             type="button"
             onClick={settings.openSettings}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-[var(--glass-sidebar-hover)] hover:text-foreground"
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground"
             aria-label="Settings"
           >
             <SettingsIcon className="size-3.5" />

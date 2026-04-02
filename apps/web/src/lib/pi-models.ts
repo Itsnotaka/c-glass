@@ -33,7 +33,7 @@ export interface PiModelItem extends PiModelRef {
   name: string;
 }
 
-export interface PiDefaults {
+interface PiDefaults {
   provider: string | null;
   model: string | null;
   thinkingLevel: PiThinkingLevel | null;
@@ -77,10 +77,6 @@ function sort(items: readonly PiModelItem[], cur?: PiModelRef | null) {
 function emit() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
-}
-
-async function cfg() {
-  return getGlass().pi.getConfig();
 }
 
 function fuzzyMatch(query: string, text: string) {
@@ -169,7 +165,7 @@ export function filterPiModels(items: readonly PiModelItem[], query: string) {
 }
 
 export async function readPiDefaults() {
-  const data = await cfg();
+  const data = await getGlass().pi.getConfig();
   return {
     provider: data.defaults.provider,
     model: data.defaults.model,
@@ -178,12 +174,12 @@ export async function readPiDefaults() {
 }
 
 export async function listPiProviders() {
-  const data = await cfg();
-  return [...data.providers].sort((left, right) => left.provider.localeCompare(right.provider));
+  const data = await getGlass().pi.getConfig();
+  return [...data.providers].toSorted((left, right) => left.provider.localeCompare(right.provider));
 }
 
 export async function readPiProvider(provider: string) {
-  const data = await cfg();
+  const data = await getGlass().pi.getConfig();
   return (data.providers.find((item) => item.provider === provider) ?? {
     provider,
     configured: false,
@@ -193,7 +189,7 @@ export async function readPiProvider(provider: string) {
 }
 
 export async function listPiModels(cur?: PiModelRef | null) {
-  const data = await cfg();
+  const data = await getGlass().pi.getConfig();
   const all = data.models.map((model) => item(model));
   const available = new Set(data.available);
   const next = all.filter((item) => available.has(item.key) || same(cur, item));
@@ -202,7 +198,7 @@ export async function listPiModels(cur?: PiModelRef | null) {
 }
 
 export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
-  const data = await cfg();
+  const data = await getGlass().pi.getConfig();
   const items = data.models.map((model) => item(model));
   const available = new Set(data.available);
 
@@ -247,9 +243,7 @@ export async function writePiDefaultThinkingLevel(level: PiThinkingLevel) {
   emit();
 }
 
-export async function readPiApiKey(provider: string) {
-  return getGlass().pi.getApiKey(provider);
-}
+export const readPiApiKey = async (provider: string) => getGlass().pi.getApiKey(provider);
 
 export async function writePiApiKey(provider: string, key: string) {
   await getGlass().pi.setApiKey(provider, key);

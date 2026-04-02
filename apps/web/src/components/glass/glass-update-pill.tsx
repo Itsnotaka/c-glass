@@ -6,15 +6,15 @@ import { isElectron } from "../../env";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
-} from "../../lib/desktopUpdateReactQuery";
+} from "../../lib/desktop-update-react-query";
 import {
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
   shouldShowDesktopUpdateButton,
-} from "../desktopUpdate.logic";
-import { toastManager } from "../ui/toast";
+} from "../desktop-update.logic";
+import { toast } from "sonner";
 
 export function GlassUpdatePill() {
   const qc = useQueryClient();
@@ -32,9 +32,7 @@ export function GlassUpdatePill() {
       void bridge.downloadUpdate().then((result) => {
         setDesktopUpdateStateQueryData(qc, result.state);
         if (result.completed) {
-          toastManager.add({
-            type: "success",
-            title: "Update downloaded",
+          toast.success("Update downloaded", {
             description: "Restart the app to install it.",
           });
         }

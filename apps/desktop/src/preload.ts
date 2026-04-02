@@ -13,10 +13,13 @@ const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const SESSION_LIST_CHANNEL = "glass:session.list";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
+const SESSION_WATCH_CHANNEL = "glass:session.watch";
+const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
 const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
 const SESSION_ABORT_CHANNEL = "glass:session.abort";
 const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
-const SESSION_EVENT_CHANNEL = "glass:session.event";
+const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
+const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
@@ -33,18 +36,30 @@ contextBridge.exposeInMainWorld("glass", {
     list: () => ipcRenderer.invoke(SESSION_LIST_CHANNEL),
     create: () => ipcRenderer.invoke(SESSION_CREATE_CHANNEL),
     get: (sessionId) => ipcRenderer.invoke(SESSION_GET_CHANNEL, sessionId),
+    watch: (sessionId) => ipcRenderer.invoke(SESSION_WATCH_CHANNEL, sessionId),
+    unwatch: () => ipcRenderer.invoke(SESSION_UNWATCH_CHANNEL),
     prompt: (sessionId, text) => ipcRenderer.invoke(SESSION_PROMPT_CHANNEL, sessionId, text),
     abort: (sessionId) => ipcRenderer.invoke(SESSION_ABORT_CHANNEL, sessionId),
     setModel: (sessionId, provider, model) =>
       ipcRenderer.invoke(SESSION_SET_MODEL_CHANNEL, sessionId, provider, model),
-    onEvent: (listener) => {
+    onSummary: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
         if (typeof data !== "object" || data === null) return;
         listener(data as Parameters<typeof listener>[0]);
       };
-      ipcRenderer.on(SESSION_EVENT_CHANNEL, wrapped);
+      ipcRenderer.on(SESSION_SUMMARY_CHANNEL, wrapped);
       return () => {
-        ipcRenderer.removeListener(SESSION_EVENT_CHANNEL, wrapped);
+        ipcRenderer.removeListener(SESSION_SUMMARY_CHANNEL, wrapped);
+      };
+    },
+    onActive: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+        if (typeof data !== "object" || data === null) return;
+        listener(data as Parameters<typeof listener>[0]);
+      };
+      ipcRenderer.on(SESSION_ACTIVE_CHANNEL, wrapped);
+      return () => {
+        ipcRenderer.removeListener(SESSION_ACTIVE_CHANNEL, wrapped);
       };
     },
   },

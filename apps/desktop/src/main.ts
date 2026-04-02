@@ -22,6 +22,8 @@ import type {
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
   DesktopUpdateState,
+  PiSessionActiveEvent,
+  PiSessionSummaryEvent,
 } from "@glass/contracts";
 import { autoUpdater } from "electron-updater";
 import { RotatingFileSink } from "@glass/shared/logging";
@@ -60,10 +62,13 @@ const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const SESSION_LIST_CHANNEL = "glass:session.list";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
+const SESSION_WATCH_CHANNEL = "glass:session.watch";
+const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
 const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
 const SESSION_ABORT_CHANNEL = "glass:session.abort";
 const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
-const SESSION_EVENT_CHANNEL = "glass:session.event";
+const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
+const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
@@ -103,9 +108,15 @@ let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
 let removeSessionEvents: (() => void) | null = null;
+let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
+
+const pendingSessionSummaries = new Map<string, PiSessionSummaryEvent>();
+const pendingSessionActives = new Map<number, PiSessionActiveEvent[]>();
+const watchedSessions = new Map<number, string>();
+const watchedSenders = new Set<number>();
 
 const pi = new PiConfigService();
-const shellService = new ShellService();
+const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
 const sessionService = new PiSessionService(pi, shellService);
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
@@ -117,17 +128,13 @@ const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
 const initialUpdateState = (): DesktopUpdateState =>
   createInitialDesktopUpdateState(app.getVersion(), desktopRuntimeInfo);
 
-function logTimestamp(): string {
-  return new Date().toISOString();
-}
-
 function logScope(scope: string): string {
   return `${scope} run=${APP_RUN_ID}`;
 }
 
 function writeDesktopLogHeader(message: string): void {
   if (!desktopLogSink) return;
-  desktopLogSink.write(`[${logTimestamp()}] [${logScope("desktop")}] ${message}\n`);
+  desktopLogSink.write(`[${new Date().toISOString()}] [${logScope("desktop")}] ${message}\n`);
 }
 
 function formatErrorMessage(error: unknown): string {
@@ -173,7 +180,7 @@ function writeDesktopStreamChunk(
   const buffer = Buffer.isBuffer(chunk)
     ? chunk
     : Buffer.from(String(chunk), typeof chunk === "string" ? encoding : undefined);
-  desktopLogSink.write(`[${logTimestamp()}] [${logScope(streamName)}] `);
+  desktopLogSink.write(`[${new Date().toISOString()}] [${logScope(streamName)}] `);
   desktopLogSink.write(buffer);
   if (buffer.length === 0 || buffer[buffer.length - 1] !== 0x0a) {
     desktopLogSink.write("\n");
@@ -628,10 +635,6 @@ function resolveResourcePath(fileName: string): string | null {
   return null;
 }
 
-function resolveIconPath(ext: "ico" | "icns" | "png"): string | null {
-  return resolveResourcePath(`icon.${ext}`);
-}
-
 /**
  * Resolve the Electron userData directory path.
  *
@@ -674,7 +677,7 @@ function configureAppIdentity(): void {
   }
 
   if (process.platform === "darwin" && app.dock) {
-    const iconPath = resolveIconPath("png");
+    const iconPath = resolveResourcePath("icon.png");
     if (iconPath) {
       app.dock.setIcon(iconPath);
     }
@@ -941,10 +944,77 @@ function configureAutoUpdater(): void {
   updatePollTimer.unref();
 }
 
-function emitSessionEvent(event: unknown): void {
+function flushSessionEvents(): void {
+  sessionEventTimer = null;
+  if (pendingSessionSummaries.size === 0 && pendingSessionActives.size === 0) return;
+
+  const sums = [...pendingSessionSummaries.values()];
+  const acts = [...pendingSessionActives.entries()];
+  pendingSessionSummaries.clear();
+  pendingSessionActives.clear();
+
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue;
-    window.webContents.send(SESSION_EVENT_CHANNEL, event);
+    for (const event of sums) {
+      window.webContents.send(SESSION_SUMMARY_CHANNEL, event);
+    }
+  }
+
+  for (const [id, events] of acts) {
+    const window = BrowserWindow.getAllWindows().find((item) => item.webContents.id === id);
+    if (!window || window.isDestroyed()) continue;
+    for (const event of events) {
+      window.webContents.send(SESSION_ACTIVE_CHANNEL, event);
+    }
+  }
+}
+
+function emitSessionEvent(event: unknown): void {
+  if (!event || typeof event !== "object" || !("lane" in event)) return;
+
+  if (event.lane === "summary") {
+    const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
+    if (!id) return;
+    pendingSessionSummaries.set(id, event as PiSessionSummaryEvent);
+  }
+
+  if (event.lane === "active") {
+    const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
+    if (!id) return;
+    for (const [wid, sid] of watchedSessions) {
+      if (sid !== id) continue;
+      const list = pendingSessionActives.get(wid) ?? [];
+      list.push(event as PiSessionActiveEvent);
+      pendingSessionActives.set(wid, list);
+    }
+  }
+
+  if (sessionEventTimer) return;
+
+  sessionEventTimer = setTimeout(flushSessionEvents, 16);
+  sessionEventTimer.unref();
+}
+
+function clearWatchedSession(id: number): void {
+  const cur = watchedSessions.get(id);
+  watchedSessions.delete(id);
+  pendingSessionActives.delete(id);
+  if (!cur) return;
+  Effect.runSync(sessionService.unwatch(cur));
+}
+
+function bindWatchedSession(sender: Electron.WebContents): void {
+  if (watchedSenders.has(sender.id)) return;
+  watchedSenders.add(sender.id);
+  sender.once("destroyed", () => {
+    watchedSenders.delete(sender.id);
+    clearWatchedSession(sender.id);
+  });
+}
+
+function clearAllWatchedSessions(): void {
+  for (const id of watchedSessions.keys()) {
+    clearWatchedSession(id);
   }
 }
 
@@ -1051,6 +1121,39 @@ function registerIpcHandlers(): void {
     return Effect.runPromise(sessionService.get(sessionId));
   });
 
+  ipcMain.removeHandler(SESSION_WATCH_CHANNEL);
+  ipcMain.handle(SESSION_WATCH_CHANNEL, async (event, sessionId: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+
+    bindWatchedSession(event.sender);
+
+    const cur = watchedSessions.get(event.sender.id);
+    if (cur === sessionId) {
+      return Effect.runPromise(sessionService.get(sessionId));
+    }
+    if (cur) {
+      clearWatchedSession(event.sender.id);
+    }
+    watchedSessions.set(event.sender.id, sessionId);
+    return Effect.runPromise(
+      sessionService.watch(sessionId).pipe(
+        Effect.tapError(() =>
+          Effect.sync(() => {
+            watchedSessions.delete(event.sender.id);
+            pendingSessionActives.delete(event.sender.id);
+          }).pipe(Effect.andThen(sessionService.unwatch(sessionId))),
+        ),
+      ),
+    );
+  });
+
+  ipcMain.removeHandler(SESSION_UNWATCH_CHANNEL);
+  ipcMain.handle(SESSION_UNWATCH_CHANNEL, async (event) => {
+    clearWatchedSession(event.sender.id);
+  });
+
   ipcMain.removeHandler(SESSION_PROMPT_CHANNEL);
   ipcMain.handle(SESSION_PROMPT_CHANNEL, async (_event, sessionId: unknown, text: unknown) => {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
@@ -1144,7 +1247,11 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(SHELL_PICK_WORKSPACE_CHANNEL);
   ipcMain.handle(SHELL_PICK_WORKSPACE_CHANNEL, async () => {
     const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    return Effect.runPromise(shellService.pickWorkspace(owner));
+    const next = await Effect.runPromise(shellService.pickWorkspace(owner));
+    if (next) {
+      clearAllWatchedSessions();
+    }
+    return next;
   });
 
   ipcMain.removeHandler(SHELL_OPEN_IN_EDITOR_CHANNEL);
@@ -1216,7 +1323,7 @@ function registerIpcHandlers(): void {
 function getIconOption(): { icon: string } | Record<string, never> {
   if (process.platform === "darwin") return {}; // macOS uses .icns from app bundle
   const ext = process.platform === "win32" ? "ico" : "png";
-  const iconPath = resolveIconPath(ext);
+  const iconPath = resolveResourcePath(`icon.${ext}`);
   return iconPath ? { icon: iconPath } : {};
 }
 
