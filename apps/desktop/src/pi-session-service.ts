@@ -326,6 +326,7 @@ export class PiSessionService {
   private load(mgr: SessionManager) {
     return Effect.tryPromise({
       try: async () => {
+        this.cfg.sync();
         const result = await createAgentSession({
           cwd: this.shell.cwd,
           authStorage: this.cfg.auth,
@@ -393,7 +394,10 @@ export class PiSessionService {
     return this.open(sessionId).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
-          try: () => session.prompt(text),
+          try: () => {
+            this.cfg.sync();
+            return session.prompt(text);
+          },
           catch: (err) => (err instanceof Error ? err : new Error(String(err))),
         }),
       ),
@@ -415,7 +419,7 @@ export class PiSessionService {
     return this.open(sessionId).pipe(
       Effect.flatMap((session) =>
         Effect.sync(() => {
-          this.cfg.reg.refresh();
+          this.cfg.sync();
           const next = this.cfg.reg.find(provider, model);
           if (!next) throw new Error(`Unknown model: ${provider}/${model}`);
           return next;

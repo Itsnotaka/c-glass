@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   rmSync,
   statSync,
@@ -19,7 +20,7 @@ import { fileURLToPath } from "node:url";
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const APP_DISPLAY_NAME = isDevelopment ? "Glass (Dev)" : "Glass";
 const APP_BUNDLE_ID = "com.glass.app";
-const LAUNCHER_VERSION = 1;
+const LAUNCHER_VERSION = 2;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const desktopDir = resolve(__dirname, "..");
@@ -97,6 +98,17 @@ function readJson(path) {
   }
 }
 
+function valid(appBundlePath) {
+  try {
+    const target = readlinkSync(
+      join(appBundlePath, "Contents", "Frameworks", "Electron Framework.framework", "Resources"),
+    );
+    return !target.startsWith("/");
+  } catch {
+    return false;
+  }
+}
+
 function buildMacLauncher(electronBinaryPath) {
   const sourceAppBundlePath = resolve(electronBinaryPath, "../../..");
   const runtimeDir = join(desktopDir, ".electron-runtime");
@@ -118,13 +130,17 @@ function buildMacLauncher(electronBinaryPath) {
   if (
     existsSync(targetBinaryPath) &&
     currentMetadata &&
-    JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata)
+    JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata) &&
+    valid(targetAppBundlePath)
   ) {
     return targetBinaryPath;
   }
 
   rmSync(targetAppBundlePath, { recursive: true, force: true });
-  cpSync(sourceAppBundlePath, targetAppBundlePath, { recursive: true });
+  cpSync(sourceAppBundlePath, targetAppBundlePath, {
+    recursive: true,
+    verbatimSymlinks: true,
+  });
   patchMainBundleInfoPlist(targetAppBundlePath, iconPath);
   patchHelperBundleInfoPlists(targetAppBundlePath);
   writeFileSync(metadataPath, `${JSON.stringify(expectedMetadata, null, 2)}\n`);
@@ -140,9 +156,5 @@ export function resolveElectronPath() {
     return electronBinaryPath;
   }
 
-  if (process.env.GLASS_DESKTOP_USE_PACKAGED_LAUNCHER === "1") {
-    return buildMacLauncher(electronBinaryPath);
-  }
-
-  return electronBinaryPath;
+  return buildMacLauncher(electronBinaryPath);
 }

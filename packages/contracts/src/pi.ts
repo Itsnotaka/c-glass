@@ -41,6 +41,17 @@ export const PiModel = Schema.Struct({
 });
 export type PiModel = typeof PiModel.Type;
 
+export const PiProviderAuthType = Schema.NullOr(Schema.Literals(["api_key", "oauth"]));
+export type PiProviderAuthType = typeof PiProviderAuthType.Type;
+
+export const PiProviderState = Schema.Struct({
+  provider: TrimmedNonEmptyString,
+  configured: Schema.Boolean,
+  credentialType: PiProviderAuthType,
+  oauthSupported: Schema.Boolean,
+});
+export type PiProviderState = typeof PiProviderState.Type;
+
 export const PiDefaults = Schema.Struct({
   provider: Schema.NullOr(TrimmedNonEmptyString),
   model: Schema.NullOr(TrimmedNonEmptyString),
@@ -55,6 +66,7 @@ export const PiConfig = Schema.Struct({
   modelsPath: Schema.String,
   authPath: Schema.String,
   defaults: PiDefaults,
+  providers: Schema.Array(PiProviderState),
   models: Schema.Array(PiModel),
   available: Schema.Array(TrimmedNonEmptyString),
   error: Schema.NullOr(Schema.String),

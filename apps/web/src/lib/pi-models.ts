@@ -1,4 +1,4 @@
-import type { PiConfig, PiModelRef, PiThinkingLevel } from "@glass/contracts";
+import type { PiConfig, PiModelRef, PiProviderState, PiThinkingLevel } from "@glass/contracts";
 import { getGlass } from "../host";
 import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "./pi-glass-constants";
 
@@ -38,6 +38,8 @@ export interface PiDefaults {
   model: string | null;
   thinkingLevel: PiThinkingLevel | null;
 }
+
+export interface PiProviderItem extends PiProviderState {}
 
 function key(provider: string, id: string) {
   return `${provider}/${id}`;
@@ -173,6 +175,21 @@ export async function readPiDefaults() {
     model: data.defaults.model,
     thinkingLevel: data.defaults.thinkingLevel,
   } satisfies PiDefaults;
+}
+
+export async function listPiProviders() {
+  const data = await cfg();
+  return [...data.providers].sort((left, right) => left.provider.localeCompare(right.provider));
+}
+
+export async function readPiProvider(provider: string) {
+  const data = await cfg();
+  return (data.providers.find((item) => item.provider === provider) ?? {
+    provider,
+    configured: false,
+    credentialType: null,
+    oauthSupported: false,
+  }) satisfies PiProviderItem;
 }
 
 export async function listPiModels(cur?: PiModelRef | null) {

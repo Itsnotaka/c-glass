@@ -43,7 +43,9 @@ export function GlassHeroCanvas() {
       </div>
       <GlassProviderKeyDialog
         open={session.provider !== null}
-        provider={session.provider ?? ""}
+        provider={session.provider?.name ?? ""}
+        mode={session.provider?.mode ?? "api_key"}
+        oauthSupported={session.provider?.oauthSupported}
         onSubmit={session.resolve}
       />
     </div>

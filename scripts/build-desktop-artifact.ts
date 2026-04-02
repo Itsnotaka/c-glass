@@ -457,8 +457,7 @@ function resolveDesktopRuntimeDependencies(
 
   const runtimeDependencies = Object.fromEntries(
     Object.entries(dependencies).filter(
-      ([dependencyName]) =>
-        dependencyName !== "electron" && dependencyName !== "electron-updater",
+      ([dependencyName]) => dependencyName !== "electron" && dependencyName !== "electron-updater",
     ),
   );
 

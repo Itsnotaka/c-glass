@@ -9,12 +9,17 @@ import { useTheme } from "../../hooks/useTheme";
 import { getGlass } from "../../host";
 import {
   clearPiDefaultModel,
+  listPiProviders,
   readPiApiKey,
+  type PiProviderItem,
   writePiApiKey,
   writePiDefaultModel,
   writePiDefaultThinkingLevel,
 } from "../../lib/pi-models";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
+import {
+  PI_GLASS_SETTINGS_CHANGED_EVENT,
+  PI_GLASS_SHELL_CHANGED_EVENT,
+} from "../../lib/pi-glass-constants";
 import { resolveAndPersistPreferredEditor } from "../../editorPreferences";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
@@ -185,22 +190,35 @@ function DefaultsPanel() {
 }
 
 function KeysPanel() {
-  const defaults = usePiDefaults();
-  const providers = useMemo(
-    () =>
-      [...new Set(defaults.items.map((item) => item.provider))].toSorted((left, right) =>
-        left.localeCompare(right),
-      ),
-    [defaults.items],
-  );
+  const [providers, setProviders] = useState<PiProviderItem[]>([]);
   const [provider, setProvider] = useState("");
   const [value, setValue] = useState("");
   const [stored, setStored] = useState(false);
 
   useEffect(() => {
+    let live = true;
+
+    const load = () => {
+      void listPiProviders().then((next) => {
+        if (!live) return;
+        setProviders(next);
+      });
+    };
+
+    load();
+    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
+    return () => {
+      live = false;
+      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
+    };
+  }, []);
+
+  const cur = providers.find((item) => item.provider === provider) ?? null;
+
+  useEffect(() => {
     if (provider) return;
     if (!providers[0]) return;
-    setProvider(providers[0]);
+    setProvider(providers[0].provider);
   }, [provider, providers]);
 
   useEffect(() => {
@@ -229,41 +247,53 @@ function KeysPanel() {
             <div className="flex flex-wrap gap-2">
               {providers.map((item) => (
                 <Button
-                  key={item}
+                  key={item.provider}
                   type="button"
                   size="sm"
-                  variant={provider === item ? "default" : "outline"}
-                  onClick={() => setProvider(item)}
+                  variant={provider === item.provider ? "default" : "outline"}
+                  onClick={() => setProvider(item.provider)}
                 >
-                  {item}
+                  {item.provider}
                 </Button>
               ))}
             </div>
           </div>
           <div className="space-y-2">
-            <div className="text-muted-foreground">API key {stored ? "(stored)" : "(missing)"}</div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                placeholder={provider ? `Set key for ${provider}` : "Choose a provider"}
-                disabled={!provider}
-              />
-              <Button
-                type="button"
-                disabled={!provider || !value.trim()}
-                onClick={() => {
-                  if (!provider || !value.trim()) return;
-                  void writePiApiKey(provider, value.trim()).then(() => {
-                    setStored(true);
-                    setValue("");
-                  });
-                }}
-              >
-                Save
-              </Button>
-            </div>
+            {cur?.credentialType === "oauth" || cur?.oauthSupported ? (
+              <div className="rounded-lg border border-glass-panel-border bg-muted/20 px-3 py-2 text-muted-foreground">
+                {cur.oauthSupported
+                  ? `This provider uses OAuth in Pi${stored ? " and is currently logged in." : "."}`
+                  : `This provider is currently using OAuth-style credentials from your local Pi config${stored ? "." : ", but Glass will not overwrite them as an API key."}`}
+              </div>
+            ) : (
+              <>
+                <div className="text-muted-foreground">
+                  API key {stored ? "(stored)" : "(missing)"}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={value}
+                    onChange={(event) => setValue(event.target.value)}
+                    placeholder={provider ? `Set key for ${provider}` : "Choose a provider"}
+                    disabled={!provider}
+                  />
+                  <Button
+                    type="button"
+                    disabled={!provider || !value.trim()}
+                    onClick={() => {
+                      if (!provider || !value.trim()) return;
+                      void writePiApiKey(provider, value.trim()).then(() => {
+                        setStored(true);
+                        setValue("");
+                      });
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       }

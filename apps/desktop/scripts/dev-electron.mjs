@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { watch } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, watch, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { desktopDir, resolveElectronPath } from "./electron-launcher.mjs";
@@ -14,6 +14,13 @@ const watchedDirectories = [
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
 const childTreeGracePeriodMs = 1_200;
+const runDir = join(desktopDir, ".electron-runtime");
+const pidPath = join(runDir, `dev-electron-${port}.json`);
+const args = [
+  `--glass-dev-root=${desktopDir}`,
+  `--glass-dev-port=${port}`,
+  "dist-electron/main.js",
+];
 
 await waitForResources({
   baseDir: desktopDir,
@@ -31,6 +38,86 @@ let restartQueue = Promise.resolve();
 const expectedExits = new WeakSet();
 const watchers = [];
 
+function readJson(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function alive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function kill(pid, signal) {
+  if (!alive(pid)) {
+    return;
+  }
+
+  try {
+    process.kill(pid, signal);
+  } catch {}
+}
+
+async function waitForExit(pid, timeoutMs) {
+  const end = Date.now() + timeoutMs;
+  while (alive(pid) && Date.now() < end) {
+    await wait(100);
+  }
+}
+
+function escape(value) {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&");
+}
+
+async function claim() {
+  mkdirSync(runDir, { recursive: true });
+
+  const pid = readJson(pidPath)?.pid;
+  if (pid && pid !== process.pid) {
+    kill(pid, "SIGTERM");
+    await waitForExit(pid, forcedShutdownTimeoutMs);
+
+    if (alive(pid)) {
+      kill(pid, "SIGKILL");
+      await waitForExit(pid, forcedShutdownTimeoutMs);
+    }
+
+    if (alive(pid)) {
+      throw new Error(`dev-electron is already running for port ${port} (pid ${pid})`);
+    }
+  }
+
+  writeFileSync(
+    pidPath,
+    `${JSON.stringify({ pid: process.pid, port, root: desktopDir }, null, 2)}\n`,
+  );
+}
+
+function release() {
+  if (readJson(pidPath)?.pid !== process.pid) {
+    return;
+  }
+
+  rmSync(pidPath, { force: true });
+}
+
 function killChildTreeByPid(pid, signal) {
   if (process.platform === "win32" || typeof pid !== "number") {
     return;
@@ -44,7 +131,11 @@ function cleanupStaleDevApps() {
     return;
   }
 
-  spawnSync("pkill", ["-f", "--", `--glass-dev-root=${desktopDir}`], { stdio: "ignore" });
+  spawnSync(
+    "pkill",
+    ["-f", "--", `--glass-dev-root=${escape(desktopDir)}.*--glass-dev-port=${port}`],
+    { stdio: "ignore" },
+  );
 }
 
 function startApp() {
@@ -52,18 +143,14 @@ function startApp() {
     return;
   }
 
-  const app = spawn(
-    resolveElectronPath(),
-    [`--glass-dev-root=${desktopDir}`, "dist-electron/main.js"],
-    {
-      cwd: desktopDir,
-      env: {
-        ...childEnv,
-        VITE_DEV_SERVER_URL: devServerUrl,
-      },
-      stdio: "inherit",
+  const app = spawn(resolveElectronPath(), args, {
+    cwd: desktopDir,
+    env: {
+      ...childEnv,
+      VITE_DEV_SERVER_URL: devServerUrl,
     },
-  );
+    stdio: "inherit",
+  });
 
   currentApp = app;
 
@@ -190,18 +277,21 @@ async function shutdown(exitCode) {
 
   await stopApp();
   killChildTree("TERM");
-  await new Promise((resolve) => {
-    setTimeout(resolve, childTreeGracePeriodMs);
-  });
+  await wait(childTreeGracePeriodMs);
   killChildTree("KILL");
+  release();
 
   process.exit(exitCode);
 }
 
+await claim();
 startWatchers();
 cleanupStaleDevApps();
 startApp();
 
+process.once("exit", () => {
+  release();
+});
 process.once("SIGINT", () => {
   void shutdown(130);
 });

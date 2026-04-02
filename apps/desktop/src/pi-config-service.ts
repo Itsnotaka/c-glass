@@ -56,9 +56,44 @@ function modelDto(model: ReturnType<ModelRegistry["getAll"]>[number]) {
   };
 }
 
+function providerDto(input: {
+  provider: string;
+  configured: boolean;
+  credential: ReturnType<AuthStorage["get"]>;
+  oauthSupported: boolean;
+}) {
+  return {
+    provider: input.provider,
+    configured: input.configured,
+    credentialType: input.credential?.type ?? null,
+    oauthSupported: input.oauthSupported,
+  };
+}
+
 export class PiConfigService {
   auth = AuthStorage.create(Path.join(getAgentDir(), "auth.json"));
   reg = ModelRegistry.create(this.auth, Path.join(getAgentDir(), "models.json"));
+  runtime = new Set<string>();
+
+  sync() {
+    for (const provider of this.runtime) {
+      this.auth.removeRuntimeApiKey(provider);
+    }
+    this.runtime.clear();
+
+    this.auth.reload();
+    this.reg.refresh();
+
+    const oauth = new Set(this.auth.getOAuthProviders().map((item) => item.id));
+    for (const provider of this.auth.list()) {
+      const cred = this.auth.get(provider);
+      if (cred?.type !== "oauth" || oauth.has(provider)) continue;
+      const key = cred.access.trim();
+      if (!key) continue;
+      this.auth.setRuntimeApiKey(provider, key);
+      this.runtime.add(provider);
+    }
+  }
 
   settings(cwd: string) {
     return SettingsManager.create(cwd, getAgentDir());
@@ -98,9 +133,17 @@ export class PiConfigService {
 
   getConfig(cwd: string): Effect.Effect<PiConfig> {
     return Effect.sync(() => {
-      this.reg.refresh();
+      this.sync();
       const path = this.paths(cwd);
       const mgr = this.settings(cwd);
+      const all = this.reg.getAll();
+      const available = this.reg.getAvailable();
+      const shown = new Set(all.map((model) => model.provider));
+      const providers = [...new Set([...shown, ...this.auth.list()])].toSorted((left, right) =>
+        left.localeCompare(right),
+      );
+      const oauth = new Set(this.auth.getOAuthProviders().map((item) => item.id));
+      const visible = new Set(available.map((model) => model.provider));
       return {
         agentDir: path.agent,
         settingsPath: path.settings,
@@ -112,8 +155,16 @@ export class PiConfigService {
           model: mgr.getDefaultModel() ?? null,
           thinkingLevel: level(mgr.getDefaultThinkingLevel()),
         },
-        models: this.reg.getAll().map((model) => modelDto(model)),
-        available: this.reg.getAvailable().map((model) => key(model.provider, model.id)),
+        providers: providers.map((provider) =>
+          providerDto({
+            provider,
+            configured: visible.has(provider) || this.auth.hasAuth(provider),
+            credential: this.auth.get(provider),
+            oauthSupported: oauth.has(provider),
+          }),
+        ),
+        models: all.map((model) => modelDto(model)),
+        available: available.map((model) => key(model.provider, model.id)),
         error: this.errs(cwd),
       };
     });
@@ -146,6 +197,7 @@ export class PiConfigService {
   getApiKey(provider: string) {
     return Effect.tryPromise({
       try: async () => {
+        this.sync();
         const value = await this.reg.getApiKeyForProvider(provider);
         const err = this.auth.drainErrors()[0];
         if (err) throw err;
@@ -158,6 +210,7 @@ export class PiConfigService {
   setApiKey(provider: string, key: string) {
     return Effect.sync(() => {
       this.auth.set(provider, { type: "api_key", key });
+      this.sync();
       const err = this.auth.drainErrors()[0];
       if (err) throw err;
     });
