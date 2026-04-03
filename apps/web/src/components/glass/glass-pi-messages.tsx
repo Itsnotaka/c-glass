@@ -1,14 +1,17 @@
-import type { PiSessionItem, PiToolCallBlock } from "@glass/contracts";
+import type { PiSessionItem } from "@glass/contracts";
 import { Collapsible } from "@base-ui/react/collapsible";
-import { layoutWithLines, prepareWithSegments } from "@chenglou/pretext";
 import { code } from "@streamdown/code";
 import {
-  IconChevronRight,
+  IconChevronBottom,
+  IconCircleCheck,
+  IconCircleX,
   IconConsole,
   IconFileBend,
   IconImages1,
+  IconLoader,
   IconToolbox,
 } from "central-icons";
+import type React from "react";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { Streamdown } from "streamdown";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
@@ -22,6 +25,51 @@ const controls = {
   mermaid: false,
   table: false,
 } as const;
+
+type ToolState = "pending" | "running" | "completed" | "errored";
+
+function state(row: PiRow): ToolState {
+  if (row.kind === "tool") {
+    if (row.error) return "errored";
+    if (row.result.trim()) return "completed";
+    if (row.args.trim()) return "running";
+    return "pending";
+  }
+  if (row.kind === "bash") {
+    if (row.cancelled) return "errored";
+    if (row.code !== null && row.code !== 0) return "errored";
+    if (row.output.trim() || row.code !== null) return "completed";
+    return "running";
+  }
+  return "completed";
+}
+
+const labels: Record<ToolState, string> = {
+  pending: "Pending",
+  running: "Running",
+  completed: "Completed",
+  errored: "Error",
+};
+
+function Badge(props: { state: ToolState }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]/[1.2] font-medium",
+        props.state === "pending" && "bg-muted-foreground/10 text-muted-foreground/70",
+        props.state === "running" && "bg-info/10 text-info-foreground",
+        props.state === "completed" && "bg-success/10 text-success-foreground",
+        props.state === "errored" && "bg-destructive/10 text-destructive",
+      )}
+    >
+      {props.state === "pending" && <IconLoader className="size-3 animate-spin" />}
+      {props.state === "running" && <IconLoader className="size-3 animate-spin" />}
+      {props.state === "completed" && <IconCircleCheck className="size-3" />}
+      {props.state === "errored" && <IconCircleX className="size-3" />}
+      {labels[props.state]}
+    </span>
+  );
+}
 
 function draw(row: PiRow, expanded: boolean, onFlip: () => void) {
   if (row.kind === "user") {
@@ -79,47 +127,6 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void) {
   return (
     <TextCard key={row.id} label={row.role} text={row.text} expanded={expanded} onFlip={onFlip} />
   );
-}
-
-function clip(text: string) {
-  const prep = prepareWithSegments(text, "12px ui-monospace", { whiteSpace: "pre-wrap" });
-  const out = layoutWithLines(prep, 640, 20);
-  if (out.lines.length <= 8) return text;
-  return `${out.lines
-    .slice(0, 8)
-    .map((line) => line.text)
-    .join("\n")}\n...`;
-}
-
-function first(call: PiToolCallBlock | null) {
-  const args = call?.arguments;
-  if (!args || typeof args !== "object") {
-    if (typeof args === "string" && args.trim()) return args.trim().slice(0, 72);
-    return null;
-  }
-
-  for (const key of ["command", "path", "query", "file", "url", "prompt", "target"]) {
-    const val = (args as Record<string, unknown>)[key];
-    if (typeof val === "string" && val.trim()) return val.trim().slice(0, 72);
-  }
-
-  const keys = Object.keys(args as Record<string, unknown>);
-  if (keys.length === 0) return null;
-  return `${keys.length} prop${keys.length === 1 ? "" : "s"}`;
-}
-
-function meta(row: PiRow) {
-  if (row.kind === "tool") {
-    if (row.error) return "errored";
-    if (row.result.trim()) return "returned output";
-    return "waiting";
-  }
-  if (row.kind === "bash") {
-    if (row.cancelled) return "cancelled";
-    if (row.code === null) return "exit unknown";
-    return `exit ${row.code}`;
-  }
-  return null;
 }
 
 const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachment }) {
@@ -217,85 +224,92 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
 });
 
 const Section = memo(function Section(props: {
-  label?: string;
+  label: string;
   text: string;
   error?: boolean | undefined;
 }) {
   if (!props.text.trim()) return null;
 
   return (
-    <div
-      className={cn(
-        "rounded-xl border px-2.5 py-2",
-        props.error
-          ? "border-destructive/25 bg-destructive/6"
-          : "border-glass-border/30 bg-glass-hover/12",
-      )}
-    >
-      {props.label ? (
-        <div className="mb-1.5 text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/60 uppercase">
-          {props.label}
-        </div>
-      ) : null}
-      <pre className="font-glass-mono whitespace-pre-wrap text-[11px]/[1.45] text-foreground/78">
-        {props.text}
-      </pre>
+    <div>
+      <div className="mb-1.5 text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/55 uppercase">
+        {props.label}
+      </div>
+      <div
+        className={cn(
+          "rounded-lg border px-2.5 py-2",
+          props.error
+            ? "border-destructive/20 bg-destructive/5"
+            : "border-glass-border/25 bg-glass-hover/8",
+        )}
+      >
+        <pre className="font-glass-mono whitespace-pre-wrap text-[11px]/[1.45] text-foreground/75">
+          {props.text}
+        </pre>
+      </div>
     </div>
   );
 });
+
+function CardShell(props: {
+  icon: React.ReactNode;
+  name: string;
+  badge: ToolState;
+  expanded: boolean;
+  onFlip: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="overflow-hidden rounded-lg border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
+      <Collapsible.Root open={props.expanded}>
+        <Collapsible.Trigger
+          onClick={props.onFlip}
+          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-glass-hover/15"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/70">
+            {props.icon}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] font-medium text-foreground/80">
+            {props.name}
+          </span>
+          <Badge state={props.badge} />
+          <IconChevronBottom
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+              !props.expanded && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="grid gap-3 border-t border-glass-border/25 px-3 py-3">
+            {props.children}
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+}
 
 const ToolCard = memo(function ToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;
   expanded: boolean;
   onFlip: () => void;
 }) {
-  const txt = useMemo(
-    () => clip(props.row.result || props.row.args || ""),
-    [props.row.args, props.row.result],
-  );
-  const sum = first(props.row.call);
-  const info = meta(props.row);
-
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
-        >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-            <IconToolbox className="size-4" />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] text-foreground/78">
-            {props.row.name}
-          </span>
-          {sum ? (
-            <span className="hidden max-w-40 truncate text-[11px]/[1.2] text-muted-foreground/72 md:block">
-              {sum}
-            </span>
-          ) : null}
-          {info ? (
-            <span className="shrink-0 text-[11px]/[1.2] text-muted-foreground/72">{info}</span>
-          ) : null}
-          <IconChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="grid gap-2 px-3 pb-3">
-            <Section label="Props" text={props.row.args} />
-            <Section label="Output" text={props.row.result} error={props.row.error} />
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section text={txt} error={props.row.error} />
-          </div>
-        ) : null}
-      </Collapsible.Root>
-    </li>
+    <CardShell
+      icon={<IconToolbox className="size-4" />}
+      name={props.row.name}
+      badge={state(props.row)}
+      expanded={props.expanded}
+      onFlip={props.onFlip}
+    >
+      <Section label="Parameters" text={props.row.args} />
+      <Section
+        label={props.row.error ? "Error" : "Result"}
+        text={props.row.result}
+        error={props.row.error}
+      />
+    </CardShell>
   );
 });
 
@@ -304,53 +318,24 @@ const BashCard = memo(function BashCard(props: {
   expanded: boolean;
   onFlip: () => void;
 }) {
-  const info = meta(props.row);
-  const txt = useMemo(
-    () => clip(props.row.output || props.row.command),
-    [props.row.command, props.row.output],
-  );
+  const err = props.row.code !== null && props.row.code !== 0;
 
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
-        >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-            <IconConsole className="size-4" />
-          </span>
-          <span className="truncate text-[13px]/[1.3] text-foreground/78">Ran command</span>
-          <span className="min-w-0 flex-1 truncate text-[11px]/[1.2] text-muted-foreground/72">
-            {props.row.command}
-          </span>
-          {info ? (
-            <span className="shrink-0 text-[11px]/[1.2] text-muted-foreground/72">{info}</span>
-          ) : null}
-          <IconChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="grid gap-2 px-3 pb-3">
-            <Section label="Command" text={props.row.command} />
-            <Section
-              label="Output"
-              text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
-              error={props.row.code !== null && props.row.code !== 0}
-            />
-            {props.row.path ? <Section label="Full output path" text={props.row.path} /> : null}
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section text={txt} error={props.row.code !== null && props.row.code !== 0} />
-          </div>
-        ) : null}
-      </Collapsible.Root>
-    </li>
+    <CardShell
+      icon={<IconConsole className="size-4" />}
+      name="Ran command"
+      badge={state(props.row)}
+      expanded={props.expanded}
+      onFlip={props.onFlip}
+    >
+      <Section label="Command" text={props.row.command} />
+      <Section
+        label="Output"
+        text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
+        error={err}
+      />
+      {props.row.path ? <Section label="Full output path" text={props.row.path} /> : null}
+    </CardShell>
   );
 });
 
@@ -361,36 +346,16 @@ const TextCard = memo(function TextCard(props: {
   onFlip: () => void;
   error?: boolean;
 }) {
-  const txt = useMemo(() => clip(props.text), [props.text]);
-
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
-        >
-          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] text-foreground/78">
-            {props.label}
-          </span>
-          <IconChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="px-3 pb-3">
-            <Section label={props.label} text={props.text} error={props.error} />
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section label="Preview" text={txt} error={props.error} />
-          </div>
-        ) : null}
-      </Collapsible.Root>
-    </li>
+    <CardShell
+      icon={<IconToolbox className="size-4" />}
+      name={props.label}
+      badge="completed"
+      expanded={props.expanded}
+      onFlip={props.onFlip}
+    >
+      <Section label="Content" text={props.text} error={props.error} />
+    </CardShell>
   );
 });
 
