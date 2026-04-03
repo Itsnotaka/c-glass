@@ -1,19 +1,18 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+"use client";
+
+import { useNavigate } from "@tanstack/react-router";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
 const GlassSettingsContext = createContext<{
-  open: boolean;
   openSettings: () => void;
-  closeSettings: () => void;
 } | null>(null);
 
 export function GlassSettingsProvider(props: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const openSettings = useCallback(() => setOpen(true), []);
-  const closeSettings = useCallback(() => setOpen(false), []);
-  const value = useMemo(
-    () => ({ open, openSettings, closeSettings }),
-    [open, openSettings, closeSettings],
-  );
+  const navigate = useNavigate();
+  const openSettings = useCallback(() => {
+    void navigate({ to: "/settings/appearance" });
+  }, [navigate]);
+  const value = useMemo(() => ({ openSettings }), [openSettings]);
   return (
     <GlassSettingsContext.Provider value={value}>{props.children}</GlassSettingsContext.Provider>
   );

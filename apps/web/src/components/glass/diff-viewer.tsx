@@ -24,7 +24,7 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
 
   return (
     <div
-      className={cn("web-component h-full min-h-0 overflow-hidden", props.className)}
+      className={cn("web-component min-h-0 min-w-0 w-full overflow-auto", props.className)}
       data-diffs-container
     >
       <FileDiff

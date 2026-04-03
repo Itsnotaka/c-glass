@@ -3,18 +3,26 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import { layoutWithLines, prepareWithSegments } from "@chenglou/pretext";
 import { code } from "@streamdown/code";
 import {
+  IconCheckmark1Small,
   IconChevronRight,
   IconConsole,
   IconFileBend,
   IconImages1,
+  IconSearchIntelligence,
   IconToolbox,
 } from "central-icons";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
-import { toolBody, toolHint } from "../../lib/tool-renderers";
+import {
+  resolvedToolName,
+  toolBody,
+  toolHint,
+  toolLabel,
+  toolStats,
+} from "../../lib/tool-renderers";
 import { cn } from "../../lib/utils";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "~/components/ui/scroll-area";
 
 const plugins = { code };
 
@@ -24,7 +32,7 @@ const controls = {
   table: false,
 } as const;
 
-function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
+function draw(row: PiRow, expanded: boolean, wide: number) {
   if (row.kind === "user") {
     return <HumanBubble key={row.id} text={row.text || ""} attachments={row.attachments} />;
   }
@@ -34,23 +42,20 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
   }
 
   if (row.kind === "tool") {
-    return <ToolCard key={row.id} row={row} expanded={expanded} onFlip={onFlip} />;
+    return <ToolCard key={row.id} row={row} expanded={expanded} />;
+  }
+
+  if (row.kind === "explored") {
+    return <ExploredCard key={row.id} row={row} expanded={expanded} />;
   }
 
   if (row.kind === "bash") {
-    return <BashCard key={row.id} row={row} expanded={expanded} onFlip={onFlip} wide={wide} />;
+    return <BashCard key={row.id} row={row} expanded={expanded} wide={wide} />;
   }
 
   if (row.kind === "custom") {
     return (
-      <TextCard
-        key={row.id}
-        label={row.name}
-        text={row.text}
-        expanded={expanded}
-        onFlip={onFlip}
-        wide={wide}
-      />
+      <TextCard key={row.id} label={row.name} text={row.text} expanded={expanded} wide={wide} />
     );
   }
 
@@ -61,7 +66,6 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
         label="Compaction"
         text={`Compacted from ${row.tokens.toLocaleString()} tokens\n\n${row.summary}`}
         expanded={expanded}
-        onFlip={onFlip}
         wide={wide}
       />
     );
@@ -69,40 +73,21 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
 
   if (row.kind === "branch") {
     return (
-      <TextCard
-        key={row.id}
-        label="Branch"
-        text={row.summary}
-        expanded={expanded}
-        onFlip={onFlip}
-        wide={wide}
-      />
+      <TextCard key={row.id} label="Branch" text={row.summary} expanded={expanded} wide={wide} />
     );
   }
 
   if (row.kind === "system") {
+    return <TextCard key={row.id} label="System" text={row.text} expanded={expanded} wide={wide} />;
+  }
+
+  if (row.kind === "other") {
     return (
-      <TextCard
-        key={row.id}
-        label="System"
-        text={row.text}
-        expanded={expanded}
-        onFlip={onFlip}
-        wide={wide}
-      />
+      <TextCard key={row.id} label={row.role} text={row.text} expanded={expanded} wide={wide} />
     );
   }
 
-  return (
-    <TextCard
-      key={row.id}
-      label={row.role}
-      text={row.text}
-      expanded={expanded}
-      onFlip={onFlip}
-      wide={wide}
-    />
-  );
+  return null;
 }
 
 function clip(text: string, wide: number) {
@@ -299,12 +284,83 @@ const Section = memo(function Section(props: {
   );
 });
 
+function explored(row: Extract<PiRow, { kind: "explored" }>) {
+  const parts: string[] = [];
+  if (row.reads > 0) parts.push(`${row.reads} file${row.reads === 1 ? "" : "s"}`);
+  if (row.searches > 0) parts.push(`${row.searches} search${row.searches === 1 ? "" : "es"}`);
+  return `Explored ${parts.join(", ")}`;
+}
+
+const fileTools = new Set(["edit", "write"]);
+const shellTools = new Set(["bash", "shell"]);
+
+function toolIcon(name: string, done: boolean) {
+  if (fileTools.has(name)) return <IconFileBend className="size-3.5" />;
+  if (shellTools.has(name) && done) return <IconCheckmark1Small className="size-3.5" />;
+  if (shellTools.has(name)) return <IconConsole className="size-3.5" />;
+  return <IconToolbox className="size-3.5" />;
+}
+
+const ExploredCard = memo(function ExploredCard(props: {
+  row: Extract<PiRow, { kind: "explored" }>;
+  expanded: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(props.expanded);
+  }, [props.expanded]);
+
+  return (
+    <li className="group min-w-0">
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
+        <Collapsible.Trigger
+          className={cn(
+            "flex w-full cursor-pointer items-center gap-1.5 rounded-xl border py-1.5 pl-2 pr-1.5 text-left transition-all",
+            "border-glass-border/30 bg-glass-bubble/35 shadow-glass-card backdrop-blur-sm",
+            "hover:border-glass-border/50 hover:bg-glass-hover/20",
+            open && "border-glass-stroke/50 bg-glass-active/15",
+          )}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
+            <IconSearchIntelligence className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-muted-foreground/80">
+            {explored(props.row)}
+          </span>
+          <IconChevronRight
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground/50 transition-transform",
+              open && "rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel className="mt-1.5 border-l border-glass-border/30 pl-2.5">
+          <ul className="flex list-none flex-col gap-1.5">
+            {props.row.tools.map((tool) => (
+              <ToolCard key={tool.id} row={tool} expanded={props.expanded} nested />
+            ))}
+          </ul>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+});
+
 const ToolCard = memo(function ToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;
   expanded: boolean;
-  onFlip: () => void;
+  nested?: boolean;
 }) {
-  const hint = toolHint(props.row.call);
+  const canon = resolvedToolName(props.row.name);
+  const label = toolLabel(props.row.name, props.row.call);
+  const stats = toolStats(props.row.name, props.row.call);
+  const hint = label ? null : toolHint(props.row.call);
+  const done = !props.row.error && props.row.result.length > 0;
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(props.expanded);
+  }, [props.expanded]);
+
   const body = toolBody({
     name: props.row.name,
     call: props.row.call,
@@ -312,49 +368,57 @@ const ToolCard = memo(function ToolCard(props: {
     result: props.row.result,
     error: props.row.error,
     details: props.row.details,
-    expanded: props.expanded,
+    expanded: open,
   });
 
-  return (
-    <li className="group min-w-0">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
+  const inner = (
+    <Collapsible.Root open={open} onOpenChange={setOpen}>
+      <Collapsible.Trigger
+        className={cn(
+          "flex w-full cursor-pointer items-center gap-1.5 rounded-xl border py-1.5 pl-2 pr-1.5 text-left transition-all",
+          "border-glass-border/30 bg-glass-bubble/35 shadow-glass-card backdrop-blur-sm",
+          "hover:border-glass-border/50 hover:bg-glass-hover/20",
+          open && "border-glass-stroke/50 bg-glass-active/15",
+        )}
+      >
+        <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
+          {toolIcon(canon, done)}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-foreground/80">
+          {label ?? props.row.name}
+        </span>
+        {stats ? (
+          <span className="flex shrink-0 items-center gap-1 text-[10px]/[1.2] font-medium tabular-nums">
+            <span className="text-glass-diff-addition">+{stats.add}</span>
+            <span className="text-glass-diff-deletion">-{stats.del}</span>
+          </span>
+        ) : null}
+        {hint ? (
+          <span className="hidden max-w-32 truncate text-[10px]/[1.2] text-muted-foreground/55 md:block">
+            {hint}
+          </span>
+        ) : null}
+        <IconChevronRight
           className={cn(
-            "flex w-full cursor-pointer items-center gap-1.5 rounded-xl border py-1.5 pl-2 pr-1.5 text-left transition-all",
-            "border-glass-border/30 bg-glass-bubble/35 shadow-glass-card backdrop-blur-sm",
-            "hover:border-glass-border/50 hover:bg-glass-hover/20",
-            props.expanded && "border-glass-stroke/50 bg-glass-active/15",
+            "size-3 shrink-0 text-muted-foreground/50 transition-transform",
+            open && "rotate-90",
           )}
-        >
-          <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
-            <IconToolbox className="size-3.5" />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-foreground/80">
-            {props.row.name}
-          </span>
-          {hint ? (
-            <span className="hidden max-w-32 truncate text-[10px]/[1.2] text-muted-foreground/55 md:block">
-              {hint}
-            </span>
-          ) : null}
-          <IconChevronRight
-            className={cn(
-              "size-3 shrink-0 text-muted-foreground/50 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {body ? <div className="mt-1 px-1 pb-1">{body}</div> : null}
-      </Collapsible.Root>
-    </li>
+        />
+      </Collapsible.Trigger>
+      {body ? <Collapsible.Panel className="mt-1 px-0 pb-0.5">{body}</Collapsible.Panel> : null}
+    </Collapsible.Root>
   );
+
+  if (props.nested) {
+    return <li className="min-w-0">{inner}</li>;
+  }
+
+  return <li className="group min-w-0">{inner}</li>;
 });
 
 const BashCard = memo(function BashCard(props: {
   row: Extract<PiRow, { kind: "bash" }>;
   expanded: boolean;
-  onFlip: () => void;
   wide: number;
 }) {
   const info = meta(props.row);
@@ -362,23 +426,30 @@ const BashCard = memo(function BashCard(props: {
     () => clip(props.row.output || props.row.command, props.wide),
     [props.row.command, props.row.output, props.wide],
   );
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(props.expanded);
+  }, [props.expanded]);
 
   return (
     <li className="group min-w-0">
-      <Collapsible.Root open={props.expanded}>
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
-          onClick={props.onFlip}
           className={cn(
             "flex w-full cursor-pointer items-center gap-1.5 rounded-xl border py-1.5 pl-2 pr-1.5 text-left transition-all",
             "border-glass-border/30 bg-glass-bubble/35 shadow-glass-card backdrop-blur-sm",
             "hover:border-glass-border/50 hover:bg-glass-hover/20",
-            props.expanded && "border-glass-stroke/50 bg-glass-active/15",
+            open && "border-glass-stroke/50 bg-glass-active/15",
           )}
         >
           <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground/60">
-            <IconConsole className="size-3.5" />
+            {props.row.code === 0 ? (
+              <IconCheckmark1Small className="size-3.5" />
+            ) : (
+              <IconConsole className="size-3.5" />
+            )}
           </span>
-          <span className="truncate text-[11px]/[1.3] font-medium text-foreground/80">
+          <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-foreground/80">
             {props.row.command}
           </span>
           {info ? (
@@ -387,11 +458,11 @@ const BashCard = memo(function BashCard(props: {
           <IconChevronRight
             className={cn(
               "size-3 shrink-0 text-muted-foreground/50 transition-transform",
-              props.expanded && "rotate-90",
+              open && "rotate-90",
             )}
           />
         </Collapsible.Trigger>
-        {props.expanded ? (
+        {open ? (
           <Collapsible.Panel className="mt-1 grid gap-1.5 px-1 pb-1">
             <Section text={props.row.command} code lang="bash" minimal />
             <Section
@@ -423,22 +494,24 @@ const TextCard = memo(function TextCard(props: {
   label: string;
   text: string;
   expanded: boolean;
-  onFlip: () => void;
   error?: boolean;
   wide: number;
 }) {
   const txt = useMemo(() => clip(props.text, props.wide), [props.text, props.wide]);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    setOpen(props.expanded);
+  }, [props.expanded]);
 
   return (
     <li className="group min-w-0">
-      <Collapsible.Root open={props.expanded}>
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
-          onClick={props.onFlip}
           className={cn(
             "flex w-full cursor-pointer items-center gap-1.5 rounded-xl border py-1.5 pl-2 pr-1.5 text-left transition-all",
             "border-glass-border/30 bg-glass-bubble/35 shadow-glass-card backdrop-blur-sm",
             "hover:border-glass-border/50 hover:bg-glass-hover/20",
-            props.expanded && "border-glass-stroke/50 bg-glass-active/15",
+            open && "border-glass-stroke/50 bg-glass-active/15",
           )}
         >
           <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-foreground/80">
@@ -447,11 +520,11 @@ const TextCard = memo(function TextCard(props: {
           <IconChevronRight
             className={cn(
               "size-3 shrink-0 text-muted-foreground/50 transition-transform",
-              props.expanded && "rotate-90",
+              open && "rotate-90",
             )}
           />
         </Collapsible.Trigger>
-        {props.expanded ? (
+        {open ? (
           <Collapsible.Panel className="mt-1 grid gap-1.5 px-1 pb-1">
             <Section text={props.text} error={props.error} minimal />
           </Collapsible.Panel>
@@ -468,41 +541,33 @@ const TextCard = memo(function TextCard(props: {
 const GlassPiList = memo(function GlassPiList(props: {
   rows: PiRow[];
   expanded: boolean;
-  onFlip: () => void;
   wide: number;
 }) {
-  return props.rows.map((row) => draw(row, props.expanded, props.onFlip, props.wide));
+  return props.rows.map((row) => draw(row, props.expanded, props.wide));
 });
 
 const GlassPiTranscript = memo(function GlassPiTranscript(props: {
   items: PiSessionItem[];
   expanded: boolean;
-  onFlip: () => void;
   wide: number;
 }) {
   const rows = useMemo(() => buildPiRows(props.items), [props.items]);
-  return (
-    <GlassPiList rows={rows} expanded={props.expanded} onFlip={props.onFlip} wide={props.wide} />
-  );
+  return <GlassPiList rows={rows} expanded={props.expanded} wide={props.wide} />;
 });
 
 const GlassPiLive = memo(function GlassPiLive(props: {
   item: PiSessionItem | null;
   expanded: boolean;
-  onFlip: () => void;
   wide: number;
 }) {
   const rows = useMemo(() => (props.item ? buildPiRows([props.item]) : []), [props.item]);
-  return (
-    <GlassPiList rows={rows} expanded={props.expanded} onFlip={props.onFlip} wide={props.wide} />
-  );
+  return <GlassPiList rows={rows} expanded={props.expanded} wide={props.wide} />;
 });
 
 export const GlassPiMessages = memo(function GlassPiMessages(props: {
   messages: PiSessionItem[];
   live: PiSessionItem | null;
   expanded: boolean;
-  onFlip: () => void;
 }) {
   const viewport = useRef<HTMLDivElement | null>(null);
   const list = useRef<HTMLUListElement | null>(null);
@@ -562,18 +627,8 @@ export const GlassPiMessages = memo(function GlassPiMessages(props: {
         ref={list}
         className="mx-auto flex min-w-0 max-w-[44rem] flex-col gap-4 px-4 py-4 md:px-8"
       >
-        <GlassPiTranscript
-          items={props.messages}
-          expanded={props.expanded}
-          onFlip={props.onFlip}
-          wide={wide}
-        />
-        <GlassPiLive
-          item={props.live}
-          expanded={props.expanded}
-          onFlip={props.onFlip}
-          wide={wide}
-        />
+        <GlassPiTranscript items={props.messages} expanded={props.expanded} wide={wide} />
+        <GlassPiLive item={props.live} expanded={props.expanded} wide={wide} />
       </ul>
     </ScrollArea>
   );

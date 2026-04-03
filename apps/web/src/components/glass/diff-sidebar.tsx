@@ -2,7 +2,7 @@ import { IconArrowCornerDownRight, IconFileBend } from "central-icons";
 import { memo, useMemo, useState } from "react";
 import { Collapsible } from "@base-ui/react/collapsible";
 import { cn } from "~/lib/utils";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "~/components/ui/scroll-area";
 
 interface FileStats {
   additions: number;

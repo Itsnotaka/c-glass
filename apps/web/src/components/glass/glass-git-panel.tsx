@@ -5,7 +5,7 @@ import type { GlassGitPanelModel } from "../../hooks/use-glass-git";
 import { isElectron } from "../../env";
 import { readGlass } from "../../host";
 import { cn } from "../../lib/utils";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "~/components/ui/scroll-area";
 import { GlassDiffViewer } from "./diff-viewer";
 
 function displayName(path: string) {
@@ -215,7 +215,7 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
       </ScrollArea>
 
       {selected && (
-        <div className="min-h-0 flex-1 border-t border-glass-border/40">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-glass-border/40">
           <div className="flex h-7 shrink-0 items-center gap-2 border-b border-glass-border/30 px-3">
             <span className="truncate text-[11px]/[1.2] font-medium text-foreground/85">
               {displayName(selected.path)}
@@ -234,7 +234,7 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
           <GlassDiffViewer
             fileDiff={git.patch}
             diffStyle={git.diffStyle}
-            className="h-[calc(100%-1.75rem)] min-h-[120px]"
+            className="min-h-[120px] flex-1"
           />
         </div>
       )}

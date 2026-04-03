@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
+import type { OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import type { PiConfig, PiThinkingLevel } from "@glass/contracts";
 import {
   AuthStorage,
@@ -214,6 +215,17 @@ export class PiConfigService {
       this.sync();
       const err = this.auth.drainErrors()[0];
       if (err) throw err;
+    });
+  }
+
+  oauthLogin(provider: string, callbacks: OAuthLoginCallbacks) {
+    return Effect.tryPromise({
+      try: async () => {
+        this.sync();
+        await this.auth.login(provider, callbacks);
+        this.reg.refresh();
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
     });
   }
 }

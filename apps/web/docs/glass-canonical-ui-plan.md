@@ -30,7 +30,7 @@ The app shell is a single three-slot layout with these responsibilities.
 
 The left panel is the navigation rail for creating and finding conversations.
 
-The left panel contains `New Agent` and `Threads`.
+The left panel contains `New Agent` and the session list (grouped by workspace).
 
 The left panel is collapsible.
 
@@ -94,7 +94,7 @@ This hierarchy is the source of truth.
 
 Shell-level overlays are global to the application window.
 
-Shell-level overlays include the settings dialog.
+Shell-level overlays include settings when presented as a sheet or modal (workbench settings live in-route under `/settings`).
 
 Shell-level overlays include the mobile left panel sheet.
 
@@ -164,7 +164,7 @@ The route does not duplicate thread list rendering.
 
 The route does not duplicate right-panel rendering.
 
-## Left Panel: Threads
+## Left Panel: Agent sessions
 
 The left panel is a real session browser, not a local placeholder.
 
@@ -177,7 +177,7 @@ It must update live as sessions are created, renamed, or streamed.
 The minimum canonical content is:
 
 - `New Agent`
-- `Threads`
+- Session list (threads) grouped by workspace
 
 No additional top-level navigation is required for the canonical shell.
 
@@ -707,7 +707,7 @@ The following work must be completed for the UI to be canonical.
 This work is done only when all of the following are true.
 
 - [x] The app always renders as a coherent three-panel shell.
-- [x] The left rail shows `New Agent` and grouped `Threads`.
+- [x] The left rail shows `New Agent` and grouped sessions (threads).
 - [x] The left rail is session-backed and workspace-aware.
 - [x] The hero state is restored and intentional.
 - [x] The active-thread state always includes the composer.
@@ -746,7 +746,7 @@ This work is done only when all of the following are true.
 - [x] Ensure the hero composer and quick actions match the intended centered shell composition.
 - [x] Remove the fake empty placeholder center state that replaced the hero screen.
 - [x] Restore `New Agent` in the left rail.
-- [x] Restore `Threads` in the left rail.
+- [x] Restore the session list in the left rail.
 - [x] Render threads grouped by workspace folder in the left rail.
 - [x] Clearly indicate the active thread in the left rail.
 - [x] Keep the left rail usable when the app starts in the default home-directory workspace.

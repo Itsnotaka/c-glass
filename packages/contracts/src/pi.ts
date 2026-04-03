@@ -97,9 +97,13 @@ export type PiThinkingLevelInput = typeof PiThinkingLevelInput.Type;
 
 export interface PiBridge {
   getConfig: () => Promise<PiConfig>;
+  /** Desktop preload: initial Pi config snapshot fetched before first paint. */
+  readBootConfig?: () => PiConfig | null;
   setDefaultModel: (provider: string, model: string) => Promise<void>;
   clearDefaultModel: () => Promise<void>;
   setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) => Promise<void>;
   getApiKey: (provider: string) => Promise<string | null>;
   setApiKey: (provider: string, key: string) => Promise<void>;
+  /** Desktop: run Pi OAuth login for a provider (opens browser / prompts as needed). */
+  startOAuthLogin: (provider: string) => Promise<void>;
 }

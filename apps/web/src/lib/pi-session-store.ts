@@ -1,11 +1,16 @@
 import type {
+  PiConfig,
   PiSessionActiveEvent,
   PiSessionDelta,
   PiSessionSnapshot,
   PiSessionSummary,
+  PiSessionSummaryEvent,
 } from "@glass/contracts";
 import { useMemo } from "react";
 import { create } from "zustand";
+import { readGlass } from "../host";
+
+export type PiBootStatus = "loading" | "ready" | "error";
 
 function rank(sums: Record<string, PiSessionSummary>) {
   return Object.values(sums)
@@ -59,39 +64,185 @@ function patch(snap: PiSessionSnapshot, delta: PiSessionDelta) {
   } satisfies PiSessionSnapshot;
 }
 
+function flags(cfgStatus: PiBootStatus, sumsStatus: PiBootStatus) {
+  const cfgReady = cfgStatus === "ready";
+  const sumsReady = sumsStatus === "ready";
+  return {
+    cfgReady,
+    sumsReady,
+    ready: cfgReady && sumsReady,
+  };
+}
+
+function issue(err: unknown) {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  if (typeof err === "string" && err.trim()) return err;
+  return "Unknown Pi boot error";
+}
+
 type State = {
+  cfg: PiConfig | null;
+  cfgStatus: PiBootStatus;
+  cfgReady: boolean;
+  cfgError: string | null;
   ids: string[];
   sums: Record<string, PiSessionSummary>;
+  sumsStatus: PiBootStatus;
+  sumsReady: boolean;
+  sumsError: string | null;
+  ready: boolean;
   snaps: Record<string, PiSessionSnapshot>;
-  replaceSums: (items: PiSessionSummary[]) => void;
-  putSum: (item: PiSessionSummary) => void;
-  dropSum: (id: string) => void;
+  boot: () => Promise<void>;
+  refreshCfg: () => Promise<void>;
+  refreshSums: () => Promise<void>;
+  resetForWorkspaceChange: () => void;
+  applySummaryEvent: (event: PiSessionSummaryEvent) => void;
   putSnap: (snap: PiSessionSnapshot) => void;
   applyActs: (events: PiSessionActiveEvent[]) => void;
-  clear: () => void;
 };
 
-export const usePiStore = create<State>()((set) => ({
+function setCfg(state: State, cfg: PiConfig | null, status: PiBootStatus, cfgError: string | null) {
+  return {
+    ...state,
+    cfg,
+    cfgStatus: status,
+    cfgError,
+    ...flags(status, state.sumsStatus),
+  } satisfies State;
+}
+
+function setSums(
+  state: State,
+  items: PiSessionSummary[],
+  status: PiBootStatus,
+  sumsError: string | null,
+) {
+  const sums = Object.fromEntries(items.map((item) => [item.id, item]));
+  return {
+    ...state,
+    sums,
+    ids: rank(sums),
+    sumsStatus: status,
+    sumsError,
+    ...flags(state.cfgStatus, status),
+  } satisfies State;
+}
+
+let cfgSeq = 0;
+let sumsSeq = 0;
+let cfgRun: Promise<void> | null = null;
+let sumsRun: Promise<void> | null = null;
+
+export const usePiStore = create<State>()((set, get) => ({
+  cfg: null,
+  cfgStatus: "loading",
+  cfgReady: false,
+  cfgError: null,
   ids: [],
   sums: {},
+  sumsStatus: "loading",
+  sumsReady: false,
+  sumsError: null,
+  ready: false,
   snaps: {},
-  replaceSums: (items) => {
-    const sums = Object.fromEntries(items.map((item) => [item.id, item]));
-    set({ sums, ids: rank(sums) });
-  },
-  putSum: (item) => {
+  boot: async () => {
+    const glass = readGlass();
+    if (!glass) {
+      set((state) => {
+        let next = setCfg(state, null, "ready", null);
+        next = setSums(next, [], "ready", null);
+        return next;
+      });
+      return;
+    }
+
+    const cfg = glass.pi.readBootConfig?.() ?? null;
+    const sums = glass.session.readBootSummaries?.() ?? null;
     set((state) => {
-      if (same(state.sums[item.id], item)) return state;
-      const sums = { ...state.sums, [item.id]: item };
-      return { sums, ids: rank(sums) };
+      let next = state;
+      if (cfg) next = setCfg(next, cfg, "ready", null);
+      if (sums !== null) next = setSums(next, sums, "ready", null);
+      return next;
+    });
+
+    await Promise.all([get().refreshCfg(), get().refreshSums()]);
+  },
+  refreshCfg: async () => {
+    const glass = readGlass();
+    if (!glass) {
+      set((state) => setCfg(state, null, "ready", null));
+      return;
+    }
+    if (cfgRun) return cfgRun;
+
+    const seq = ++cfgSeq;
+    cfgRun = glass.pi
+      .getConfig()
+      .then((cfg) => {
+        if (seq !== cfgSeq) return;
+        set((state) => setCfg(state, cfg, "ready", null));
+      })
+      .catch((err) => {
+        if (seq !== cfgSeq) return;
+        set((state) => (state.cfgReady ? state : setCfg(state, null, "error", issue(err))));
+      })
+      .finally(() => {
+        if (seq !== cfgSeq) return;
+        cfgRun = null;
+      });
+
+    return cfgRun;
+  },
+  refreshSums: async () => {
+    const glass = readGlass();
+    if (!glass) {
+      set((state) => setSums(state, [], "ready", null));
+      return;
+    }
+    if (sumsRun) return sumsRun;
+
+    const seq = ++sumsSeq;
+    sumsRun = glass.session
+      .listAll()
+      .then((items) => {
+        if (seq !== sumsSeq) return;
+        set((state) => setSums(state, items, "ready", null));
+      })
+      .catch((err) => {
+        if (seq !== sumsSeq) return;
+        set((state) => (state.sumsReady ? state : setSums(state, [], "error", issue(err))));
+      })
+      .finally(() => {
+        if (seq !== sumsSeq) return;
+        sumsRun = null;
+      });
+
+    return sumsRun;
+  },
+  resetForWorkspaceChange: () => {
+    cfgSeq++;
+    sumsSeq++;
+    cfgRun = null;
+    sumsRun = null;
+    set((state) => {
+      let next = setCfg(state, state.cfg, "loading", null);
+      next = setSums(next, Object.values(state.sums), "loading", null);
+      return next;
     });
   },
-  dropSum: (id) => {
+  applySummaryEvent: (event) => {
     set((state) => {
-      if (!(id in state.sums)) return state;
-      const sums = { ...state.sums };
-      delete sums[id];
-      return { sums, ids: rank(sums) };
+      if (event.type === "remove") {
+        if (!(event.sessionId in state.sums)) return state;
+        const sums = { ...state.sums };
+        delete sums[event.sessionId];
+        return { sums, ids: rank(sums) } satisfies Partial<State>;
+      }
+
+      const item = event.summary;
+      if (same(state.sums[item.id], item)) return state;
+      const sums = { ...state.sums, [item.id]: item };
+      return { sums, ids: rank(sums) } satisfies Partial<State>;
     });
   },
   putSnap: (snap) => {
@@ -115,15 +266,17 @@ export const usePiStore = create<State>()((set) => ({
         hit = true;
       }
       if (!hit) return state;
-      return { snaps };
+      return { snaps } satisfies Partial<State>;
     });
-  },
-  clear: () => {
-    set({ ids: [], sums: {}, snaps: {} });
   },
 }));
 
+export const usePiBootReady = () => usePiStore((state) => state.ready);
+export const usePiCfg = () => usePiStore((state) => state.cfg);
+export const usePiCfgStatus = () => usePiStore((state) => state.cfgStatus);
 export const usePiIds = () => usePiStore((state) => state.ids);
+export const usePiSums = () => usePiStore((state) => state.sums);
+export const usePiSumsStatus = () => usePiStore((state) => state.sumsStatus);
 
 export function usePiSummary(sessionId: string | null | undefined) {
   const pick = useMemo(

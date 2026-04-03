@@ -2,6 +2,7 @@
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { IconCheckmark1Small } from "central-icons";
+import { motion, useReducedMotion } from "motion/react";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -36,6 +37,7 @@ function GlassComboboxPopup({
   sideOffset?: ComboboxPrimitive.Positioner.Props["sideOffset"];
   side?: ComboboxPrimitive.Positioner.Props["side"];
 }) {
+  const reduce = useReducedMotion();
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner
@@ -57,7 +59,14 @@ function GlassComboboxPopup({
             data-slot="combobox-popup"
             {...props}
           >
-            {children}
+            <motion.div
+              className="flex flex-col overflow-hidden"
+              initial={{ opacity: reduce ? 1 : 0.97 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduce ? 0 : 0.18, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
           </ComboboxPrimitive.Popup>
         </div>
       </ComboboxPrimitive.Positioner>
@@ -93,7 +102,10 @@ function GlassComboboxSearchInput({
 function GlassComboboxEmpty({ className, children, ...props }: ComboboxPrimitive.Empty.Props) {
   return (
     <ComboboxPrimitive.Empty
-      className={cn("py-4 text-center text-[12px]/[1.3] text-muted-foreground/70", className)}
+      className={cn(
+        "empty:hidden py-3 text-center text-[12px]/[1.3] text-muted-foreground/70",
+        className,
+      )}
       data-slot="combobox-empty"
       {...props}
     >
@@ -136,7 +148,7 @@ function GlassComboboxList({ className, children, ...props }: ComboboxPrimitive.
   return (
     <ComboboxPrimitive.List
       className={cn(
-        "max-h-[min(17rem,calc(min(var(--available-height),20rem)-5.25rem))] overflow-y-auto overscroll-contain py-1",
+        "max-h-[min(17rem,calc(min(var(--available-height,100dvh),20rem)-5.25rem))] overflow-y-auto overscroll-contain pb-1 pt-0",
         className,
       )}
       data-slot="combobox-list"

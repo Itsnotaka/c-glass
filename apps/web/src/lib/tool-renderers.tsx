@@ -22,8 +22,25 @@ function register(name: string, fn: Render) {
   renderers.set(name, fn);
 }
 
+export function resolvedToolName(name: string) {
+  const n = name.toLowerCase();
+  if (
+    n === "str_replace" ||
+    n === "search_replace" ||
+    n === "replace" ||
+    n === "apply_patch" ||
+    n === "patch" ||
+    n === "multi_edit"
+  ) {
+    return "edit";
+  }
+  if (n === "run_terminal_cmd" || n === "run_command" || n === "shell") return "bash";
+  if (n === "list_dir" || n === "directory_list") return "ls";
+  return n;
+}
+
 export function toolBody(data: ToolData): React.ReactNode {
-  const fn = renderers.get(data.name.toLowerCase());
+  const fn = renderers.get(resolvedToolName(data.name));
   if (fn) return fn(data);
   return fallback(data);
 }
@@ -31,6 +48,9 @@ export function toolBody(data: ToolData): React.ReactNode {
 export function toolHint(call: PiToolCallBlock | null): string | null {
   const args = call?.arguments;
   if (!args || typeof args !== "object") return null;
+
+  const desc = args.description;
+  if (typeof desc === "string" && desc.trim()) return desc.trim().slice(0, 72);
 
   for (const key of ["command", "path", "pattern", "query", "file", "url"]) {
     const val = args[key];
@@ -40,6 +60,62 @@ export function toolHint(call: PiToolCallBlock | null): string | null {
   const keys = Object.keys(args);
   if (keys.length === 0) return null;
   return `${keys.length} arg${keys.length === 1 ? "" : "s"}`;
+}
+
+function editPath(args: Record<string, unknown>) {
+  const path = args.path ?? args.file ?? args.target_file ?? args.file_path;
+  return typeof path === "string" ? path : "";
+}
+
+export function toolLabel(name: string, call: PiToolCallBlock | null): string | null {
+  const args = call?.arguments;
+  if (!args || typeof args !== "object") return null;
+  const r = resolvedToolName(name);
+
+  if (r === "edit" || r === "write") {
+    const path = editPath(args);
+    if (path.trim()) return basename(path);
+    return null;
+  }
+
+  if (r === "bash") {
+    const desc = args.description;
+    if (typeof desc === "string" && desc.trim()) return desc.trim();
+    return null;
+  }
+
+  return null;
+}
+
+function lineDelta(oldText: string, newText: string) {
+  const o = oldText.split("\n");
+  const n = newText.split("\n");
+  const os = new Set(o);
+  const ns = new Set(n);
+  let add = 0;
+  for (const l of n) if (!os.has(l)) add += 1;
+  let del = 0;
+  for (const l of o) if (!ns.has(l)) del += 1;
+  return { add, del };
+}
+
+export function toolStats(
+  name: string,
+  call: PiToolCallBlock | null,
+): { add: number; del: number } | null {
+  if (resolvedToolName(name) !== "edit") return null;
+  const args = (call?.arguments ?? {}) as EditArgs;
+  const list = edits(args);
+  if (list.length === 0 && !args.patch) return null;
+
+  let add = 0;
+  let del = 0;
+  for (const entry of list) {
+    const d = lineDelta(entry.oldText ?? "", entry.newText ?? "");
+    add += d.add;
+    del += d.del;
+  }
+  return { add, del };
 }
 
 const plugins = { code };
@@ -207,49 +283,65 @@ function edits(args: EditArgs): EditEntry[] {
   return [];
 }
 
-function Diff(props: { entry: EditEntry }) {
+function unified(entry: EditEntry): React.ReactNode[] {
+  const old = (entry.oldText ?? "").split("\n");
+  const next = (entry.newText ?? "").split("\n");
+  const lines: React.ReactNode[] = [];
+
+  for (const l of old) {
+    lines.push(
+      <div key={`d${lines.length}`} className="bg-glass-diff-deletion-bg text-glass-diff-deletion">
+        <span className="select-none opacity-50">- </span>
+        {l}
+      </div>,
+    );
+  }
+  for (const l of next) {
+    lines.push(
+      <div key={`a${lines.length}`} className="bg-glass-diff-addition-bg text-glass-diff-addition">
+        <span className="select-none opacity-50">+ </span>
+        {l}
+      </div>,
+    );
+  }
+  return lines;
+}
+
+function Diff(props: { entries: EditEntry[] }) {
+  const lines = props.entries.flatMap(unified);
+  if (lines.length === 0) return null;
   return (
-    <div className="grid gap-0.5">
-      {props.entry.oldText != null && props.entry.oldText !== "" && (
-        <div className="rounded-lg border border-glass-diff-deletion/20 bg-glass-diff-deletion-bg">
-          <pre className="whitespace-pre-wrap px-2.5 py-1.5 font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] text-glass-diff-deletion">
-            {props.entry.oldText}
-          </pre>
-        </div>
-      )}
-      {props.entry.newText != null && props.entry.newText !== "" && (
-        <div className="rounded-lg border border-glass-diff-addition/20 bg-glass-diff-addition-bg">
-          <pre className="whitespace-pre-wrap px-2.5 py-1.5 font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] text-glass-diff-addition">
-            {props.entry.newText}
-          </pre>
-        </div>
-      )}
+    <div className="overflow-hidden rounded-lg border border-glass-border/25 bg-glass-hover/8">
+      <div className="max-h-[min(24rem,50vh)] overflow-auto px-2.5 py-1.5 font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] whitespace-pre-wrap">
+        {lines}
+      </div>
     </div>
   );
 }
 
 function edit(data: ToolData): React.ReactNode {
-  const args = (data.call?.arguments ?? {}) as EditArgs;
-  const path = args.path ?? "";
-  const list = edits(args);
+  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, unknown>;
+  const args = raw as EditArgs;
+  const path =
+    typeof raw.path === "string"
+      ? raw.path
+      : typeof raw.file === "string"
+        ? raw.file
+        : typeof raw.target_file === "string"
+          ? raw.target_file
+          : typeof raw.file_path === "string"
+            ? raw.file_path
+            : Array.isArray(raw.multi) && raw.multi[0] && typeof raw.multi[0].path === "string"
+              ? raw.multi[0].path
+              : "";
+  const entries = edits(args);
 
   if (!data.expanded) {
     if (data.error && data.result.trim()) {
       return <Code text={data.result} lang="text" error />;
     }
-    if (list.length > 0) {
-      return (
-        <div className="flex items-center gap-2 px-1 text-[11px]/[1.3] text-muted-foreground/60">
-          <span className="truncate text-foreground/70">{basename(path) || path}</span>
-          <Badge>
-            {list.length} edit{list.length === 1 ? "" : "s"}
-          </Badge>
-        </div>
-      );
-    }
-    if (args.patch) {
-      return <Code text={args.patch} lang="diff" />;
-    }
+    if (entries.length > 0) return <Diff entries={entries} />;
+    if (args.patch) return <Code text={args.patch} lang="diff" />;
     return null;
   }
 
@@ -260,13 +352,7 @@ function edit(data: ToolData): React.ReactNode {
           {path || "?"}
         </code>
       </Field>
-      {args.patch ? (
-        <Code text={args.patch} lang="diff" />
-      ) : (
-        list.map((entry) => (
-          <Diff key={`${entry.oldText ?? ""}:${entry.newText ?? ""}`} entry={entry} />
-        ))
-      )}
+      {args.patch ? <Code text={args.patch} lang="diff" /> : <Diff entries={entries} />}
       {data.error && data.result.trim() && <Result text={data.result} error lang="text" />}
     </div>
   );

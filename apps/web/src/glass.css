@@ -3,17 +3,47 @@
     "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     sans-serif;
   --glass-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
-  --glass-header-height: 40px;
+  --glass-header-height: var(--glass-header-height-user, 40px);
   /* macOS traffic lights + margin; keeps shell controls clear of the stoplight region */
   --glass-electron-traffic-inset: 84px;
-  --glass-radius-card: 12px;
-  --glass-radius-chip: 20px;
-  /* Neutral panel like Cursor: slightly cooler than chat/editor */
-  --glass-color-sidebar: oklch(0.965 0.006 255);
-  --glass-color-chat: color-mix(in srgb, var(--color-white) 90%, oklch(0.96 0.01 255));
-  --glass-color-editor: color-mix(in srgb, var(--color-white) 97%, oklch(0.97 0.01 255));
-  --glass-color-surface: color-mix(in srgb, var(--color-white) 94%, oklch(0.96 0.01 255));
-  --glass-color-elevated: color-mix(in srgb, var(--color-white) 84%, oklch(0.94 0.01 255));
+  /* Vertical inset below traffic lights; 0 in browser, set on [data-electron] (desktop is mac-only) */
+  --glass-electron-traffic-padding-top: var(--glass-electron-traffic-padding-top-user, 0px);
+  /* User overrides: set --*-user on :root or [data-glass-theme] from Appearance settings */
+  --glass-sidebar-label-size: var(--glass-sidebar-label-size-user, 13px);
+  --glass-sidebar-label-weight: var(--glass-sidebar-label-weight-user, 400);
+  --glass-sidebar-label-leading: var(--glass-sidebar-label-leading-user, 1.35);
+  --glass-workbench-toggle-left: var(--glass-workbench-toggle-left-user, 12px);
+  --glass-workbench-toggle-right: var(--glass-workbench-toggle-right-user, 12px);
+  --glass-radius-card: var(--glass-radius-card-user, 12px);
+  --glass-radius-chip: var(--glass-radius-chip-user, 20px);
+  /* Composer toolbar icons (+, send, model row, quick actions); override via Appearance */
+  --glass-composer-icon-size: var(--glass-composer-icon-size-user, 1rem);
+  --glass-user-hue: 255;
+  --glass-intensity: 33;
+  /* Neutral panel like Cursor: slightly cooler than chat/editor; hue/intensity from Appearance when palette is Glass */
+  --glass-color-sidebar: oklch(
+    0.965 calc(0.006 + var(--glass-intensity, 33) / 100 * 0.012) var(--glass-user-hue, 255)
+  );
+  --glass-color-chat: color-mix(
+    in srgb,
+    var(--color-white) 90%,
+    oklch(0.96 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.02) var(--glass-user-hue, 255))
+  );
+  --glass-color-editor: color-mix(
+    in srgb,
+    var(--color-white) 97%,
+    oklch(0.97 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.015) var(--glass-user-hue, 255))
+  );
+  --glass-color-surface: color-mix(
+    in srgb,
+    var(--color-white) 94%,
+    oklch(0.96 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.018) var(--glass-user-hue, 255))
+  );
+  --glass-color-elevated: color-mix(
+    in srgb,
+    var(--color-white) 84%,
+    oklch(0.94 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.025) var(--glass-user-hue, 255))
+  );
   --glass-color-bubble: color-mix(in srgb, var(--glass-color-elevated) 88%, transparent);
   --glass-color-bubble-opaque: color-mix(
     in srgb,
@@ -35,8 +65,38 @@
   --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.18);
 }
 
+[data-electron] {
+  --glass-workbench-toggle-left: var(
+    --glass-workbench-toggle-left-user,
+    var(--glass-electron-traffic-inset)
+  );
+  /* Pad shell chrome + left rail below the stoplight row (hiddenInset; trafficLightPosition in desktop main). */
+  --glass-electron-traffic-padding-top: var(--glass-electron-traffic-padding-top-user, 32px);
+}
+
+.glass-sidebar-label {
+  font-size: var(--glass-sidebar-label-size);
+  font-weight: var(--glass-sidebar-label-weight);
+  line-height: var(--glass-sidebar-label-leading);
+}
+
+.glass-composer-icon {
+  width: var(--glass-composer-icon-size);
+  height: var(--glass-composer-icon-size);
+  flex-shrink: 0;
+}
+
+/* Sidebar content clears traffic lights in Electron; 0 in browser. */
+.glass-thread-rail-pad {
+  padding-top: var(--glass-electron-traffic-padding-top);
+}
+
 .dark {
-  --glass-color-sidebar: color-mix(in srgb, var(--background) 90%, oklch(0.35 0.03 255) 10%);
+  --glass-color-sidebar: color-mix(
+    in srgb,
+    var(--background) 90%,
+    oklch(0.35 calc(0.03 + var(--glass-intensity, 33) / 100 * 0.04) var(--glass-user-hue, 255)) 10%
+  );
   --glass-color-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
   --glass-color-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
   --glass-color-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);
@@ -46,6 +106,11 @@
   --glass-color-hover: color-mix(in srgb, var(--color-white) 6%, transparent);
   --glass-color-active: color-mix(in srgb, var(--color-white) 10%, transparent);
   --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.32);
+}
+
+html.glass-reduce-transparency {
+  --glass-color-bubble: var(--glass-color-bubble-opaque);
+  --glass-color-menubar: var(--glass-color-editor);
 }
 
 body {
@@ -69,14 +134,21 @@ body {
   --diffs-light: var(--foreground);
   --diffs-dark: var(--foreground);
   font-family: var(--glass-font-mono);
-  font-size: 12px;
-  line-height: 20px;
+  font-size: var(--glass-code-font-size-user, 12px);
+  line-height: calc(var(--glass-code-font-size-user, 12px) * 1.45);
 }
 
 /* Pierre diffs container for web component */
 .web-component[data-diffs-container] {
   background-color: var(--glass-color-surface);
   border-radius: var(--glass-radius-card);
+}
+
+/* Let Pierre split/unified code panes scroll inside a bounded width (flex min-width:auto otherwise grows past the panel). */
+.web-component[data-diffs-container] > diffs-container {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Skill/mention highlighting in composer */

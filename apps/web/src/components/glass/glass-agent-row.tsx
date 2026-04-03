@@ -2,6 +2,8 @@ import { memo } from "react";
 import { buildPiSessionSidebarAgent, type GlassSidebarAgent } from "../../lib/glass-view-model";
 import { usePiSummary } from "../../lib/pi-session-store";
 
+import { GlassRowButton } from "./glass-row-button";
+
 function StatusDot(props: { state: GlassSidebarAgent["state"] }) {
   if (props.state === "running") {
     return (
@@ -29,17 +31,16 @@ export const GlassAgentRow = memo(
     const agent = buildPiSessionSidebarAgent(session, props.selectedId);
 
     return (
-      <button
-        type="button"
+      <GlassRowButton
+        variant="agent"
         data-selected={agent.selected}
-        data-thread-item
+        data-thread-item=""
         onClick={() => props.onSelectAgent(props.id)}
-        className="font-glass flex min-h-7.5 w-full items-center gap-2 rounded-lg border border-transparent px-2 py-1 text-left text-[13px]/[18px] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground data-[selected=true]:border-glass-border/90 data-[selected=true]:bg-glass-active data-[selected=true]:text-foreground"
       >
         <StatusDot state={agent.state} />
         <span className="min-w-0 flex-1 truncate">{agent.title}</span>
         <span className="shrink-0 text-[11px] text-muted-foreground/50">{agent.ago}</span>
-      </button>
+      </GlassRowButton>
     );
   },
   (left, right) =>

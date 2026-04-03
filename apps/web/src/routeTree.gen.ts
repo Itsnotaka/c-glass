@@ -9,18 +9,14 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
-import { Route as SettingsGeneralRouteImport } from './routes/settings.general'
-import { Route as SettingsArchivedRouteImport } from './routes/settings.archived'
+import { Route as ChatSettingsRouteImport } from './routes/_chat.settings'
 import { Route as ChatThreadIdRouteImport } from './routes/_chat.$threadId'
+import { Route as ChatSettingsArchivedRouteImport } from './routes/_chat.settings.archived'
+import { Route as ChatSettingsAppearanceRouteImport } from './routes/_chat.settings.appearance'
+import { Route as ChatSettingsAgentsRouteImport } from './routes/_chat.settings.agents'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ChatRoute = ChatRouteImport.update({
   id: '/_chat',
   getParentRoute: () => rootRouteImport,
@@ -30,84 +26,92 @@ const ChatIndexRoute = ChatIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ChatRoute,
 } as any)
-const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
-  id: '/general',
-  path: '/general',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsArchivedRoute = SettingsArchivedRouteImport.update({
-  id: '/archived',
-  path: '/archived',
-  getParentRoute: () => SettingsRoute,
+const ChatSettingsRoute = ChatSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ChatRoute,
 } as any)
 const ChatThreadIdRoute = ChatThreadIdRouteImport.update({
   id: '/$threadId',
   path: '/$threadId',
   getParentRoute: () => ChatRoute,
 } as any)
+const ChatSettingsArchivedRoute = ChatSettingsArchivedRouteImport.update({
+  id: '/archived',
+  path: '/archived',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
+const ChatSettingsAppearanceRoute = ChatSettingsAppearanceRouteImport.update({
+  id: '/appearance',
+  path: '/appearance',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
+const ChatSettingsAgentsRoute = ChatSettingsAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
-  '/settings': typeof SettingsRouteWithChildren
   '/$threadId': typeof ChatThreadIdRoute
-  '/settings/archived': typeof SettingsArchivedRoute
-  '/settings/general': typeof SettingsGeneralRoute
+  '/settings': typeof ChatSettingsRouteWithChildren
+  '/settings/agents': typeof ChatSettingsAgentsRoute
+  '/settings/appearance': typeof ChatSettingsAppearanceRoute
+  '/settings/archived': typeof ChatSettingsArchivedRoute
 }
 export interface FileRoutesByTo {
-  '/settings': typeof SettingsRouteWithChildren
   '/$threadId': typeof ChatThreadIdRoute
-  '/settings/archived': typeof SettingsArchivedRoute
-  '/settings/general': typeof SettingsGeneralRoute
+  '/settings': typeof ChatSettingsRouteWithChildren
   '/': typeof ChatIndexRoute
+  '/settings/agents': typeof ChatSettingsAgentsRoute
+  '/settings/appearance': typeof ChatSettingsAppearanceRoute
+  '/settings/archived': typeof ChatSettingsArchivedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
-  '/settings': typeof SettingsRouteWithChildren
   '/_chat/$threadId': typeof ChatThreadIdRoute
-  '/settings/archived': typeof SettingsArchivedRoute
-  '/settings/general': typeof SettingsGeneralRoute
+  '/_chat/settings': typeof ChatSettingsRouteWithChildren
   '/_chat/': typeof ChatIndexRoute
+  '/_chat/settings/agents': typeof ChatSettingsAgentsRoute
+  '/_chat/settings/appearance': typeof ChatSettingsAppearanceRoute
+  '/_chat/settings/archived': typeof ChatSettingsArchivedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/settings'
     | '/$threadId'
+    | '/settings'
+    | '/settings/agents'
+    | '/settings/appearance'
     | '/settings/archived'
-    | '/settings/general'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/settings'
     | '/$threadId'
-    | '/settings/archived'
-    | '/settings/general'
+    | '/settings'
     | '/'
+    | '/settings/agents'
+    | '/settings/appearance'
+    | '/settings/archived'
   id:
     | '__root__'
     | '/_chat'
-    | '/settings'
     | '/_chat/$threadId'
-    | '/settings/archived'
-    | '/settings/general'
+    | '/_chat/settings'
     | '/_chat/'
+    | '/_chat/settings/agents'
+    | '/_chat/settings/appearance'
+    | '/_chat/settings/archived'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
-  SettingsRoute: typeof SettingsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_chat': {
       id: '/_chat'
       path: ''
@@ -122,19 +126,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof ChatRoute
     }
-    '/settings/general': {
-      id: '/settings/general'
-      path: '/general'
-      fullPath: '/settings/general'
-      preLoaderRoute: typeof SettingsGeneralRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/archived': {
-      id: '/settings/archived'
-      path: '/archived'
-      fullPath: '/settings/archived'
-      preLoaderRoute: typeof SettingsArchivedRouteImport
-      parentRoute: typeof SettingsRoute
+    '/_chat/settings': {
+      id: '/_chat/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof ChatSettingsRouteImport
+      parentRoute: typeof ChatRoute
     }
     '/_chat/$threadId': {
       id: '/_chat/$threadId'
@@ -143,38 +140,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatThreadIdRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/_chat/settings/archived': {
+      id: '/_chat/settings/archived'
+      path: '/archived'
+      fullPath: '/settings/archived'
+      preLoaderRoute: typeof ChatSettingsArchivedRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
+    '/_chat/settings/appearance': {
+      id: '/_chat/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof ChatSettingsAppearanceRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
+    '/_chat/settings/agents': {
+      id: '/_chat/settings/agents'
+      path: '/agents'
+      fullPath: '/settings/agents'
+      preLoaderRoute: typeof ChatSettingsAgentsRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
   }
 }
 
+interface ChatSettingsRouteChildren {
+  ChatSettingsAgentsRoute: typeof ChatSettingsAgentsRoute
+  ChatSettingsAppearanceRoute: typeof ChatSettingsAppearanceRoute
+  ChatSettingsArchivedRoute: typeof ChatSettingsArchivedRoute
+}
+
+const ChatSettingsRouteChildren: ChatSettingsRouteChildren = {
+  ChatSettingsAgentsRoute: ChatSettingsAgentsRoute,
+  ChatSettingsAppearanceRoute: ChatSettingsAppearanceRoute,
+  ChatSettingsArchivedRoute: ChatSettingsArchivedRoute,
+}
+
+const ChatSettingsRouteWithChildren = ChatSettingsRoute._addFileChildren(
+  ChatSettingsRouteChildren,
+)
+
 interface ChatRouteChildren {
   ChatThreadIdRoute: typeof ChatThreadIdRoute
+  ChatSettingsRoute: typeof ChatSettingsRouteWithChildren
   ChatIndexRoute: typeof ChatIndexRoute
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
   ChatThreadIdRoute: ChatThreadIdRoute,
+  ChatSettingsRoute: ChatSettingsRouteWithChildren,
   ChatIndexRoute: ChatIndexRoute,
 }
 
 const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
 
-interface SettingsRouteChildren {
-  SettingsArchivedRoute: typeof SettingsArchivedRoute
-  SettingsGeneralRoute: typeof SettingsGeneralRoute
-}
-
-const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsArchivedRoute: SettingsArchivedRoute,
-  SettingsGeneralRoute: SettingsGeneralRoute,
-}
-
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
-  SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

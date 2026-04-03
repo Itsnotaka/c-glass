@@ -1,6 +1,5 @@
 import type { PiConfig, PiModelRef, PiProviderState, PiThinkingLevel } from "@glass/contracts";
 import { getGlass } from "../host";
-import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "./pi-glass-constants";
 
 const PREFERRED = [
   ["amazon-bedrock", "us.anthropic.claude-opus-4-6-v1"],
@@ -33,7 +32,7 @@ export interface PiModelItem extends PiModelRef {
   name: string;
 }
 
-interface PiDefaults {
+export interface PiDefaultsRead {
   provider: string | null;
   model: string | null;
   thinkingLevel: PiThinkingLevel | null;
@@ -43,6 +42,14 @@ export interface PiProviderItem extends PiProviderState {}
 
 function key(provider: string, id: string) {
   return `${provider}/${id}`;
+}
+
+/** Strips a redundant leading "Model " from Pi display names (config often includes it). */
+export function displayModelName(raw: string) {
+  const t = raw.trim();
+  if (!t) return raw;
+  const n = t.replace(/^model\s+/i, "").trim();
+  return n.length ? n : t;
 }
 
 function item(model: PiConfig["models"][number]) {
@@ -58,11 +65,6 @@ function item(model: PiConfig["models"][number]) {
 function same(left: PiModelRef | null | undefined, right: PiModelRef | null | undefined) {
   if (!left || !right) return false;
   return left.provider === right.provider && left.id === right.id;
-}
-
-function emit() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
 }
 
 function fuzzyMatch(query: string, text: string) {
@@ -150,13 +152,17 @@ export function filterPiModels(items: readonly PiModelItem[], query: string) {
   return out.map((item) => item.item);
 }
 
-export async function readPiDefaults() {
-  const data = await getGlass().pi.getConfig();
+export function readPiDefaultsFromConfig(data: PiConfig): PiDefaultsRead {
   return {
     provider: data.defaults.provider,
     model: data.defaults.model,
     thinkingLevel: data.defaults.thinkingLevel,
-  } satisfies PiDefaults;
+  };
+}
+
+export async function readPiDefaults() {
+  const data = await getGlass().pi.getConfig();
+  return readPiDefaultsFromConfig(data);
 }
 
 export async function listPiProviders() {
@@ -174,67 +180,79 @@ export async function readPiProvider(provider: string) {
   }) satisfies PiProviderItem;
 }
 
-export async function listPiModels(cur?: PiModelRef | null) {
-  const data = await getGlass().pi.getConfig();
-  const all = data.models.map((model) => item(model));
+export function listPiModelsFromConfig(data: PiConfig, cur?: PiModelRef | null) {
+  const all = data.models.map((m) => item(m));
   const available = new Set(data.available);
-  const next = all.filter((item) => available.has(item.key) || same(cur, item));
+  const next = all.filter((row) => available.has(row.key) || same(cur, row));
   if (next.length > 0) return next;
   return all;
 }
 
-export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
-  const data = await getGlass().pi.getConfig();
-  const items = data.models.map((model) => item(model));
+export function resolvePiDefaultModelFromConfig(data: PiConfig, cur?: PiModelRef | null) {
+  const items = data.models.map((m) => item(m));
   const available = new Set(data.available);
 
   if (data.defaults.provider && data.defaults.model) {
     const hit = items.find(
-      (item) => item.provider === data.defaults.provider && item.id === data.defaults.model,
+      (row) => row.provider === data.defaults.provider && row.id === data.defaults.model,
     );
     if (hit) return hit;
   }
 
   const pref = PREFERRED.flatMap(([provider, id]) => {
     const hit = items.find(
-      (item) => available.has(item.key) && item.provider === provider && item.id === id,
+      (row) => available.has(row.key) && row.provider === provider && row.id === id,
     );
     return hit ? [hit] : [];
   });
   if (pref[0]) return pref[0];
 
-  const vis = await listPiModels(cur);
+  const vis = listPiModelsFromConfig(data, cur);
   if (vis[0]) return vis[0];
   return cur ?? items[0] ?? null;
 }
 
+export function resolvePiDefaultThinkingLevelFromConfig(data: PiConfig): PiThinkingLevel {
+  return data.defaults.thinkingLevel ?? "off";
+}
+
+export async function listPiModels(cur?: PiModelRef | null) {
+  const data = await getGlass().pi.getConfig();
+  return listPiModelsFromConfig(data, cur);
+}
+
+export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
+  const data = await getGlass().pi.getConfig();
+  return resolvePiDefaultModelFromConfig(data, cur);
+}
+
 export async function resolvePiDefaultThinkingLevel() {
-  const defs = await readPiDefaults();
-  return defs.thinkingLevel ?? "off";
+  const data = await getGlass().pi.getConfig();
+  return resolvePiDefaultThinkingLevelFromConfig(data);
 }
 
 export async function writePiDefaultModel(model: PiModelRef) {
   await getGlass().pi.setDefaultModel(model.provider, model.id);
-  emit();
 }
 
 export async function clearPiDefaultModel() {
   await getGlass().pi.clearDefaultModel();
-  emit();
 }
 
 export async function writePiDefaultThinkingLevel(level: PiThinkingLevel) {
   await getGlass().pi.setDefaultThinkingLevel(level);
-  emit();
 }
 
 export const readPiApiKey = async (provider: string) => getGlass().pi.getApiKey(provider);
 
 export async function writePiApiKey(provider: string, key: string) {
   await getGlass().pi.setApiKey(provider, key);
-  emit();
 }
 
-export function hasStoredPiDefault(defs: PiDefaults) {
+export async function startPiOAuthLogin(provider: string) {
+  await getGlass().pi.startOAuthLogin(provider);
+}
+
+export function hasStoredPiDefault(defs: PiDefaultsRead) {
   return defs.provider !== null && defs.model !== null;
 }

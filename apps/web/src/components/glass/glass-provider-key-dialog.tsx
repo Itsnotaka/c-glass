@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Button } from "../ui/button";
+import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogDescription,
@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogPopup,
   DialogTitle,
-} from "../ui/dialog";
-import { Input } from "../ui/input";
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
 
 export function GlassProviderKeyDialog(props: {
   open: boolean;

@@ -34,8 +34,9 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { readGlass, getGlass } from "../../host";
 import { usePiModels } from "../../hooks/use-pi-models";
+import { usePiStore } from "../../lib/pi-session-store";
 import { cn } from "../../lib/utils";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "~/components/ui/scroll-area";
 import { useGlassSettings } from "./glass-settings-context";
 import { applyFile, applySlash, fileMatch, rank, slashMatch } from "./glass-pi-composer-search";
 import { PiModelPicker } from "./pi-model-picker";
@@ -75,6 +76,7 @@ interface Props {
   onModel: (model: PiModelItem) => void;
   onThinkingLevel: (level: PiThinkingLevel) => void;
   model: PiModelRef | null;
+  modelLoading?: boolean;
   busy: boolean;
 }
 
@@ -304,6 +306,12 @@ export const GlassPiComposer = memo(
     const navigate = useNavigate();
     const settings = useGlassSettings();
     const models = usePiModels(props.model);
+    const snap = usePiStore(
+      useMemo(
+        () => (state) => (props.sessionId ? state.snaps[props.sessionId] : undefined),
+        [props.sessionId],
+      ),
+    );
     const area = useRef<HTMLTextAreaElement | null>(null);
     const nextCursor = useRef<number | null>(null);
     const [cursor, setCursor] = useState(0);
@@ -785,13 +793,15 @@ export const GlassPiComposer = memo(
             : "relative isolate pb-2.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:top-[-96px] before:bg-glass-chat before:mask-[linear-gradient(0deg,#000_0,rgba(0,0,0,0.86)_28%,rgba(0,0,0,0.56)_62%,rgba(0,0,0,0.22)_84%,transparent)]",
         )}
       >
-        <div className={cn(props.variant === "hero" ? "w-full" : "shrink-0 px-4 pt-2 pb-4 md:px-6")}>
+        <div
+          className={cn(props.variant === "hero" ? "w-full" : "shrink-0 px-4 pt-2 pb-4 md:px-6")}
+        >
           <div className={cn(props.variant === "dock" ? "mx-auto w-full max-w-3xl" : "w-full")}>
             <div className="relative">
               {menu}
               <div
                 className={cn(
-                  "overflow-hidden rounded-[14px] border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
+                  "overflow-hidden rounded-2xl border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
                   drag && "border-glass-stroke-strong bg-glass-active/18",
                 )}
                 onDragLeave={(event) => {
@@ -888,15 +898,17 @@ export const GlassPiComposer = memo(
                       className="flex size-8 items-center justify-center rounded-xl text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-35"
                       aria-label="Add files"
                     >
-                      <IconPlusLarge className="size-4.5" />
+                      <IconPlusLarge className="glass-composer-icon" />
                     </button>
                     <PiModelPicker
                       items={models.items}
-                      model={props.model}
-                      thinkingLevel={models.thinkingLevel}
-                      disabled={props.busy || models.loading}
-                      side={props.variant === "dock" ? "top" : "bottom"}
-                      triggerClassName="h-7 max-w-52 min-w-0 rounded-full border-transparent px-2 text-muted-foreground/70 hover:bg-glass-hover hover:text-foreground"
+                      status={props.modelLoading ? "loading" : models.status}
+                      selection={{
+                        model: props.model,
+                        thinkingLevel: snap?.thinkingLevel ?? models.thinkingLevel,
+                      }}
+                      disabled={props.busy}
+                      variant={props.variant}
                       onSelect={props.onModel}
                       onThinkingLevel={props.onThinkingLevel}
                     />
@@ -915,9 +927,9 @@ export const GlassPiComposer = memo(
                     aria-label={props.busy ? "Stop" : "Send"}
                   >
                     {props.busy ? (
-                      <IconSquareX className="size-3.5" />
+                      <IconSquareX className="glass-composer-icon" />
                     ) : (
-                      <IconArrowUp className="size-4.5" />
+                      <IconArrowUp className="glass-composer-icon" />
                     )}
                   </button>
                 </div>

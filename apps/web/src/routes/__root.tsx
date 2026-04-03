@@ -1,19 +1,25 @@
 import {
+  Link,
   Outlet,
   createRootRouteWithContext,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { QueryClient } from "@tanstack/react-query";
+import { startTransition, useEffect } from "react";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
-import { Button } from "../components/ui/button";
-import { Toaster } from "../components/ui/sonner";
+import { readGlass } from "../host";
+import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { usePiStore } from "../lib/pi-session-store";
+import { Button, buttonVariants } from "~/components/ui/button";
+import { Toaster } from "~/components/ui/sonner";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
   component: RootRouteView,
   errorComponent: RootRouteErrorView,
+  notFoundComponent: NotFoundView,
   head: () => ({
     meta: [{ name: "title", content: APP_DISPLAY_NAME }],
   }),
@@ -22,11 +28,99 @@ export const Route = createRootRouteWithContext<{
 function RootRouteView() {
   return (
     <>
+      <PiBootBridge />
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>
       <Toaster />
     </>
+  );
+}
+
+function PiBootBridge() {
+  const boot = usePiStore((state) => state.boot);
+  const refreshCfg = usePiStore((state) => state.refreshCfg);
+  const refreshSums = usePiStore((state) => state.refreshSums);
+  const reset = usePiStore((state) => state.resetForWorkspaceChange);
+  const applySummaryEvent = usePiStore((state) => state.applySummaryEvent);
+
+  useEffect(() => {
+    void boot();
+  }, [boot]);
+
+  useEffect(() => {
+    const glass = readGlass();
+    if (!glass) return;
+
+    const sync = () => {
+      if (document.visibilityState === "hidden") return;
+      void refreshSums();
+    };
+
+    const reload = () => {
+      void Promise.all([refreshCfg(), refreshSums()]);
+    };
+
+    const shell = () => {
+      reset();
+      reload();
+    };
+
+    const offSummary = glass.session.onSummary((event) => {
+      startTransition(() => {
+        applySummaryEvent(event);
+      });
+    });
+    const offBoot = glass.desktop.onBootRefresh?.(reload);
+
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, shell);
+
+    return () => {
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
+      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, shell);
+      offSummary();
+      offBoot?.();
+    };
+  }, [applySummaryEvent, refreshCfg, refreshSums, reset]);
+
+  return null;
+}
+
+function NotFoundView() {
+  return (
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
+      <div className="pointer-events-none absolute inset-0 opacity-75">
+        <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(40rem_18rem_at_50%_-10%,color-mix(in_srgb,var(--color-primary)_12%,transparent),transparent)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(160deg,color-mix(in_srgb,var(--background)_92%,var(--color-neutral-500))_0%,var(--background)_50%)]" />
+      </div>
+
+      <section className="relative w-full max-w-md rounded-2xl border border-border/70 bg-card/85 p-8 text-center shadow-xl shadow-black/10 backdrop-blur-md sm:p-10">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {APP_DISPLAY_NAME}
+        </p>
+        <p className="mt-6 font-mono text-5xl font-semibold tabular-nums tracking-tight text-foreground sm:text-6xl">
+          404
+        </p>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight sm:text-2xl">Page not found</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          That path does not exist or was moved. Head back to chat or open settings.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+          <Link to="/" className={buttonVariants({ size: "sm", variant: "default" })}>
+            Back to chat
+          </Link>
+          <Link
+            to="/settings/appearance"
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            Settings
+          </Link>
+        </div>
+      </section>
+    </div>
   );
 }
 

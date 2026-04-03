@@ -146,6 +146,7 @@
 
 body {
   font-family: var(--glass-font-ui);
+  font-size: var(--glass-ui-font-size-user, 13px);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
@@ -168,6 +169,7 @@ body,
 pre,
 code {
   font-family: var(--glass-font-mono);
+  font-size: var(--glass-code-font-size-user, 12px);
 }
 
 /* Window drag region (frameless titlebar) */

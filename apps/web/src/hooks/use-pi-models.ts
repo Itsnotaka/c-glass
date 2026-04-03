@@ -1,18 +1,19 @@
 import type { PiModelRef, PiThinkingLevel } from "@glass/contracts";
-import { useEffect, useState } from "react";
-import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { useMemo } from "react";
+import { usePiCfg, usePiCfgStatus, type PiBootStatus } from "../lib/pi-session-store";
 import {
   hasStoredPiDefault,
-  listPiModels,
-  readPiDefaults,
-  resolvePiDefaultModel,
-  resolvePiDefaultThinkingLevel,
+  listPiModelsFromConfig,
+  readPiDefaultsFromConfig,
+  resolvePiDefaultModelFromConfig,
+  resolvePiDefaultThinkingLevelFromConfig,
   type PiModelItem,
 } from "../lib/pi-models";
 
 interface PiModelState {
   items: PiModelItem[];
   loading: boolean;
+  status: PiBootStatus;
   thinkingLevel: PiThinkingLevel;
 }
 
@@ -22,76 +23,56 @@ interface PiDefaultState extends PiModelState {
 }
 
 export function usePiModels(cur?: PiModelRef | null) {
-  const [state, setState] = useState<PiModelState>({
-    items: [],
-    loading: true,
-    thinkingLevel: "off",
-  });
+  const cfg = usePiCfg();
+  const status = usePiCfgStatus();
   const provider = cur?.provider ?? "";
   const id = cur?.id ?? "";
 
-  useEffect(() => {
-    let live = true;
+  return useMemo(() => {
+    if (status !== "ready" || !cfg) {
+      return {
+        items: [],
+        loading: status === "loading",
+        status,
+        thinkingLevel: "off",
+      } satisfies PiModelState;
+    }
+
     const ref = provider && id ? { provider, id } : null;
-
-    const load = () => {
-      void Promise.all([listPiModels(ref), resolvePiDefaultThinkingLevel()]).then(
-        ([items, thinkingLevel]) => {
-          if (!live) return;
-          setState({ items, loading: false, thinkingLevel });
-        },
-      );
-    };
-
-    load();
-    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    };
-  }, [id, provider]);
-
-  return state;
+    return {
+      items: listPiModelsFromConfig(cfg, ref),
+      loading: false,
+      status,
+      thinkingLevel: resolvePiDefaultThinkingLevelFromConfig(cfg),
+    } satisfies PiModelState;
+  }, [cfg, id, provider, status]);
 }
 
 export function usePiDefaults() {
-  const [state, setState] = useState<PiDefaultState>({
-    items: [],
-    model: null,
-    thinkingLevel: "off",
-    stored: false,
-    loading: true,
-  });
+  const cfg = usePiCfg();
+  const status = usePiCfgStatus();
 
-  useEffect(() => {
-    let live = true;
+  return useMemo(() => {
+    if (status !== "ready" || !cfg) {
+      return {
+        items: [],
+        model: null,
+        thinkingLevel: "off",
+        stored: false,
+        loading: status === "loading",
+        status,
+      } satisfies PiDefaultState;
+    }
 
-    const load = () => {
-      void Promise.all([
-        readPiDefaults(),
-        resolvePiDefaultModel(),
-        resolvePiDefaultThinkingLevel(),
-      ]).then(([defs, model, thinkingLevel]) => {
-        void listPiModels(model).then((items) => {
-          if (!live) return;
-          setState({
-            items,
-            model,
-            thinkingLevel,
-            stored: hasStoredPiDefault(defs),
-            loading: false,
-          });
-        });
-      });
-    };
-
-    load();
-    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    };
-  }, []);
-
-  return state;
+    const model = resolvePiDefaultModelFromConfig(cfg);
+    const defs = readPiDefaultsFromConfig(cfg);
+    return {
+      items: listPiModelsFromConfig(cfg, model),
+      model,
+      thinkingLevel: resolvePiDefaultThinkingLevelFromConfig(cfg),
+      stored: hasStoredPiDefault(defs),
+      loading: false,
+      status,
+    } satisfies PiDefaultState;
+  }, [cfg, status]);
 }

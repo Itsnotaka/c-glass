@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
+import { applyColorPalette } from "../lib/glass-appearance";
+
 type Theme = "light" | "dark" | "system";
 type ThemeSnapshot = {
   theme: Theme;
@@ -28,6 +30,7 @@ function applyTheme(theme: Theme, suppressTransitions = false) {
   }
   const isDark = theme === "dark" || (theme === "system" && window.matchMedia(MEDIA_QUERY).matches);
   document.documentElement.classList.toggle("dark", isDark);
+  applyColorPalette();
   syncDesktopTheme(theme);
   if (suppressTransitions) {
     // oxlint-disable-next-line no-unused-expressions

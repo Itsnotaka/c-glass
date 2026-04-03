@@ -59,6 +59,9 @@ const mocks = vi.hoisted(() => {
         };
       },
     ),
+    setThinkingLevel: vi.fn((level: string) => {
+      session.thinkingLevel = level;
+    }),
     abort: vi.fn(async () => {}),
     dispose: vi.fn(),
   };
@@ -106,6 +109,7 @@ describe("PiSessionService", () => {
     mocks.session.prompt.mockClear();
     mocks.session.subscribe.mockClear();
     mocks.session.setModel.mockClear();
+    mocks.session.setThinkingLevel.mockClear();
     mocks.session.abort.mockClear();
     mocks.session.dispose.mockClear();
     mocks.createAgentSession.mockClear();

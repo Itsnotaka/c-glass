@@ -1,7 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 
 import { GlassSettingsProvider, useGlassSettings } from "./glass/glass-settings-context";
-import { GlassSettingsDialog } from "./glass/glass-settings-dialog";
 
 import { SidebarProvider } from "./ui/sidebar";
 
@@ -32,7 +31,6 @@ export function AppSidebarLayout(props: { children: ReactNode }) {
         <SidebarProvider defaultOpen className="min-h-dvh bg-glass-surface">
           {props.children}
         </SidebarProvider>
-        <GlassSettingsDialog />
       </DesktopMenuBridge>
     </GlassSettingsProvider>
   );

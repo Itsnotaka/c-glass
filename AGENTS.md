@@ -1,4 +1,4 @@
-# AGENTS.md
+# [AGENTS.md](http://AGENTS.md)
 
 ## Icon Library
 
@@ -9,6 +9,20 @@ import { IconHome } from "central-icons";
 ```
 
 Do not use `lucide-react` or any other icon library.
+
+## Web app layout (`apps/web`)
+
+Structural reference: [t3code](https://github.com/pingdotgg/t3code) (folder boundaries only, not its UI).
+
+- **Primitives**: `src/components/ui/` (Button, Input, Switch, Dialog, …).
+- **Feature / product UI**: `src/components/<domain>/` (e.g. `glass/`, `settings/`).
+- **App wiring**: `src/hooks/`, `src/lib/`, `src/routes/`.
+- **Workspace packages**: `packages/contracts`, `packages/shared` — types and non-UI helpers only; **do not** add `packages/ui` unless multiple apps must share compiled UI.
+
+Imports:
+
+- Primitives: `~/components/ui/...`.
+- Dependency direction: domain code imports primitives; primitives do not import feature layers.
 
 ## Task Completion Requirements
 

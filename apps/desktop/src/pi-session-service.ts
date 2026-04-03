@@ -21,6 +21,7 @@ import type {
   PiSessionSummaryEvent,
   PiSessionTreeNode,
   PiSlashCommand,
+  PiThinkingLevel,
 } from "@glass/contracts";
 import { SessionManager, createAgentSession } from "@mariozechner/pi-coding-agent";
 import { image, resolveFile, text as textFile } from "./files";
@@ -1078,6 +1079,12 @@ export class PiSessionService {
     });
   }
 
+  peek() {
+    return [...this.sums.values()].toSorted((left, right) =>
+      left.modifiedAt < right.modifiedAt ? 1 : left.modifiedAt > right.modifiedAt ? -1 : 0,
+    );
+  }
+
   private open(sessionId: string) {
     const cur = this.items.get(sessionId)?.session;
     if (cur) return Effect.succeed(cur);
@@ -1183,6 +1190,19 @@ export class PiSessionService {
             }),
           ),
         ),
+      ),
+    );
+  }
+
+  setThinkingLevel(sessionId: string, level: PiThinkingLevel) {
+    return this.open(sessionId).pipe(
+      Effect.flatMap((session) =>
+        Effect.tryPromise({
+          try: async () => {
+            session.setThinkingLevel(level);
+          },
+          catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+        }),
       ),
     );
   }

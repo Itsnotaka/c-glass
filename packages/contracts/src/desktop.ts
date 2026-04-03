@@ -53,6 +53,8 @@ export interface DesktopUpdateCheckResult {
 
 export interface DesktopBridge {
   confirm: (message: string) => Promise<boolean>;
+  /** Desktop: runs in the renderer when Pi or workspace boot state changes. */
+  onBootRefresh?: (cb: () => void) => () => void;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],

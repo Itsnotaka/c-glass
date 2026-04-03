@@ -76,10 +76,63 @@ export type PiRow =
     }
   | {
       id: string;
+      kind: "explored";
+      reads: number;
+      searches: number;
+      tools: Array<Extract<PiRow, { kind: "tool" }>>;
+    }
+  | {
+      id: string;
       kind: "other";
       role: string;
       text: string;
     };
+
+type ToolRow = Extract<PiRow, { kind: "tool" }>;
+
+const reads = new Set(["read", "ls", "list_files", "list_dir", "web_fetch", "file_search"]);
+const searches = new Set([
+  "grep",
+  "find",
+  "glob",
+  "glob_file_search",
+  "search",
+  "semantic_search",
+  "web_search",
+  "codebase_search",
+]);
+const explored = new Set([...reads, ...searches]);
+
+function group(rows: PiRow[]): PiRow[] {
+  const out: PiRow[] = [];
+  let buf: ToolRow[] = [];
+
+  const flush = () => {
+    if (buf.length < 2) {
+      out.push(...buf);
+    } else {
+      let r = 0;
+      let s = 0;
+      for (const t of buf) {
+        if (reads.has(t.name.toLowerCase())) r += 1;
+        else s += 1;
+      }
+      out.push({ id: buf[0]!.id, kind: "explored", reads: r, searches: s, tools: buf });
+    }
+    buf = [];
+  };
+
+  for (const row of rows) {
+    if (row.kind === "tool" && explored.has(row.name.toLowerCase())) {
+      buf.push(row);
+    } else {
+      flush();
+      out.push(row);
+    }
+  }
+  flush();
+  return out;
+}
 
 function list(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -337,5 +390,5 @@ export function buildPiRows(items: PiSessionItem[]) {
     rows.push({ id: entry.id, kind: "other", role, text: plain(msg.content) });
   }
 
-  return rows;
+  return group(rows);
 }

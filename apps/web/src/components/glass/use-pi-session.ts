@@ -1,14 +1,11 @@
-import type { PiModelRef, PiPromptInput, PiSessionItem, PiThinkingLevel } from "@glass/contracts";
+import type { PiPromptInput, PiSessionItem, PiThinkingLevel } from "@glass/contracts";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { getGlass } from "../../host";
-import {
-  PI_GLASS_SETTINGS_CHANGED_EVENT,
-  PI_GLASS_SHELL_CHANGED_EVENT,
-} from "../../lib/pi-glass-constants";
+import { usePiDefaults } from "../../hooks/use-pi-models";
+import { getGlass, readGlass } from "../../host";
+import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import {
   readPiProvider,
-  resolvePiDefaultModel,
   writePiApiKey,
   writePiDefaultModel,
   writePiDefaultThinkingLevel,
@@ -39,12 +36,12 @@ function paths(item: PiSessionItem | null) {
     if (part.name !== "edit" || !Array.isArray(args?.multi)) return out;
 
     const list: unknown[] = args.multi;
-    list.reduce<string[]>((out, item) => {
-      if (!item || typeof item !== "object") return out;
+    list.reduce<string[]>((next, item) => {
+      if (!item || typeof item !== "object") return next;
       const path = (item as { path?: unknown }).path;
-      if (typeof path !== "string" || !path.trim()) return out;
-      out.push(path);
-      return out;
+      if (typeof path !== "string" || !path.trim()) return next;
+      next.push(path);
+      return next;
     }, out);
 
     return out;
@@ -59,6 +56,7 @@ function dirty(item: PiSessionItem | null) {
 
 export function usePiSession(sessionId: string | null) {
   const navigate = useNavigate();
+  const defs = usePiDefaults();
   const applyActs = usePiStore((state) => state.applyActs);
   const putSnap = usePiStore((state) => state.putSnap);
   const openAuth = useGlassProviderAuthStore((state) => state.open);
@@ -94,31 +92,10 @@ export function usePiSession(sessionId: string | null) {
       [sessionId],
     ),
   );
-  const [draftModel, setDraftModel] = useState<PiModelRef | null>(null);
   const [tick, setTick] = useState(0);
   const pending = useRef<(() => Promise<void>) | null>(null);
   const queued = useRef<Parameters<typeof applyActs>[0]>([]);
   const frame = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (sessionId) return;
-
-    let live = true;
-
-    const load = () => {
-      void resolvePiDefaultModel().then((model) => {
-        if (!live) return;
-        setDraftModel(model);
-      });
-    };
-
-    load();
-    window.addEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SETTINGS_CHANGED_EVENT, load);
-    };
-  }, [sessionId]);
 
   useEffect(() => {
     const bump = () => {
@@ -134,10 +111,12 @@ export function usePiSession(sessionId: string | null) {
   useEffect(() => {
     if (!sessionId) return;
 
+    const glass = readGlass();
+    if (!glass) return;
+
     let live = true;
-    setDraftModel(null);
-    void getGlass()
-      .session.watch(sessionId)
+    void glass.session
+      .watch(sessionId)
       .then((next) => {
         if (!live) return;
         putSnap(next);
@@ -146,12 +125,15 @@ export function usePiSession(sessionId: string | null) {
 
     return () => {
       live = false;
-      void getGlass().session.unwatch();
+      void glass.session.unwatch();
     };
   }, [putSnap, sessionId, tick]);
 
   useEffect(() => {
     if (!sessionId) return;
+
+    const glass = readGlass();
+    if (!glass) return;
 
     const cancel = () => {
       const id = frame.current;
@@ -161,7 +143,7 @@ export function usePiSession(sessionId: string | null) {
       }
     };
 
-    const off = getGlass().session.onActive((event) => {
+    const off = glass.session.onActive((event) => {
       if (event.sessionId !== sessionId) return;
       queued.current.push(event);
       if (frame.current !== null) return;
@@ -189,7 +171,8 @@ export function usePiSession(sessionId: string | null) {
     };
   }, [applyActs, bumpPaths, note, sessionId, tick]);
 
-  const model = sessionModel ?? draftModel;
+  const model = sessionId ? sessionModel : defs.model;
+  const modelLoading = !sessionId && defs.status === "loading";
 
   const showProvider = async (task: () => Promise<void>, name: string) => {
     const next = await readPiProvider(name);
@@ -258,7 +241,6 @@ export function usePiSession(sessionId: string | null) {
   const setModel = (next: PiModelItem) => {
     const task = async () => {
       if (!sessionId) {
-        setDraftModel(next);
         await writePiDefaultModel(next);
         return;
       }
@@ -275,7 +257,15 @@ export function usePiSession(sessionId: string | null) {
   };
 
   const setThinkingLevel = (level: PiThinkingLevel) => {
-    void writePiDefaultThinkingLevel(level);
+    const task = async () => {
+      if (!sessionId) {
+        await writePiDefaultThinkingLevel(level);
+        return;
+      }
+      await getGlass().session.setThinkingLevel(sessionId, level);
+    };
+
+    void task();
   };
 
   return {
@@ -283,6 +273,7 @@ export function usePiSession(sessionId: string | null) {
     live,
     busy,
     model,
+    modelLoading,
     send,
     abort,
     setModel,

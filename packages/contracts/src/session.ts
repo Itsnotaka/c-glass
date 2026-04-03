@@ -351,6 +351,8 @@ export type PiSessionBridgeEvent = PiSessionSummaryEvent | PiSessionActiveEvent;
 export interface SessionBridge {
   list: () => Promise<PiSessionSummary[]>;
   listAll: () => Promise<PiSessionSummary[]>;
+  /** Desktop preload: initial session summary snapshot fetched before first paint. */
+  readBootSummaries?: () => PiSessionSummary[] | null;
   create: () => Promise<PiSessionSnapshot>;
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
   watch: (sessionId: string) => Promise<PiSessionSnapshot>;
@@ -358,6 +360,7 @@ export interface SessionBridge {
   prompt: (sessionId: string, input: string | PiPromptInput) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
+  setThinkingLevel: (sessionId: string, thinkingLevel: PiThinkingLevel) => Promise<void>;
   commands: (sessionId: string) => Promise<PiSlashCommand[]>;
   onSummary: (listener: (event: PiSessionSummaryEvent) => void) => () => void;
   onActive: (listener: (event: PiSessionActiveEvent) => void) => () => void;

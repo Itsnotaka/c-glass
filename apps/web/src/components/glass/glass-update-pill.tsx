@@ -57,7 +57,7 @@ export function GlassUpdatePill() {
       disabled={disabled}
       onClick={handle}
       onDoubleClick={() => setDismissed(true)}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+      className="flex w-full items-center justify-start gap-2 rounded-md px-0 py-1.5 text-left text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
     >
       {action === "install" ? (
         <>
