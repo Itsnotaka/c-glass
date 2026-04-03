@@ -7,7 +7,7 @@ import { readGlass } from "../../host";
 import { useGlassAgents } from "../../hooks/use-glass-agents";
 import { useGlassGitPanel } from "../../hooks/use-glass-git";
 import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
-import { useShellCwd } from "../../hooks/use-shell-cwd";
+import { useShellState } from "../../hooks/use-shell-cwd";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore } from "../../lib/pi-session-store";
@@ -18,14 +18,14 @@ import { GlassThreadRail } from "./glass-thread-rail";
 
 export function GlassChatShell() {
   const navigate = useNavigate();
-  const cwd = useShellCwd();
+  const { cwd, home } = useShellState();
   const p = useGlassShellPanels(cwd);
   const sums = usePiStore((state) => state.sums);
   const clear = useGlassShellStore((state) => state.clear);
   const mute = useGlassShellStore((state) => state.mute);
   const unmute = useGlassShellStore((state) => state.unmute);
   const muted = useGlassShellStore((state) => (cwd ? Boolean(state.mutes[cwd]) : false));
-  const { sections, routeThreadId } = useGlassAgents(cwd);
+  const { sections, routeThreadId } = useGlassAgents(cwd, home);
   const git = useGlassGitPanel();
   const sum = routeThreadId ? sums[routeThreadId] : undefined;
   const rightOpen = p.rightOpen;
@@ -124,6 +124,7 @@ export function GlassChatShell() {
             selectedId={routeThreadId}
             onSelectAgent={select}
             onNewAgent={create}
+            onToggleLeft={p.toggleLeft}
           />
         }
         center={<Outlet />}

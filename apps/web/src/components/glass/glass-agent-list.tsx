@@ -2,6 +2,7 @@ import { IconChevronBottom } from "central-icons";
 import { useState } from "react";
 
 import type { GlassSidebarSection } from "../../lib/glass-view-model";
+import { cn } from "../../lib/utils";
 import { GlassAgentRow } from "./glass-agent-row";
 
 function Section(props: {
@@ -16,10 +17,10 @@ function Section(props: {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={[
-          "group flex w-full items-center gap-1 px-2 py-1 text-[11px] font-medium tracking-wide uppercase hover:text-muted-foreground",
+        className={cn(
+          "group flex w-full items-center gap-1 px-2 py-1 text-[11px] font-medium hover:text-muted-foreground",
           props.section.active ? "text-foreground/80" : "text-muted-foreground/60",
-        ].join(" ")}
+        )}
       >
         <IconChevronBottom
           className="size-3 shrink-0 opacity-60 transition-transform duration-150"

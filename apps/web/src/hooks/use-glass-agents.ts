@@ -5,7 +5,7 @@ import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
 import { buildWorkspaceThreadSections, type GlassSidebarSection } from "../lib/glass-view-model";
 import { usePiStore } from "../lib/pi-session-store";
 
-export function useGlassAgents(cwd: string | null) {
+export function useGlassAgents(cwd: string | null, home: string | null) {
   const sums = usePiStore((s) => s.sums);
   const clear = usePiStore((state) => state.clear);
   const dropSum = usePiStore((state) => state.dropSum);
@@ -73,7 +73,7 @@ export function useGlassAgents(cwd: string | null) {
     };
   }, [clear, dropSum, putSum, replaceSums]);
 
-  const sections = useMemo(() => buildWorkspaceThreadSections(sums, cwd), [cwd, sums]);
+  const sections = useMemo(() => buildWorkspaceThreadSections(sums, cwd, home), [cwd, home, sums]);
 
   return { sections, routeThreadId } satisfies {
     sections: GlassSidebarSection[];

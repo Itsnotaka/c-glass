@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { readGlass } from "../host";
 import { useGlassShellStore } from "../lib/glass-shell-store";
-import { useShellCwd } from "./use-shell-cwd";
+import { useShellState } from "./use-shell-cwd";
 
 interface DiffRow extends GitFileSummary {
   diff: FileDiffMetadata | null;
@@ -128,7 +128,7 @@ function hit(paths: string[], cwd: string, root: string | null, files: DiffRow[]
 }
 
 export function useGlassGitPanel(): GlassGitPanelModel {
-  const cwd = useShellCwd();
+  const { cwd } = useShellState();
   const glass = readGlass();
   const paths = useGlassShellStore((state) => state.paths);
   const tick = useGlassShellStore((state) => state.tick);

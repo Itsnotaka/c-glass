@@ -1463,7 +1463,7 @@ function createWindow(): BrowserWindow {
     ...getIconOption(),
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 16, y: 14 },
     webPreferences: {
       preload: Path.join(__dirname, "preload.js"),
       contextIsolation: true,

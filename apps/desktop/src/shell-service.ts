@@ -380,6 +380,7 @@ export class ShellService {
     return Effect.sync(() => ({
       cwd: this.cwd,
       name: Path.basename(this.cwd) || this.cwd,
+      home: OS.homedir(),
       availableEditors: this.availableEditors(),
     }));
   }
@@ -402,6 +403,7 @@ export class ShellService {
         return {
           cwd: this.cwd,
           name: Path.basename(this.cwd) || this.cwd,
+          home: OS.homedir(),
           availableEditors: this.availableEditors(),
         };
       },
@@ -422,6 +424,7 @@ export class ShellService {
         return {
           cwd: this.cwd,
           name: Path.basename(this.cwd) || this.cwd,
+          home: OS.homedir(),
           availableEditors: this.availableEditors(),
         };
       },

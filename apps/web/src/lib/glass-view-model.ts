@@ -1,16 +1,13 @@
 import type { PiSessionSummary } from "@glass/contracts";
 
-function label(cwd: string) {
-  const text = cwd.replace(/[/\\]+$/, "");
-  if (!text) return "Workspace";
-  return text;
-}
+import { shortWorkspacePathLabel } from "./glass-path-label";
 
 export function buildWorkspaceThreadSections(
   sums: Record<string, PiSessionSummary>,
   cwd: string | null,
+  home: string | null,
 ) {
-  const list = Object.values(sums);
+  const list = Object.values(sums).filter((item) => item.messageCount > 0);
   if (list.length === 0) return [];
 
   const by = new Map<string, PiSessionSummary[]>();
@@ -26,7 +23,7 @@ export function buildWorkspaceThreadSections(
       a.modifiedAt < b.modifiedAt ? 1 : a.modifiedAt > b.modifiedAt ? -1 : 0,
     );
     const latest = sorted[0]?.modifiedAt ?? "";
-    return { cwd, label: label(cwd), sorted, latest };
+    return { cwd, label: shortWorkspacePathLabel(cwd, home), sorted, latest };
   });
 
   groups.sort((a, b) => {

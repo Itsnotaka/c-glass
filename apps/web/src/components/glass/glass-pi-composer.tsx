@@ -9,7 +9,6 @@ import type {
   ShellPickedFile,
 } from "@glass/contracts";
 import type { PiModelItem } from "../../lib/pi-models";
-import { cva, type VariantProps } from "class-variance-authority";
 import {
   IconArrowUp,
   IconChevronRight,
@@ -41,27 +40,6 @@ import { useGlassSettings } from "./glass-settings-context";
 import { applyFile, applySlash, fileMatch, rank, slashMatch } from "./glass-pi-composer-search";
 import { PiModelPicker } from "./pi-model-picker";
 
-const root = cva("", {
-  variants: {
-    variant: {
-      hero: "w-full",
-      dock: "relative isolate pb-2.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:top-[-96px] before:bg-glass-chat before:[mask-image:linear-gradient(0deg,#000_0,rgba(0,0,0,0.86)_28%,rgba(0,0,0,0.56)_62%,rgba(0,0,0,0.22)_84%,transparent)]",
-    },
-  },
-});
-
-const wrap = cva("", {
-  variants: {
-    variant: {
-      hero: "w-full",
-      dock: "shrink-0 px-4 pt-2 pb-4 md:px-6",
-    },
-  },
-});
-
-const box =
-  "overflow-hidden rounded-[14px] border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong";
-
 type Pick =
   | {
       id: string;
@@ -87,7 +65,8 @@ type Cmd = Omit<PiSlashCommand, "source"> & {
   source: PiSlashCommand["source"] | "app";
 };
 
-interface Props extends Required<VariantProps<typeof root>> {
+interface Props {
+  variant: "hero" | "dock";
   sessionId?: string | null;
   draft: string;
   onDraft: (value: string) => void;
@@ -325,7 +304,6 @@ export const GlassPiComposer = memo(
     const navigate = useNavigate();
     const settings = useGlassSettings();
     const models = usePiModels(props.model);
-    const body = props.variant === "dock" ? "mx-auto w-full max-w-3xl" : "w-full";
     const area = useRef<HTMLTextAreaElement | null>(null);
     const nextCursor = useRef<number | null>(null);
     const [cursor, setCursor] = useState(0);
@@ -787,7 +765,7 @@ export const GlassPiComposer = memo(
                         {item.description || "Command"}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-full border border-glass-border/40 px-1.5 py-0.5 text-[10px]/[1] uppercase text-muted-foreground/68">
+                    <span className="shrink-0 rounded-full border border-glass-border/40 px-1.5 py-0.5 text-[10px]/[1] text-muted-foreground/68">
                       {sourceLabel(item.source)}
                     </span>
                   </button>
@@ -800,13 +778,22 @@ export const GlassPiComposer = memo(
     ) : null;
 
     return (
-      <div className={root({ variant: props.variant })}>
-        <div className={wrap({ variant: props.variant })}>
-          <div className={body}>
+      <div
+        className={cn(
+          props.variant === "hero"
+            ? "w-full"
+            : "relative isolate pb-2.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:top-[-96px] before:bg-glass-chat before:mask-[linear-gradient(0deg,#000_0,rgba(0,0,0,0.86)_28%,rgba(0,0,0,0.56)_62%,rgba(0,0,0,0.22)_84%,transparent)]",
+        )}
+      >
+        <div className={cn(props.variant === "hero" ? "w-full" : "shrink-0 px-4 pt-2 pb-4 md:px-6")}>
+          <div className={cn(props.variant === "dock" ? "mx-auto w-full max-w-3xl" : "w-full")}>
             <div className="relative">
               {menu}
               <div
-                className={cn(box, drag && "border-glass-stroke-strong bg-glass-active/18")}
+                className={cn(
+                  "overflow-hidden rounded-[14px] border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
+                  drag && "border-glass-stroke-strong bg-glass-active/18",
+                )}
                 onDragLeave={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect();
                   const x = event.clientX;

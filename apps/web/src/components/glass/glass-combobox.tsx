@@ -48,12 +48,12 @@ function GlassComboboxPopup({
       >
         <div
           className={cn(
-            "flex max-h-[min(var(--available-height),20rem)] min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) flex-col overflow-hidden rounded-xl border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl transition-[scale,opacity]",
+            "flex min-h-0 max-h-[min(var(--available-height),20rem)] min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) flex-col overflow-hidden rounded-xl border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl transition-[scale,opacity]",
             className,
           )}
         >
           <ComboboxPrimitive.Popup
-            className="flex flex-1 flex-col text-foreground"
+            className="flex flex-col overflow-hidden text-foreground"
             data-slot="combobox-popup"
             {...props}
           >
@@ -83,7 +83,7 @@ function GlassComboboxSearchInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={cn(
-        "flex h-9 w-full rounded-md border-0 bg-glass-hover/50 px-2.5 py-1.5 text-[13px]/[1.3] text-foreground outline-none placeholder:text-muted-foreground/50",
+        "flex h-8 w-full rounded-md border-0 bg-glass-hover/50 px-2 py-1.5 text-[12px]/[1.3] text-foreground outline-none placeholder:text-muted-foreground/50",
         className,
       )}
     />
@@ -93,7 +93,7 @@ function GlassComboboxSearchInput({
 function GlassComboboxEmpty({ className, children, ...props }: ComboboxPrimitive.Empty.Props) {
   return (
     <ComboboxPrimitive.Empty
-      className={cn("py-5 text-center text-[13px]/[1.3] text-muted-foreground/70", className)}
+      className={cn("py-4 text-center text-[12px]/[1.3] text-muted-foreground/70", className)}
       data-slot="combobox-empty"
       {...props}
     >
@@ -106,42 +106,28 @@ function GlassComboboxItem({
   className,
   children,
   hideIndicator = false,
-  rightSection,
   ...props
 }: ComboboxPrimitive.Item.Props & {
   hideIndicator?: boolean;
-  rightSection?: React.ReactNode;
 }) {
   return (
     <ComboboxPrimitive.Item
       className={cn(
-        "group flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1.5 pe-2 ps-2 text-[13px]/[1.3] outline-none transition-colors hover:bg-glass-hover data-selected:bg-glass-active data-highlighted:bg-glass-hover data-disabled:pointer-events-none data-disabled:opacity-50",
+        "group flex min-h-7 cursor-pointer items-center gap-2 rounded-md py-1 pe-2 ps-2 text-[12px]/[1.3] outline-none transition-colors hover:bg-glass-hover data-selected:bg-glass-active data-highlighted:bg-glass-hover data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       data-slot="combobox-item"
       {...props}
     >
+      <div className="min-w-0 flex-1">{children}</div>
       <ComboboxPrimitive.ItemIndicator
         className={cn(
-          "col-start-1 flex size-4 items-center justify-center opacity-0 group-data-selected:opacity-100",
+          "flex size-4 shrink-0 items-center justify-center opacity-0 group-data-selected:opacity-100",
           hideIndicator && "hidden",
         )}
       >
         <IconCheckmark1Small className="size-3.5 text-muted-foreground/70" />
       </ComboboxPrimitive.ItemIndicator>
-      <div
-        className={cn(
-          "min-w-0 flex-1",
-          !hideIndicator ? "col-start-2" : "col-start-1 col-span-full",
-        )}
-      >
-        {children}
-      </div>
-      {rightSection && (
-        <div className="col-start-3 flex shrink-0 items-center opacity-0 group-data-highlighted:opacity-100">
-          {rightSection}
-        </div>
-      )}
     </ComboboxPrimitive.Item>
   );
 }
@@ -149,7 +135,10 @@ function GlassComboboxItem({
 function GlassComboboxList({ className, children, ...props }: ComboboxPrimitive.List.Props) {
   return (
     <ComboboxPrimitive.List
-      className={cn("overflow-y-auto py-1", className)}
+      className={cn(
+        "max-h-[min(17rem,calc(min(var(--available-height),20rem)-5.25rem))] overflow-y-auto overscroll-contain py-1",
+        className,
+      )}
       data-slot="combobox-list"
       {...props}
     >

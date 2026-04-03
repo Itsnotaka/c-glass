@@ -2,9 +2,11 @@ import { IconFolder1 } from "central-icons";
 import { useEffect, useState } from "react";
 import { getGlass } from "../../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
+import { shortWorkspacePathLabel } from "../../lib/glass-path-label";
+import { cn } from "../../lib/utils";
 
-export function GlassWorkspacePicker() {
-  const [state, setState] = useState<{ cwd: string; name: string } | null>(null);
+export function GlassWorkspacePicker(props: { className?: string }) {
+  const [state, setState] = useState<{ cwd: string; name: string; home: string } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -39,11 +41,16 @@ export function GlassWorkspacePicker() {
             window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
           });
       }}
-      className="font-glass inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground"
+      className={cn(
+        "font-glass inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground",
+        props.className,
+      )}
       title={state?.cwd ?? "Choose workspace"}
     >
       <IconFolder1 className="size-3 shrink-0" />
-      <span className="truncate">{state?.name ?? "Workspace"}</span>
+      <span className="truncate">
+        {state ? shortWorkspacePathLabel(state.cwd, state.home) : "Workspace"}
+      </span>
     </button>
   );
 }

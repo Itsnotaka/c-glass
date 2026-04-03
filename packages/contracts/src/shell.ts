@@ -3,6 +3,8 @@ import type { EditorId } from "./editor";
 export interface ShellState {
   cwd: string;
   name: string;
+  /** User home directory (for ~-style labels in the UI). */
+  home: string;
   availableEditors: EditorId[];
 }
 

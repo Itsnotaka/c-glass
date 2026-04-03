@@ -159,9 +159,7 @@ export const GlassDiffSidebar = memo(function GlassDiffSidebar(props: Props) {
     <div className={cn("flex h-full min-w-0 flex-col", props.className)}>
       {/* Header with title and toggle */}
       <div className="flex shrink-0 items-center justify-between border-b border-glass-border/40 px-3 py-2">
-        <h2 className="text-[12px]/[1.2] font-semibold uppercase tracking-wide text-foreground/85">
-          Changes
-        </h2>
+        <h2 className="text-[12px]/[1.2] font-semibold text-foreground/85">Changes</h2>
         <div className="flex items-center rounded-lg border border-glass-border/40 bg-glass-hover/15 p-0.5">
           <button
             type="button"

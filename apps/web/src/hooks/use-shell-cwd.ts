@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import { readGlass } from "../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
 
-export function useShellCwd() {
+export function useShellState() {
   const [cwd, setCwd] = useState<string | null>(null);
+  const [home, setHome] = useState<string | null>(null);
 
   useEffect(() => {
     const g = readGlass();
     if (!g) {
       setCwd("browser");
+      setHome(null);
       return;
     }
 
@@ -21,6 +23,7 @@ export function useShellCwd() {
         .then((s) => {
           if (!live) return;
           setCwd(s.cwd);
+          setHome(s.home);
         })
         .catch(() => {});
     };
@@ -33,5 +36,5 @@ export function useShellCwd() {
     };
   }, []);
 
-  return cwd;
+  return { cwd, home };
 }

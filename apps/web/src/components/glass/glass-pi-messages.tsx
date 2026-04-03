@@ -276,7 +276,7 @@ const Section = memo(function Section(props: {
       )}
     >
       {props.label ? (
-        <div className="mb-1.5 text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/60 uppercase">
+        <div className="mb-1.5 text-[11px]/[1.1] font-medium text-muted-foreground/60">
           {props.label}
         </div>
       ) : null}

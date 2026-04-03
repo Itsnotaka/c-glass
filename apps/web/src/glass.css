@@ -3,11 +3,13 @@
     "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     sans-serif;
   --glass-font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
-  --glass-header-height: 35px;
-  --glass-sidebar-gap: 52px;
+  --glass-header-height: 40px;
+  /* macOS traffic lights + margin; keeps shell controls clear of the stoplight region */
+  --glass-electron-traffic-inset: 84px;
   --glass-radius-card: 12px;
   --glass-radius-chip: 20px;
-  --glass-color-sidebar: color-mix(in srgb, var(--color-white) 88%, oklch(0.96 0.01 255));
+  /* Neutral panel like Cursor: slightly cooler than chat/editor */
+  --glass-color-sidebar: oklch(0.965 0.006 255);
   --glass-color-chat: color-mix(in srgb, var(--color-white) 90%, oklch(0.96 0.01 255));
   --glass-color-editor: color-mix(in srgb, var(--color-white) 97%, oklch(0.97 0.01 255));
   --glass-color-surface: color-mix(in srgb, var(--color-white) 94%, oklch(0.96 0.01 255));
@@ -34,7 +36,7 @@
 }
 
 .dark {
-  --glass-color-sidebar: color-mix(in srgb, var(--background) 88%, var(--color-white) 8%);
+  --glass-color-sidebar: color-mix(in srgb, var(--background) 90%, oklch(0.35 0.03 255) 10%);
   --glass-color-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
   --glass-color-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
   --glass-color-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);

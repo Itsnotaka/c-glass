@@ -1,3 +1,4 @@
+// Next: align with glass design tokens (border-glass-border, bg-glass-surface, font-glass) and shared dialog density.
 import { Dialog, DialogPopup, DialogHeader, DialogTitle, DialogPanel } from "../ui/dialog";
 import { GeneralSettingsPanel } from "../settings/settings-panels";
 import { useGlassSettings } from "./glass-settings-context";
