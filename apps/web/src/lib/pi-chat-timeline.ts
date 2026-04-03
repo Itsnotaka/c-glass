@@ -33,6 +33,11 @@ export type PiRow =
     }
   | {
       id: string;
+      kind: "thinking";
+      text: string;
+    }
+  | {
+      id: string;
       kind: "tool";
       name: string;
       args: string;
@@ -196,16 +201,6 @@ function user(value: unknown) {
   };
 }
 
-function body(value: unknown) {
-  return list(value)
-    .flatMap((item) => {
-      if (item.type === "text") return [item.text];
-      if (item.type === "thinking") return [item.thinking];
-      return [];
-    })
-    .join("");
-}
-
 function pretty(value: unknown) {
   if (value === undefined) return "";
   if (typeof value === "string") return value;
@@ -230,28 +225,68 @@ export function buildPiRows(items: PiSessionItem[]) {
     if (role === "assistant") {
       const items = list(msg.content);
       const call = items.some((part) => part.type === "toolCall");
-      const err = typeof msg.errorMessage === "string" && msg.errorMessage.trim();
-      const out = body(items);
-      const full = err ? `${out}${out ? "\n" : ""}${msg.errorMessage}` : out;
-      if (full.trim()) {
-        rows.push({ id: entry.id, kind: "assistant", text: full });
-      }
+      const errText =
+        typeof msg.errorMessage === "string" && msg.errorMessage.trim()
+          ? String(msg.errorMessage)
+          : "";
+
+      let acc = "";
+      const flush = () => {
+        if (!acc.trim()) return;
+        rows.push({ id: `${entry.id}:a:${rows.length}`, kind: "assistant", text: clean(acc) });
+        acc = "";
+      };
+
       for (const part of items) {
-        if (part.type !== "toolCall") continue;
-        const key = typeof part.id === "string" ? part.id : `${rows.length}`;
-        const pos = rows.length;
-        rows.push({
-          id: `${entry.id}:tool:${key}`,
-          kind: "tool",
-          name: String(part.name ?? "tool"),
-          args: pretty(part.arguments),
-          result: "",
-          error: false,
-          call: part as PiToolCallBlock,
-        });
-        map.set(key, pos);
+        if (part.type === "thinking") {
+          flush();
+          const raw = typeof part.thinking === "string" ? part.thinking : "";
+          const t = clean(raw);
+          if (t)
+            rows.push({ id: `${entry.id}:thinking:${rows.length}`, kind: "thinking", text: t });
+          continue;
+        }
+        if (part.type === "text") {
+          acc += typeof part.text === "string" ? part.text : "";
+          continue;
+        }
+        if (part.type === "toolCall") {
+          flush();
+          const key = typeof part.id === "string" ? part.id : `${rows.length}`;
+          rows.push({
+            id: `${entry.id}:tool:${key}`,
+            kind: "tool",
+            name: String(part.name ?? "tool"),
+            args: pretty(part.arguments),
+            result: "",
+            error: false,
+            call: part as PiToolCallBlock,
+          });
+          map.set(key, rows.length - 1);
+          continue;
+        }
       }
-      if (!call && !full.trim()) {
+      flush();
+
+      if (errText) {
+        const last = rows.length - 1;
+        const lastRow = rows[last];
+        if (lastRow?.kind === "assistant") {
+          rows[last] = {
+            ...lastRow,
+            text: `${lastRow.text}${lastRow.text ? "\n\n" : ""}${errText}`,
+          };
+        } else {
+          rows.push({ id: `${entry.id}:a:err`, kind: "assistant", text: errText });
+        }
+      }
+
+      const hadContent = items.some(
+        (part) =>
+          part.type === "thinking" ||
+          (part.type === "text" && String((part as { text?: string }).text).trim()),
+      );
+      if (!call && !hadContent && !errText) {
         rows.push({ id: entry.id, kind: "assistant", text: "..." });
       }
       continue;

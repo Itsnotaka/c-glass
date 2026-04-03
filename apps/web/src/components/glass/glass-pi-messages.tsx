@@ -51,22 +51,15 @@ const labels: Record<ToolState, string> = {
   errored: "Error",
 };
 
-function Badge(props: { state: ToolState }) {
+function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "bash" }> }) {
+  const s = state(props.row);
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]/[1.2] font-medium",
-        props.state === "pending" && "bg-muted-foreground/10 text-muted-foreground/70",
-        props.state === "running" && "bg-info/10 text-info-foreground",
-        props.state === "completed" && "bg-success/10 text-success-foreground",
-        props.state === "errored" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {props.state === "pending" && <IconLoader className="size-3 animate-spin" />}
-      {props.state === "running" && <IconLoader className="size-3 animate-spin" />}
-      {props.state === "completed" && <IconCircleCheck className="size-3" />}
-      {props.state === "errored" && <IconCircleX className="size-3" />}
-      {labels[props.state]}
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/70">
+      {s === "pending" && <IconLoader className="size-3.5 animate-spin text-muted-foreground/60" />}
+      {s === "running" && <IconLoader className="size-3.5 animate-spin text-info-foreground" />}
+      {s === "completed" && <IconCircleCheck className="size-3.5 text-success-foreground" />}
+      {s === "errored" && <IconCircleX className="size-3.5 text-destructive" />}
+      {labels[s]}
     </span>
   );
 }
@@ -74,6 +67,10 @@ function Badge(props: { state: ToolState }) {
 function draw(row: PiRow, expanded: boolean, onFlip: () => void) {
   if (row.kind === "user") {
     return <HumanBubble key={row.id} text={row.text || ""} attachments={row.attachments} />;
+  }
+
+  if (row.kind === "thinking") {
+    return <ThinkingRow key={row.id} text={row.text} expanded={expanded} onFlip={onFlip} />;
   }
 
   if (row.kind === "assistant") {
@@ -207,6 +204,38 @@ const HumanBubble = memo(function HumanBubble(props: {
   );
 });
 
+const ThinkingRow = memo(function ThinkingRow(props: {
+  text: string;
+  expanded: boolean;
+  onFlip: () => void;
+}) {
+  return (
+    <li className="py-0.5">
+      <Collapsible.Root open={props.expanded}>
+        <Collapsible.Trigger
+          onClick={props.onFlip}
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-0 py-0.5 text-left transition-colors hover:bg-glass-hover/10"
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground/70">
+            Thinking
+          </span>
+          <IconChevronBottom
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+              !props.expanded && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="mt-1 border-l border-glass-border/35 pb-1 pl-3 text-[13px]/5 text-muted-foreground/85">
+            {props.text}
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+});
+
 const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   return (
     <li className="py-1">
@@ -237,10 +266,10 @@ const Section = memo(function Section(props: {
       </div>
       <div
         className={cn(
-          "rounded-lg border px-2.5 py-2",
+          "rounded-lg border border-solid px-2.5 py-2",
           props.error
             ? "border-destructive/20 bg-destructive/5"
-            : "border-glass-border/25 bg-glass-hover/8",
+            : "border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-glass-hover/8",
         )}
       >
         <pre className="font-glass-mono whitespace-pre-wrap text-[11px]/[1.45] text-foreground/75">
@@ -251,37 +280,41 @@ const Section = memo(function Section(props: {
   );
 });
 
-function CardShell(props: {
+function ToolRailCard(props: {
   icon: React.ReactNode;
-  name: string;
-  badge: ToolState;
+  title: string;
+  subtitle: React.ReactNode;
   expanded: boolean;
   onFlip: () => void;
   children: React.ReactNode;
 }) {
   return (
-    <li className="overflow-hidden rounded-lg border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
+    <li className="overflow-hidden rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
       <Collapsible.Root open={props.expanded}>
         <Collapsible.Trigger
           onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-glass-hover/15"
+          className="flex w-full cursor-pointer items-stretch text-left transition-colors hover:bg-glass-hover/12"
         >
-          <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/70">
+          <div className="flex w-[7.25rem] shrink-0 items-center justify-center border-r border-glass-border/35 bg-glass-bubble/70 py-4">
             {props.icon}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] font-medium text-foreground/80">
-            {props.name}
-          </span>
-          <Badge state={props.badge} />
-          <IconChevronBottom
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
-              !props.expanded && "-rotate-90",
-            )}
-          />
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 pl-6 sm:pl-7">
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-1 text-[13px] font-medium text-foreground/90">
+                {props.title}
+              </div>
+              <div className="mt-0.5">{props.subtitle}</div>
+            </div>
+            <IconChevronBottom
+              className={cn(
+                "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+                !props.expanded && "-rotate-90",
+              )}
+            />
+          </div>
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="grid gap-3 border-t border-glass-border/25 px-3 py-3">
+          <div className="grid gap-3 border-t border-glass-border/25 px-4 py-3 sm:pl-[calc(7.25rem+1.75rem)]">
             {props.children}
           </div>
         </Collapsible.Panel>
@@ -295,11 +328,21 @@ const ToolCard = memo(function ToolCard(props: {
   expanded: boolean;
   onFlip: () => void;
 }) {
+  const s = state(props.row);
   return (
-    <CardShell
-      icon={<IconToolbox className="size-4" />}
-      name={props.row.name}
-      badge={state(props.row)}
+    <ToolRailCard
+      icon={
+        <IconToolbox
+          className={cn(
+            "size-[18px]",
+            s === "errored" && "text-destructive",
+            s === "completed" && "text-success-foreground/90",
+            (s === "pending" || s === "running") && "text-muted-foreground/75",
+          )}
+        />
+      }
+      title={props.row.name}
+      subtitle={<ToolSubtitle row={props.row} />}
       expanded={props.expanded}
       onFlip={props.onFlip}
     >
@@ -309,7 +352,7 @@ const ToolCard = memo(function ToolCard(props: {
         text={props.row.result}
         error={props.row.error}
       />
-    </CardShell>
+    </ToolRailCard>
   );
 });
 
@@ -321,21 +364,42 @@ const BashCard = memo(function BashCard(props: {
   const err = props.row.code !== null && props.row.code !== 0;
 
   return (
-    <CardShell
-      icon={<IconConsole className="size-4" />}
-      name="Ran command"
-      badge={state(props.row)}
-      expanded={props.expanded}
-      onFlip={props.onFlip}
-    >
-      <Section label="Command" text={props.row.command} />
-      <Section
-        label="Output"
-        text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
-        error={err}
-      />
-      {props.row.path ? <Section label="Full output path" text={props.row.path} /> : null}
-    </CardShell>
+    <li className="overflow-hidden rounded-lg border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
+      <Collapsible.Root open={props.expanded}>
+        <Collapsible.Trigger
+          onClick={props.onFlip}
+          className="flex w-full cursor-pointer items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-glass-hover/12"
+        >
+          <div className="flex h-5 w-3 shrink-0 items-center justify-center font-glass-mono text-xs font-semibold text-muted-foreground/70">
+            $
+          </div>
+          <div className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground/85">
+            {props.row.command}
+          </div>
+          <IconChevronBottom
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+              !props.expanded && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="grid gap-3 border-t border-glass-border/25 px-3 py-3">
+            <div className="flex items-center gap-2">
+              <IconConsole className="size-4 shrink-0 text-muted-foreground/65" />
+              <ToolSubtitle row={props.row} />
+            </div>
+            <Section label="Command" text={props.row.command} />
+            <Section
+              label="Output"
+              text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
+              error={err}
+            />
+            {props.row.path ? <Section label="Full output path" text={props.row.path} /> : null}
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
   );
 });
 
@@ -347,15 +411,15 @@ const TextCard = memo(function TextCard(props: {
   error?: boolean;
 }) {
   return (
-    <CardShell
-      icon={<IconToolbox className="size-4" />}
-      name={props.label}
-      badge="completed"
+    <ToolRailCard
+      icon={<IconToolbox className="size-[18px] text-muted-foreground/75" />}
+      title={props.label}
+      subtitle={<span className="text-[13px] text-muted-foreground/70">Completed</span>}
       expanded={props.expanded}
       onFlip={props.onFlip}
     >
       <Section label="Content" text={props.text} error={props.error} />
-    </CardShell>
+    </ToolRailCard>
   );
 });
 
@@ -420,7 +484,7 @@ export const GlassPiMessages = memo(function GlassPiMessages(props: {
         stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
       }}
     >
-      <ul className="mx-auto flex max-w-[44rem] flex-col gap-4 px-4 py-4 md:px-8">
+      <ul className="mx-auto flex max-w-[43.875rem] flex-col gap-2 px-4 py-4 md:px-8">
         <GlassPiTranscript items={props.messages} expanded={props.expanded} onFlip={props.onFlip} />
         <GlassPiLive item={props.live} expanded={props.expanded} onFlip={props.onFlip} />
       </ul>
