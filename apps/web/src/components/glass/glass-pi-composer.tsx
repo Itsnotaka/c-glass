@@ -13,6 +13,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import {
   IconArrowUp,
   IconChevronRight,
+  IconCrossSmall,
   IconFileBend,
   IconFolder1,
   IconImages1,
@@ -20,7 +21,6 @@ import {
   IconSearchIntelligence,
   IconSparklesSoft,
   IconSquareX,
-  IconX,
 } from "central-icons";
 import {
   memo,
@@ -71,6 +71,8 @@ type Pick =
       kind: ShellPickedFile["kind"];
       size: number;
       mimeType: string | null;
+      previewData?: string;
+      previewMime?: string | null;
     }
   | {
       id: string;
@@ -132,8 +134,26 @@ function path(input: Pick): PiPromptPathAttachment | null {
 
 function merge(cur: Pick[], next: Pick[]) {
   const seen = new Set(cur.filter((item) => item.type === "path").map((item) => item.path));
-  return [...cur, ...next.filter((item) => item.type !== "path" || !seen.has(item.path))];
+  const seenInline = new Set(cur.filter((item) => item.type === "inline").map((item) => item.name));
+  return [
+    ...cur,
+    ...next.filter((item) =>
+      item.type === "inline"
+        ? !seenInline.has(item.name)
+        : item.type !== "path" || !seen.has(item.path),
+    ),
+  ];
 }
+
+const imgExt = new Map([
+  ["png", "image/png"],
+  ["jpg", "image/jpeg"],
+  ["jpeg", "image/jpeg"],
+  ["gif", "image/gif"],
+  ["webp", "image/webp"],
+  ["bmp", "image/bmp"],
+  ["svg", "image/svg+xml"],
+]);
 
 function local(file: ShellPickedFile) {
   return {
@@ -147,9 +167,42 @@ function local(file: ShellPickedFile) {
   };
 }
 
+function imageFile(file: File) {
+  if (file.type.startsWith("image/")) return true;
+  const name = file.name.toLowerCase();
+  const cut = name.lastIndexOf(".");
+  if (cut < 0) return false;
+  return imgExt.has(name.slice(cut + 1));
+}
+
+function imageType(file: File) {
+  if (file.type.startsWith("image/")) return file.type;
+  const name = file.name.toLowerCase();
+  const cut = name.lastIndexOf(".");
+  if (cut < 0) return "image/png";
+  return imgExt.get(name.slice(cut + 1)) ?? "image/png";
+}
+
+function parsePaths(raw: string) {
+  const out = raw
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((item) => item && !item.startsWith("#"))
+    .map((item) => {
+      if (
+        (item.startsWith('"') && item.endsWith('"')) ||
+        (item.startsWith("'") && item.endsWith("'"))
+      ) {
+        return item.slice(1, -1);
+      }
+      return item;
+    });
+  return [...new Set(out)];
+}
+
 function load(file: File) {
   return new Promise<Pick | null>((resolve) => {
-    if (!file.type.startsWith("image/")) {
+    if (!imageFile(file)) {
       resolve(null);
       return;
     }
@@ -165,7 +218,7 @@ function load(file: File) {
         id: `${file.name}:${file.size}:${Date.now()}`,
         type: "inline",
         name: file.name || "Image",
-        mimeType: file.type || "image/png",
+        mimeType: imageType(file),
         data: raw.slice(cut + 1),
         size: file.size,
       });
@@ -177,13 +230,20 @@ function load(file: File) {
 
 const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemove: () => void }) {
   const Glyph = icon(props.item);
+  const preview =
+    props.item.type === "inline"
+      ? `data:${props.item.mimeType};base64,${props.item.data}`
+      : props.item.kind === "image" && props.item.previewData
+        ? `data:${props.item.previewMime ?? props.item.mimeType ?? "image/png"};base64,${props.item.previewData}`
+        : null;
+
   return (
     <div className="group relative flex min-w-0 items-center gap-2 rounded-2xl border border-glass-border/40 bg-glass-hover/18 px-2.5 py-2 shadow-glass-card">
-      {props.item.type === "inline" ? (
+      {preview ? (
         <img
           alt={props.item.name}
           className="size-10 shrink-0 rounded-xl object-cover"
-          src={`data:${props.item.mimeType};base64,${props.item.data}`}
+          src={preview}
         />
       ) : (
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-glass-hover/24 text-muted-foreground/75">
@@ -204,7 +264,7 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
         className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground"
         onClick={props.onRemove}
       >
-        <IconX className="size-3.5" />
+        <IconCrossSmall className="size-3.5" />
       </button>
     </div>
   );
@@ -418,6 +478,62 @@ export const GlassPiComposer = memo(
       }
     };
 
+    const append = (rows: ShellPickedFile[]) => {
+      if (rows.length === 0) return;
+      setFiles((cur) =>
+        merge(
+          cur,
+          rows.map((row) => local(row)),
+        ),
+      );
+      if (!glass) return;
+
+      const need = rows.filter((row) => row.kind === "image").map((row) => row.path);
+      if (need.length === 0) return;
+
+      void Promise.all(
+        need.map(async (path) => {
+          const out = await getGlass()
+            .shell.previewFile(path)
+            .catch(() => null);
+          if (!out || out.kind !== "image" || !out.data) return null;
+          return {
+            path,
+            data: out.data,
+            mimeType: out.mimeType,
+          };
+        }),
+      ).then((items) => {
+        const map = new Map(
+          items
+            .filter(
+              (
+                item,
+              ): item is {
+                path: string;
+                data: string;
+                mimeType: string | null | undefined;
+              } => Boolean(item),
+            )
+            .map((item) => [item.path, item]),
+        );
+        if (map.size === 0) return;
+
+        setFiles((cur) =>
+          cur.map((item) => {
+            if (item.type !== "path") return item;
+            const next = map.get(item.path);
+            if (!next) return item;
+            return {
+              ...item,
+              previewData: next.data,
+              previewMime: next.mimeType ?? item.mimeType,
+            };
+          }),
+        );
+      });
+    };
+
     const submit = () => {
       const raw = props.draft.trim();
       if (!files.length && raw === "/new") {
@@ -463,41 +579,52 @@ export const GlassPiComposer = memo(
       void getGlass()
         .shell.pickFiles()
         .then((items) => {
-          setFiles((cur) =>
-            merge(
-              cur,
-              items.map((item) => local(item)),
-            ),
-          );
+          append(items);
         })
         .catch(() => {});
     };
 
-    const drop = async (event: DragEvent<HTMLDivElement>) => {
+    const drop = async (event: DragEvent<HTMLElement>) => {
       event.preventDefault();
       setDrag(false);
       const list = Array.from(event.dataTransfer.files ?? []);
-      if (list.length === 0) return;
 
-      const paths = list.flatMap((item) => {
-        const path = (item as File & { path?: string }).path;
-        return typeof path === "string" && path ? [path] : [];
-      });
+      const paths = [
+        ...list.flatMap((item) => {
+          const path = (item as File & { path?: string }).path;
+          return typeof path === "string" && path ? [path] : [];
+        }),
+        ...parsePaths(event.dataTransfer.getData("text/uri-list") || "").filter(
+          (item) =>
+            item.startsWith("file://") ||
+            item.startsWith("/") ||
+            item.startsWith("~/") ||
+            item.startsWith("./") ||
+            item.startsWith("../") ||
+            /^[a-z]:[\\/]/i.test(item),
+        ),
+        ...parsePaths(event.dataTransfer.getData("text/plain") || "").filter(
+          (item) =>
+            item.startsWith("file://") ||
+            item.startsWith("/") ||
+            item.startsWith("~/") ||
+            item.startsWith("./") ||
+            item.startsWith("../") ||
+            /^[a-z]:[\\/]/i.test(item),
+        ),
+      ];
 
       if (glass && paths.length > 0) {
         const hits = await getGlass()
-          .shell.inspectFiles(paths)
+          .shell.inspectFiles([...new Set(paths)])
           .catch(() => []);
         if (hits.length > 0) {
-          setFiles((cur) =>
-            merge(
-              cur,
-              hits.map((item) => local(item)),
-            ),
-          );
+          append(hits);
           return;
         }
       }
+
+      if (list.length === 0) return;
 
       const imgs = (await Promise.all(list.map((item) => load(item)))).filter(
         (item): item is Pick => Boolean(item),
@@ -513,17 +640,56 @@ export const GlassPiComposer = memo(
           const file = item.kind === "file" ? item.getAsFile() : null;
           return file ? [file] : [];
         })
-        .filter((item) => item.type.startsWith("image/"));
-      if (list.length === 0) return;
+        .filter((item) => imageFile(item));
+      if (list.length > 0) {
+        event.preventDefault();
+        void Promise.all(list.map((item) => load(item))).then((items) => {
+          setFiles((cur) =>
+            merge(
+              cur,
+              items.filter((item): item is Pick => Boolean(item)),
+            ),
+          );
+        });
+        return;
+      }
+
+      if (!glass) return;
+
+      const raw = event.clipboardData.getData("text/plain") || "";
+      const paths = parsePaths(raw).filter(
+        (item) =>
+          item.startsWith("file://") ||
+          item.startsWith("/") ||
+          item.startsWith("~/") ||
+          item.startsWith("./") ||
+          item.startsWith("../") ||
+          /^[a-z]:[\\/]/i.test(item),
+      );
+      if (paths.length === 0) return;
+
       event.preventDefault();
-      void Promise.all(list.map((item) => load(item))).then((items) => {
-        setFiles((cur) =>
-          merge(
-            cur,
-            items.filter((item): item is Pick => Boolean(item)),
-          ),
-        );
-      });
+      void getGlass()
+        .shell.inspectFiles(paths)
+        .then((items) => {
+          if (items.length > 0) {
+            append(items);
+            return;
+          }
+
+          const node = event.currentTarget;
+          const start = node.selectionStart ?? 0;
+          const end = node.selectionEnd ?? start;
+          const next = `${props.draft.slice(0, start)}${raw}${props.draft.slice(end)}`;
+          update(next, start + raw.length);
+        })
+        .catch(() => {
+          const node = event.currentTarget;
+          const start = node.selectionStart ?? 0;
+          const end = node.selectionEnd ?? start;
+          const next = `${props.draft.slice(0, start)}${raw}${props.draft.slice(end)}`;
+          update(next, start + raw.length);
+        });
     };
 
     const menu = open ? (
@@ -682,6 +848,14 @@ export const GlassPiComposer = memo(
                   onKeyUp={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
                   onSelect={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
                   onPaste={paste}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (!props.busy) setDrag(true);
+                  }}
+                  onDrop={(event) => {
+                    if (props.busy) return;
+                    void drop(event);
+                  }}
                   placeholder="Message… use / for commands, @ for files"
                   rows={1}
                   className="field-sizing-content font-glass block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[13px]/[1.45] text-foreground outline-hidden placeholder:text-muted-foreground"

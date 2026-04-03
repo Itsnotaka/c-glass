@@ -55,3 +55,54 @@ body {
     ),
     var(--glass-color-surface);
 }
+
+/* Pierre diffs CSS bridge - maps to glass design tokens */
+[data-diffs-container] {
+  --diffs-bg: var(--glass-color-surface);
+  --diffs-fg: var(--foreground);
+  --diffs-addition-color: oklch(0.72 0.19 142);
+  --diffs-deletion-color: oklch(0.63 0.24 18);
+  --diffs-light-bg: var(--glass-color-surface);
+  --diffs-dark-bg: var(--background);
+  --diffs-light: var(--foreground);
+  --diffs-dark: var(--foreground);
+  font-family: var(--glass-font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+/* Pierre diffs container for web component */
+.web-component[data-diffs-container] {
+  background-color: var(--glass-color-surface);
+  border-radius: var(--glass-radius-card);
+}
+
+/* Skill/mention highlighting in composer */
+.highlight-file {
+  background: color-mix(in srgb, oklch(0.72 0.16 72) 20%, transparent);
+  border-radius: 4px;
+  padding: 0 2px;
+  color: oklch(0.55 0.16 72);
+}
+
+.highlight-command {
+  background: color-mix(in srgb, oklch(0.65 0.21 290) 15%, transparent);
+  border-radius: 4px;
+  padding: 0 2px;
+  color: oklch(0.55 0.18 290);
+}
+
+.highlight-skill {
+  background: color-mix(in srgb, oklch(0.75 0.14 85) 18%, transparent);
+  border-radius: 4px;
+  padding: 0 2px;
+  color: oklch(0.55 0.14 85);
+}
+
+/* Diff sidebar tokens */
+:root {
+  --glass-diff-addition: oklch(0.72 0.19 142);
+  --glass-diff-deletion: oklch(0.63 0.24 18);
+  --glass-diff-addition-bg: color-mix(in srgb, oklch(0.72 0.19 142) 15%, transparent);
+  --glass-diff-deletion-bg: color-mix(in srgb, oklch(0.63 0.24 18) 15%, transparent);
+}

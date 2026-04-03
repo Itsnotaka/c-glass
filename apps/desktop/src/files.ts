@@ -2,6 +2,7 @@ import { accessSync, constants } from "node:fs";
 import { readFile } from "node:fs/promises";
 import * as OS from "node:os";
 import * as Path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const spaces = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 const nbsp = "\u202F";
@@ -69,7 +70,18 @@ function ok(file: string) {
 }
 
 export function expand(file: string) {
-  const next = (file.startsWith("@") ? file.slice(1) : file).replace(spaces, " ");
+  let next = (file.startsWith("@") ? file.slice(1) : file).trim().replace(spaces, " ");
+  if (
+    (next.startsWith('"') && next.endsWith('"') && next.length > 1) ||
+    (next.startsWith("'") && next.endsWith("'") && next.length > 1)
+  ) {
+    next = next.slice(1, -1);
+  }
+  if (next.startsWith("file://")) {
+    try {
+      next = fileURLToPath(next);
+    } catch {}
+  }
   if (next === "~") return OS.homedir();
   if (next.startsWith("~/")) return Path.join(OS.homedir(), next.slice(2));
   return next;
