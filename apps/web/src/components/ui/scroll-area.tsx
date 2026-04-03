@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref, UIEventHandler } from "react";
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 
 import { cn } from "~/lib/utils";
@@ -10,15 +11,20 @@ function ScrollArea({
   scrollFade = false,
   scrollbarGutter = false,
   hideScrollbars = false,
+  viewportRef,
+  onViewportScroll,
   ...props
 }: ScrollAreaPrimitive.Root.Props & {
   scrollFade?: boolean;
   scrollbarGutter?: boolean;
   hideScrollbars?: boolean;
+  viewportRef?: Ref<HTMLDivElement>;
+  onViewportScroll?: UIEventHandler<HTMLDivElement>;
 }) {
   return (
     <ScrollAreaPrimitive.Root className={cn("size-full min-h-0", className)} {...props}>
       <ScrollAreaPrimitive.Viewport
+        ref={viewportRef}
         className={cn(
           "h-full overscroll-contain rounded-[inherit] outline-none transition-shadows focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background data-has-overflow-x:overscroll-x-contain",
           scrollFade &&
@@ -28,6 +34,7 @@ function ScrollArea({
             "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
         data-slot="scroll-area-viewport"
+        onScroll={onViewportScroll}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

@@ -1,4 +1,4 @@
-import { RotateCcwIcon } from "lucide-react";
+import { IconArrowRotateCounterClockwise } from "central-icons";
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -43,7 +43,7 @@ function SettingsContentLayout() {
                   disabled={changedSettingLabels.length === 0}
                   onClick={() => void restoreDefaults()}
                 >
-                  <RotateCcwIcon className="size-3.5" />
+                  <IconArrowRotateCounterClockwise className="size-3.5" />
                   Restore defaults
                 </Button>
               </div>
@@ -63,7 +63,7 @@ function SettingsContentLayout() {
                 disabled={changedSettingLabels.length === 0}
                 onClick={() => void restoreDefaults()}
               >
-                <RotateCcwIcon className="size-3.5" />
+                <IconArrowRotateCounterClockwise className="size-3.5" />
                 Restore defaults
               </Button>
             </div>

@@ -1,6 +1,6 @@
 import type { ShellState } from "@glass/contracts";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { RotateCcwIcon } from "lucide-react";
+import { IconArrowRotateCounterClockwise } from "central-icons";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { PiModelPicker } from "../glass/pi-model-picker";
@@ -181,7 +181,7 @@ function DefaultsPanel() {
             void writePiDefaultThinkingLevel("off");
           }}
         >
-          <RotateCcwIcon className="size-3.5" />
+          <IconArrowRotateCounterClockwise className="size-3.5" />
           Reset Pi defaults
         </Button>
       }

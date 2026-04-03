@@ -1,4 +1,4 @@
-import { FolderIcon } from "lucide-react";
+import { IconFolder1 } from "central-icons";
 import { useEffect, useState } from "react";
 import { getGlass } from "../../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
@@ -42,7 +42,7 @@ export function GlassWorkspacePicker() {
       className="font-glass inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground"
       title={state?.cwd ?? "Choose workspace"}
     >
-      <FolderIcon className="size-3 shrink-0" />
+      <IconFolder1 className="size-3 shrink-0" />
       <span className="truncate">{state?.name ?? "Workspace"}</span>
     </button>
   );

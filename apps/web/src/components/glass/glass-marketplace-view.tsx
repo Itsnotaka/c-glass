@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { IconArrowLeft } from "central-icons";
 
 import { Button } from "../ui/button";
 import { useGlassShellView } from "./glass-shell-context";
@@ -15,7 +15,7 @@ export function GlassMarketplaceView() {
         className="gap-2 rounded-lg text-muted-foreground hover:bg-glass-hover hover:text-foreground"
         onClick={() => shell.setCenterMode("main")}
       >
-        <ArrowLeftIcon className="size-4 opacity-80" />
+        <IconArrowLeft className="size-4 opacity-80" />
         Back
       </Button>
       <div className="max-w-md text-center">

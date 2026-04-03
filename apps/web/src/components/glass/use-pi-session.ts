@@ -1,5 +1,5 @@
-import type { PiModelRef } from "@glass/contracts";
-import { startTransition, useEffect, useRef, useState } from "react";
+import type { PiModelRef, PiPromptInput, PiSessionItem, PiThinkingLevel } from "@glass/contracts";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { getGlass } from "../../host";
 import {
@@ -11,9 +11,12 @@ import {
   resolvePiDefaultModel,
   writePiApiKey,
   writePiDefaultModel,
+  writePiDefaultThinkingLevel,
   type PiModelItem,
 } from "../../lib/pi-models";
-import { usePiSnapshot, usePiStore } from "../../lib/pi-session-store";
+import { usePiStore } from "../../lib/pi-session-store";
+
+const empty: PiSessionItem[] = [];
 
 function authError(message: string) {
   const text = message.toLowerCase();
@@ -22,9 +25,38 @@ function authError(message: string) {
 
 export function usePiSession(sessionId: string | null) {
   const navigate = useNavigate();
-  const snap = usePiSnapshot(sessionId) ?? null;
   const applyActs = usePiStore((state) => state.applyActs);
   const putSnap = usePiStore((state) => state.putSnap);
+  const sid = usePiStore(
+    useMemo(
+      () => (state) => (sessionId ? (state.snaps[sessionId]?.id ?? null) : null),
+      [sessionId],
+    ),
+  );
+  const messages = usePiStore(
+    useMemo(
+      () => (state) => (sessionId ? (state.snaps[sessionId]?.messages ?? empty) : empty),
+      [sessionId],
+    ),
+  );
+  const live = usePiStore(
+    useMemo(
+      () => (state) => (sessionId ? (state.snaps[sessionId]?.live ?? null) : null),
+      [sessionId],
+    ),
+  );
+  const busy = usePiStore(
+    useMemo(
+      () => (state) => (sessionId ? (state.snaps[sessionId]?.isStreaming ?? false) : false),
+      [sessionId],
+    ),
+  );
+  const sessionModel = usePiStore(
+    useMemo(
+      () => (state) => (sessionId ? (state.snaps[sessionId]?.model ?? null) : null),
+      [sessionId],
+    ),
+  );
   const [draftModel, setDraftModel] = useState<PiModelRef | null>(null);
   const [tick, setTick] = useState(0);
   const [provider, setProvider] = useState<{
@@ -118,7 +150,7 @@ export function usePiSession(sessionId: string | null) {
     };
   }, [applyActs, sessionId, tick]);
 
-  const model = snap?.model ?? draftModel;
+  const model = sessionModel ?? draftModel;
 
   const showProvider = async (task: () => Promise<void>, name: string) => {
     if (!model?.provider) throw new Error("Missing model provider");
@@ -133,7 +165,7 @@ export function usePiSession(sessionId: string | null) {
 
   const ensureSession = async () => {
     if (sessionId) return sessionId;
-    if (snap?.id) return snap.id;
+    if (sid) return sid;
     const next = await getGlass().session.create();
     putSnap(next);
     void navigate({
@@ -144,14 +176,19 @@ export function usePiSession(sessionId: string | null) {
     return next.id;
   };
 
-  const send = (text: string) => {
-    const value = text.trim();
-    if (!value) return;
+  const send = (input: string | PiPromptInput) => {
+    const next =
+      typeof input === "string"
+        ? { text: input.trim() }
+        : input.attachments?.length
+          ? { text: input.text.trim(), attachments: input.attachments }
+          : { text: input.text.trim() };
+    if (!next.text && !next.attachments?.length) return;
 
     const task = async () => {
       const id = await ensureSession();
       try {
-        await getGlass().session.prompt(id, value);
+        await getGlass().session.prompt(id, next);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (!model?.provider || !authError(message)) throw err;
@@ -163,8 +200,8 @@ export function usePiSession(sessionId: string | null) {
   };
 
   const abort = () => {
-    if (!snap?.id) return;
-    void getGlass().session.abort(snap.id);
+    if (!sid) return;
+    void getGlass().session.abort(sid);
   };
 
   const setModel = (next: PiModelItem) => {
@@ -207,14 +244,20 @@ export function usePiSession(sessionId: string | null) {
     pending.current = null;
   };
 
+  const setThinkingLevel = (level: PiThinkingLevel) => {
+    void writePiDefaultThinkingLevel(level);
+  };
+
   return {
-    messages: snap?.messages ?? [],
-    busy: snap?.isStreaming ?? false,
+    messages,
+    live,
+    busy,
     model,
     provider,
     send,
     abort,
     setModel,
     resolve,
+    setThinkingLevel,
   };
 }

@@ -60,20 +60,6 @@ function same(left: PiModelRef | null | undefined, right: PiModelRef | null | un
   return left.provider === right.provider && left.id === right.id;
 }
 
-function sort(items: readonly PiModelItem[], cur?: PiModelRef | null) {
-  const out = [...items];
-  out.sort((left, right) => {
-    const a = same(cur, left);
-    const b = same(cur, right);
-    if (a && !b) return -1;
-    if (!a && b) return 1;
-    const byProvider = left.provider.localeCompare(right.provider);
-    if (byProvider !== 0) return byProvider;
-    return left.id.localeCompare(right.id);
-  });
-  return out;
-}
-
 function emit() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(PI_GLASS_SETTINGS_CHANGED_EVENT));
@@ -193,8 +179,8 @@ export async function listPiModels(cur?: PiModelRef | null) {
   const all = data.models.map((model) => item(model));
   const available = new Set(data.available);
   const next = all.filter((item) => available.has(item.key) || same(cur, item));
-  if (next.length > 0) return sort(next, cur);
-  return sort(all, cur);
+  if (next.length > 0) return next;
+  return all;
 }
 
 export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
@@ -209,13 +195,12 @@ export async function resolvePiDefaultModel(cur?: PiModelRef | null) {
     if (hit) return hit;
   }
 
-  const pref = sort(
-    items.filter((item) => {
-      if (!available.has(item.key)) return false;
-      return PREFERRED.some((pair) => item.provider === pair[0] && item.id === pair[1]);
-    }),
-    cur,
-  );
+  const pref = PREFERRED.flatMap(([provider, id]) => {
+    const hit = items.find(
+      (item) => available.has(item.key) && item.provider === provider && item.id === id,
+    );
+    return hit ? [hit] : [];
+  });
   if (pref[0]) return pref[0];
 
   const vis = await listPiModels(cur);

@@ -21,6 +21,7 @@
   --glass-color-menubar: color-mix(in srgb, var(--glass-color-editor) 82%, transparent);
   --glass-color-border: color-mix(in srgb, var(--color-black) 10%, transparent);
   --glass-color-stroke: color-mix(in srgb, var(--glass-color-border) 88%, transparent);
+  --glass-color-stroke-tertiary: color-mix(in srgb, var(--glass-color-border) 94%, transparent);
   --glass-color-stroke-strong: color-mix(
     in srgb,
     var(--glass-color-border) 72%,

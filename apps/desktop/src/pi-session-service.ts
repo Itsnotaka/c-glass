@@ -1,42 +1,125 @@
-import { statSync, watch as fsWatch, type FSWatcher } from "node:fs";
+import { readFileSync, statSync, watch as fsWatch, type FSWatcher } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
 import type {
   PiBlock,
   PiMessage,
-  PiSessionEntry,
+  PiPromptAttachment,
+  PiPromptInput,
   PiSessionActiveEvent,
   PiSessionBridgeEvent,
   PiSessionDelta,
+  PiSessionEntry,
   PiSessionEvent,
+  PiSessionItem,
   PiSessionMeta,
   PiSessionPending,
   PiSessionSnapshot,
   PiSessionSummary,
   PiSessionSummaryEvent,
   PiSessionTreeNode,
+  PiSlashCommand,
 } from "@glass/contracts";
 import { SessionManager, createAgentSession } from "@mariozechner/pi-coding-agent";
+import { image, resolveFile, text as textFile } from "./files";
 import { PiConfigService } from "./pi-config-service";
 import { ShellService } from "./shell-service";
 
+const tag = /<file\s+name="([^"]+)"\s*>([\s\S]*?)<\/file>/g;
+
+type Img = {
+  type: "image";
+  mimeType: string;
+  data: string;
+};
+
+type Session = Awaited<ReturnType<typeof createAgentSession>>["session"];
+type Event = PiSessionEvent;
+
+function tidy(text: string) {
+  return text
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function files(text: string) {
+  const out = [] as Array<{ path: string; note: string }>;
+  let body = "";
+  let last = 0;
+
+  for (const hit of text.matchAll(tag)) {
+    const raw = hit[1] ?? "";
+    const note = (hit[2] ?? "").trim();
+    const pos = hit.index ?? 0;
+    body += text.slice(last, pos);
+    last = pos + hit[0].length;
+    out.push({ path: raw, note });
+  }
+
+  body += text.slice(last);
+  return { text: tidy(body), files: out };
+}
+
+function summary(value: unknown): {
+  text: string;
+  files: Array<{ path: string; note: string }>;
+  imgs: number;
+} {
+  if (typeof value === "string") {
+    const out = files(value);
+    return { ...out, imgs: 0 };
+  }
+  if (!Array.isArray(value)) {
+    return { text: "", files: [] as Array<{ path: string; note: string }>, imgs: 0 };
+  }
+
+  return value.reduce(
+    (state, item) => {
+      if (!item || typeof item !== "object") return state;
+      const block = item as Record<string, unknown>;
+      if (block.type === "text") {
+        const next = files(String(block.text ?? ""));
+        return {
+          text: `${state.text}${state.text && next.text ? "\n" : ""}${next.text}`,
+          files: [...state.files, ...next.files],
+          imgs: state.imgs,
+        };
+      }
+      if (block.type === "thinking") {
+        return {
+          text: `${state.text}${state.text ? "\n" : ""}${String(block.thinking ?? "")}`,
+          files: state.files,
+          imgs: state.imgs,
+        };
+      }
+      if (block.type === "toolCall") {
+        return {
+          text: `${state.text}${state.text ? "\n" : ""}[${String(block.name ?? "tool")}]`,
+          files: state.files,
+          imgs: state.imgs,
+        };
+      }
+      if (block.type === "image") {
+        return { text: state.text, files: state.files, imgs: state.imgs + 1 };
+      }
+      return state;
+    },
+    { text: "", files: [] as Array<{ path: string; note: string }>, imgs: 0 },
+  );
+}
+
 function blocks(content: unknown[]) {
-  return content
-    .flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      if ((item as { type?: unknown }).type === "text") {
-        return [String((item as { text?: unknown }).text ?? "")];
-      }
-      if ((item as { type?: unknown }).type === "thinking") {
-        return [String((item as { thinking?: unknown }).thinking ?? "")];
-      }
-      if ((item as { type?: unknown }).type === "toolCall") {
-        return [`[${String((item as { name?: unknown }).name ?? "tool")}]`];
-      }
-      return [];
-    })
-    .join("");
+  const out = summary(content);
+  const seen = out.files.filter((item) => image(item.path)).length;
+  const more = Math.max(0, out.imgs - seen);
+  const list = [
+    ...out.files.map((item) => `[${Path.basename(item.path) || item.path}]`),
+    ...Array.from({ length: more }, () => "[image]"),
+  ];
+  return [tidy(out.text), ...list].filter(Boolean).join("\n");
 }
 
 function preview(message: {
@@ -46,14 +129,19 @@ function preview(message: {
   errorMessage?: unknown;
 }) {
   if (message.role === "user" || message.role === "user-with-attachments") {
-    if (typeof message.content === "string") return message.content;
+    if (typeof message.content === "string") {
+      const out = summary(message.content);
+      return [out.text, ...out.files.map((item) => `[${Path.basename(item.path) || item.path}]`)]
+        .filter(Boolean)
+        .join("\n");
+    }
     if (Array.isArray(message.content)) return blocks(message.content);
     return "";
   }
   if (message.role === "assistant") {
     const body = Array.isArray(message.content) ? blocks(message.content) : "";
     if (typeof message.errorMessage === "string" && message.errorMessage.trim()) {
-      return `${body}\n(${message.errorMessage})`;
+      return `${body}${body ? "\n" : ""}(${message.errorMessage})`;
     }
     return body;
   }
@@ -76,6 +164,13 @@ function block(value: unknown): PiBlock | null {
   }
   if (item.type === "thinking") {
     return { type: "thinking", thinking: String(item.thinking ?? "") };
+  }
+  if (item.type === "image") {
+    return {
+      type: "image",
+      ...(typeof item.mimeType === "string" ? { mimeType: item.mimeType } : {}),
+      ...(typeof item.data === "string" ? { data: item.data } : {}),
+    };
   }
   if (item.type === "toolCall") {
     return { ...item, type: "toolCall", name: String(item.name ?? "") };
@@ -162,6 +257,24 @@ function message(value: unknown): PiMessage {
     return { role, content: content(item.content) };
   }
   return { ...item, role };
+}
+
+function mid(value: unknown, fallback: string) {
+  if (!value || typeof value !== "object") return fallback;
+  const item = value as Record<string, unknown>;
+  const role = typeof item.role === "string" ? item.role : "unknown";
+
+  if (role === "toolResult" && typeof item.toolCallId === "string" && item.toolCallId) {
+    return `tool:${item.toolCallId}`;
+  }
+
+  const stamp = item.timestamp;
+  if (typeof stamp === "number" || typeof stamp === "string") {
+    const key = String(stamp);
+    if (key) return `${role}:${key}`;
+  }
+
+  return fallback;
 }
 
 function base(value: Record<string, unknown>) {
@@ -267,6 +380,96 @@ function tree(value: unknown): PiSessionTreeNode | null {
   };
 }
 
+function rows(mgr: SessionManager): PiSessionItem[] {
+  const entries = mgr.getEntries();
+  const by = new Map(entries.map((entry) => [entry.id, entry]));
+  const leaf = mgr.getLeafId();
+
+  if (leaf === null) return [];
+
+  const last = leaf ? by.get(leaf) : entries.at(-1);
+  if (!last) return [];
+
+  const path = [] as typeof entries;
+  let cur: (typeof entries)[number] | undefined = last;
+  while (cur) {
+    path.unshift(cur);
+    cur = cur.parentId ? by.get(cur.parentId) : undefined;
+  }
+
+  const pick = (entry: (typeof entries)[number]): PiSessionItem[] => {
+    if (entry.type === "message") {
+      return [{ id: mid(entry.message, entry.id), message: message(entry.message) }];
+    }
+
+    if (entry.type === "custom_message") {
+      return [
+        {
+          id: entry.id,
+          message: message({
+            role: "custom",
+            customType: entry.customType,
+            content: entry.content,
+            display: entry.display,
+            ...(entry.details !== undefined ? { details: entry.details } : {}),
+          }),
+        },
+      ];
+    }
+
+    if (entry.type === "branch_summary") {
+      return [
+        {
+          id: entry.id,
+          message: message({
+            role: "branchSummary",
+            fromId: entry.fromId,
+            summary: entry.summary,
+          }),
+        },
+      ];
+    }
+
+    if (entry.type === "compaction") {
+      return [
+        {
+          id: entry.id,
+          message: message({
+            role: "compactionSummary",
+            summary: entry.summary,
+            tokensBefore: entry.tokensBefore,
+          }),
+        },
+      ];
+    }
+
+    return [];
+  };
+
+  const cut = path.findLast(
+    (entry): entry is Extract<(typeof entries)[number], { type: "compaction" }> =>
+      entry.type === "compaction",
+  );
+
+  if (!cut) {
+    return path.flatMap((entry) => pick(entry));
+  }
+
+  const pos = path.findIndex((entry) => entry.id === cut.id);
+  const kept = path.slice(0, pos).reduce(
+    (state, entry) => {
+      const on = state.on || entry.id === cut.firstKeptEntryId;
+      if (!on) return state;
+      return { on, out: [...state.out, ...pick(entry)] };
+    },
+    { on: false, out: [] as PiSessionItem[] },
+  ).out;
+
+  return [pick(cut), kept, path.slice(pos + 1).flatMap((entry) => pick(entry))]
+    .flatMap((part) => part)
+    .filter(Boolean);
+}
+
 function fileTimes(file: string | undefined) {
   if (!file) {
     const now = new Date().toISOString();
@@ -319,8 +522,219 @@ function same(left: PiSessionSummary | undefined, right: PiSessionSummary) {
   );
 }
 
-type Session = Awaited<ReturnType<typeof createAgentSession>>["session"];
-type Event = PiSessionEvent;
+function parseArgs(text: string) {
+  const out = [] as string[];
+  let cur = "";
+  let quote: string | null = null;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i] ?? "";
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+        continue;
+      }
+      cur += char;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === " " || char === "\t") {
+      if (!cur) continue;
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += char;
+  }
+
+  if (cur) out.push(cur);
+  return out;
+}
+
+function sub(text: string, args: string[]) {
+  let out = text.replace(/\$(\d+)/g, (_, num: string) => args[Number(num) - 1] ?? "");
+  out = out.replace(/\$\{@:(\d+)(?::(\d+))?\}/g, (_, raw: string, len?: string) => {
+    let from = Number(raw) - 1;
+    if (from < 0) from = 0;
+    if (!len) return args.slice(from).join(" ");
+    return args.slice(from, from + Number(len)).join(" ");
+  });
+  const joined = args.join(" ");
+  return out.replace(/\$ARGUMENTS/g, joined).replace(/\$@/g, joined);
+}
+
+function strip(text: string) {
+  if (!text.startsWith("---\n")) return text;
+  const cut = text.indexOf("\n---\n", 4);
+  if (cut < 0) return text;
+  return text.slice(cut + 5);
+}
+
+function command(text: string) {
+  if (!text.startsWith("/")) return null;
+  const cut = text.indexOf(" ");
+  if (cut < 0) return { name: text.slice(1), args: "" };
+  return { name: text.slice(1, cut), args: text.slice(cut + 1).trim() };
+}
+
+function mentions(text: string) {
+  const paths = [] as string[];
+  const exp = /(^|[\s=])@("([^"]+)"|([^\s"=]+))/g;
+  let out = "";
+  let last = 0;
+
+  for (const hit of text.matchAll(exp)) {
+    const lead = hit[1] ?? "";
+    const raw = hit[3] ?? hit[4] ?? "";
+    if (!raw) continue;
+    const pos = hit.index ?? 0;
+    out += text.slice(last, pos + lead.length);
+    last = pos + hit[0].length;
+    paths.push(raw);
+  }
+
+  out += text.slice(last);
+  return { text: tidy(out), paths };
+}
+
+async function attach(cwd: string, att: PiPromptAttachment) {
+  if (att.type === "inline") {
+    const buf = Buffer.from(att.data, "base64");
+    if (att.mimeType.startsWith("image/")) {
+      return {
+        text: `<file name="${att.name}"></file>`,
+        images: [{ type: "image", mimeType: att.mimeType, data: att.data }] as Img[],
+      };
+    }
+    if (!textFile(att.name, buf, att.mimeType)) {
+      throw new Error(`Unsupported inline attachment: ${att.name}`);
+    }
+    return {
+      text: `<file name="${att.name}">\n${buf.toString("utf8")}\n</file>`,
+      images: [] as Img[],
+    };
+  }
+
+  const file = resolveFile(att.path, cwd);
+  const info = await stat(file).catch(() => null);
+  if (!info) throw new Error(`File not found: ${att.path}`);
+  if (!info.isFile()) throw new Error(`Cannot attach directory: ${att.path}`);
+  if (info.size === 0) return { text: "", images: [] as Img[] };
+
+  const buf = await readFile(file);
+  const type = image(file, buf);
+  if (type) {
+    return {
+      text: `<file name="${file}"></file>`,
+      images: [{ type: "image", mimeType: type, data: buf.toString("base64") }] as Img[],
+    };
+  }
+  if (!textFile(file, buf)) {
+    throw new Error(`Unsupported file attachment: ${att.path}`);
+  }
+  return {
+    text: `<file name="${file}">\n${buf.toString("utf8")}\n</file>`,
+    images: [] as Img[],
+  };
+}
+
+async function buildInput(session: Session, input: string | PiPromptInput, cwd: string) {
+  const base = typeof input === "string" ? { text: input, attachments: [] } : input;
+  const found = mentions(base.text ?? "");
+  const files = [
+    ...found.paths.map((path) => ({ type: "path", path }) satisfies PiPromptAttachment),
+    ...(base.attachments ?? []),
+  ];
+
+  const seen = new Set<string>();
+  const list = files.filter((item) => {
+    if (item.type !== "path") return true;
+    const key = resolveFile(item.path, cwd);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const hasFiles = list.length > 0;
+  let text = tidy(found.text);
+  let expand = true;
+
+  if (hasFiles && text.startsWith("/skill:")) {
+    const cut = text.indexOf(" ");
+    const raw = cut < 0 ? text.slice(7) : text.slice(7, cut);
+    const args = cut < 0 ? "" : text.slice(cut + 1).trim();
+    const skill = session.resourceLoader.getSkills().skills.find((item) => item.name === raw);
+    if (!skill) {
+      throw new Error(`Unknown skill: ${raw}`);
+    }
+    const body = strip(readFileSync(skill.filePath, "utf8")).trim();
+    const block = `<skill name="${skill.name}" location="${skill.filePath}">\nReferences are relative to ${skill.baseDir}.\n\n${body}\n</skill>`;
+    text = args ? `${block}\n\n${args}` : block;
+    expand = false;
+  }
+
+  if (hasFiles) {
+    const cmd = command(text);
+    if (cmd) {
+      const prompt = session.promptTemplates.find((item) => item.name === cmd.name);
+      if (prompt) {
+        text = sub(prompt.content, parseArgs(cmd.args));
+        expand = false;
+      } else if (session.extensionRunner?.getCommand(cmd.name)) {
+        throw new Error(`Attachments are not supported with /${cmd.name}`);
+      } else {
+        throw new Error(`Attachments are not supported with /${cmd.name}`);
+      }
+    }
+  }
+
+  const parts = await Promise.all(list.map((item) => attach(cwd, item)));
+  const tail = parts
+    .map((item) => item.text)
+    .filter(Boolean)
+    .join("\n");
+  const body = [text, tail].filter(Boolean).join(text && tail ? "\n\n" : "");
+  return {
+    text: body,
+    images: parts.flatMap((item) => item.images),
+    expand,
+  };
+}
+
+function commands(session: Session) {
+  const map = new Map<string, PiSlashCommand>();
+  const add = (item: PiSlashCommand) => {
+    if (map.has(item.name)) return;
+    map.set(item.name, item);
+  };
+
+  for (const item of session.promptTemplates) {
+    add({
+      name: item.name,
+      source: "prompt",
+      ...(item.description ? { description: item.description } : {}),
+    });
+  }
+  for (const item of session.extensionRunner?.getRegisteredCommands() ?? []) {
+    add({
+      name: item.name,
+      source: "extension",
+      ...(item.description ? { description: item.description } : {}),
+    });
+  }
+  for (const item of session.resourceLoader.getSkills().skills) {
+    add({
+      name: `skill:${item.name}`,
+      source: "skill",
+      ...(item.description ? { description: item.description } : {}),
+    });
+  }
+
+  return [...map.values()].toSorted((left, right) => left.name.localeCompare(right.name));
+}
 
 export class PiSessionService {
   private cfg: PiConfigService;
@@ -416,7 +830,6 @@ export class PiSessionService {
   }
 
   private snapshot(session: Session): PiSessionSnapshot {
-    const ctx = session.sessionManager.buildSessionContext();
     return {
       id: session.sessionId,
       file: session.sessionFile ?? null,
@@ -424,7 +837,8 @@ export class PiSessionService {
       name: session.sessionName ?? null,
       model: this.meta(session).model,
       thinkingLevel: this.meta(session).thinkingLevel,
-      messages: ctx.messages.map((item) => message(item)),
+      messages: rows(session.sessionManager),
+      live: null,
       tree: session.sessionManager.getTree().flatMap((item) => {
         const next = tree(item);
         return next ? [next] : [];
@@ -436,13 +850,34 @@ export class PiSessionService {
 
   private delta(session: Session, event: Event): PiSessionDelta {
     const meta = this.meta(session);
-    const value = message((event as { message?: unknown }).message);
+    const value = (event as { message?: unknown }).message;
 
     if (event.type === "message_start") {
-      return { type: "append", message: value, meta };
+      if ((value as { role?: unknown })?.role !== "assistant") {
+        return { type: "meta", meta };
+      }
+      return {
+        type: "live",
+        item: { id: mid(value, `${session.sessionId}:live`), message: message(value) },
+        meta,
+      };
     }
-    if (event.type === "message_update" || event.type === "message_end") {
-      return { type: "replace", message: value, meta };
+    if (event.type === "message_update") {
+      return {
+        type: "live",
+        item: { id: mid(value, `${session.sessionId}:live`), message: message(value) },
+        meta,
+      };
+    }
+    if (event.type === "message_end") {
+      return {
+        type: "commit",
+        item: {
+          id: mid(value, `${session.sessionId}:${session.messages.length}`),
+          message: message(value),
+        },
+        meta,
+      };
     }
     return { type: "meta", meta };
   }
@@ -648,8 +1083,12 @@ export class PiSessionService {
   }
 
   get(sessionId: string): Effect.Effect<PiSessionSnapshot, Error> {
-    const opened = this.open(sessionId);
-    return opened.pipe(Effect.map((session) => this.snapshot(session)));
+    return Effect.gen(
+      function* (this: PiSessionService) {
+        const session: Session = yield* this.open(sessionId);
+        return this.snapshot(session);
+      }.bind(this),
+    );
   }
 
   watch(sessionId: string): Effect.Effect<PiSessionSnapshot, Error> {
@@ -670,17 +1109,30 @@ export class PiSessionService {
     });
   }
 
-  prompt(sessionId: string, text: string) {
+  prompt(sessionId: string, input: string | PiPromptInput) {
     return this.open(sessionId).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
-          try: () => {
+          try: async () => {
             this.cfg.sync();
-            return session.prompt(text);
+            const next = await buildInput(session, input, session.sessionManager.getCwd());
+            return session.prompt(next.text, {
+              images: next.images,
+              ...(next.expand ? {} : { expandPromptTemplates: false }),
+            });
           },
           catch: (err) => (err instanceof Error ? err : new Error(String(err))),
         }),
       ),
+    );
+  }
+
+  commands(sessionId: string) {
+    return Effect.gen(
+      function* (this: PiSessionService) {
+        const session: Session = yield* this.open(sessionId);
+        return commands(session);
+      }.bind(this),
     );
   }
 

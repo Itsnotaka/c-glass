@@ -1,4 +1,4 @@
-import { ChevronDownIcon } from "lucide-react";
+import { IconChevronBottom } from "central-icons";
 import { useState } from "react";
 
 import type { GlassSidebarSection } from "../../lib/glass-view-model";
@@ -18,7 +18,7 @@ function Section(props: {
         onClick={() => setOpen(!open)}
         className="group flex w-full items-center gap-1 px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground/60 uppercase hover:text-muted-foreground"
       >
-        <ChevronDownIcon
+        <IconChevronBottom
           className="size-3 shrink-0 opacity-60 transition-transform duration-150"
           style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
         />

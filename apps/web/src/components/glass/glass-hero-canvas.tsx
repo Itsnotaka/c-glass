@@ -10,11 +10,6 @@ export function GlassHeroCanvas() {
   const [draft, setDraft] = useState("");
   const session = usePiSession(null);
 
-  const send = (text: string) => {
-    session.send(text);
-    setDraft("");
-  };
-
   const open = useCallback(() => {
     void getGlass()
       .shell.getState()
@@ -30,6 +25,7 @@ export function GlassHeroCanvas() {
     <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
       <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
         <GlassPiComposer
+          sessionId={null}
           draft={draft}
           onDraft={setDraft}
           busy={session.busy}
@@ -37,9 +33,10 @@ export function GlassHeroCanvas() {
           variant="hero"
           onAbort={session.abort}
           onModel={session.setModel}
-          onSend={() => send(draft)}
+          onThinkingLevel={session.setThinkingLevel}
+          onSend={session.send}
         />
-        <GlassQuickActions onPrompt={send} onOpenInEditor={open} />
+        <GlassQuickActions onOpenInEditor={open} />
       </div>
       <GlassProviderKeyDialog
         open={session.provider !== null}

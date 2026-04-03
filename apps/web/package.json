@@ -1,6 +1,6 @@
 {
   "name": "@glass/web",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "@glass/shared": "workspace:*",
     "@lexical/react": "^0.42.0",
     "@pierre/diffs": "^1.1.10",
+    "@streamdown/code": "^1.1.1",
     "@tanstack/react-hotkeys": "^0.9.1",
     "@tanstack/react-pacer": "^0.21.1",
     "@tanstack/react-query": "^5.96.1",
@@ -38,9 +39,8 @@
     "lucide-react": "^1.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
+    "streamdown": "^2.5.0",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
   },

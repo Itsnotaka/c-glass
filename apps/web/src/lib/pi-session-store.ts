@@ -46,23 +46,16 @@ function patch(snap: PiSessionSnapshot, delta: PiSessionDelta) {
 
   const next = sync(snap, delta);
   if (delta.type === "meta") return next;
-  if (delta.type === "append") {
+  if (delta.type === "commit") {
     return {
       ...next,
-      messages: [...next.messages, delta.message],
-    } satisfies PiSessionSnapshot;
-  }
-  if (next.messages.length === 0) {
-    return {
-      ...next,
-      messages: [delta.message],
+      messages: [...next.messages, delta.item],
+      live: null,
     } satisfies PiSessionSnapshot;
   }
   return {
     ...next,
-    messages: next.messages.map((item, i) =>
-      i === next.messages.length - 1 ? delta.message : item,
-    ),
+    live: delta.item,
   } satisfies PiSessionSnapshot;
 }
 
@@ -135,14 +128,6 @@ export const usePiIds = () => usePiStore((state) => state.ids);
 export function usePiSummary(sessionId: string | null | undefined) {
   const pick = useMemo(
     () => (state: State) => (sessionId ? state.sums[sessionId] : undefined),
-    [sessionId],
-  );
-  return usePiStore(pick);
-}
-
-export function usePiSnapshot(sessionId: string | null | undefined) {
-  const pick = useMemo(
-    () => (state: State) => (sessionId ? state.snaps[sessionId] : undefined),
     [sessionId],
   );
   return usePiStore(pick);

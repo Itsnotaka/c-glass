@@ -1,5 +1,15 @@
 # AGENTS.md
 
+## Icon Library
+
+Use `central-icons` for all icons. It is installed as an alias for `@central-icons-react/round-outlined-radius-2-stroke-1.5`. Import icons from the package directly:
+
+```ts
+import { IconHome } from "central-icons";
+```
+
+Do not use `lucide-react` or any other icon library.
+
 ## Task Completion Requirements
 
 - All of `pnpm run fmt`, `pnpm run lint`, and `pnpm run typecheck` must pass before considering tasks completed.

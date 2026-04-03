@@ -18,6 +18,7 @@ const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
 const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
 const SESSION_ABORT_CHANNEL = "glass:session.abort";
 const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
+const SESSION_COMMANDS_CHANNEL = "glass:session.commands";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
@@ -30,6 +31,10 @@ const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
 const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
 const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
 const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
+const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
+const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
+const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
+const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
 
 contextBridge.exposeInMainWorld("glass", {
   session: {
@@ -38,10 +43,11 @@ contextBridge.exposeInMainWorld("glass", {
     get: (sessionId) => ipcRenderer.invoke(SESSION_GET_CHANNEL, sessionId),
     watch: (sessionId) => ipcRenderer.invoke(SESSION_WATCH_CHANNEL, sessionId),
     unwatch: () => ipcRenderer.invoke(SESSION_UNWATCH_CHANNEL),
-    prompt: (sessionId, text) => ipcRenderer.invoke(SESSION_PROMPT_CHANNEL, sessionId, text),
+    prompt: (sessionId, input) => ipcRenderer.invoke(SESSION_PROMPT_CHANNEL, sessionId, input),
     abort: (sessionId) => ipcRenderer.invoke(SESSION_ABORT_CHANNEL, sessionId),
     setModel: (sessionId, provider, model) =>
       ipcRenderer.invoke(SESSION_SET_MODEL_CHANNEL, sessionId, provider, model),
+    commands: (sessionId) => ipcRenderer.invoke(SESSION_COMMANDS_CHANNEL, sessionId),
     onSummary: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
         if (typeof data !== "object" || data === null) return;
@@ -78,6 +84,10 @@ contextBridge.exposeInMainWorld("glass", {
     pickWorkspace: () => ipcRenderer.invoke(SHELL_PICK_WORKSPACE_CHANNEL),
     openInEditor: (path, editor) => ipcRenderer.invoke(SHELL_OPEN_IN_EDITOR_CHANNEL, path, editor),
     openExternal: (url) => ipcRenderer.invoke(SHELL_OPEN_EXTERNAL_CHANNEL, url),
+    suggestFiles: (query) => ipcRenderer.invoke(SHELL_SUGGEST_FILES_CHANNEL, query),
+    previewFile: (path) => ipcRenderer.invoke(SHELL_PREVIEW_FILE_CHANNEL, path),
+    pickFiles: () => ipcRenderer.invoke(SHELL_PICK_FILES_CHANNEL),
+    inspectFiles: (paths) => ipcRenderer.invoke(SHELL_INSPECT_FILES_CHANNEL, paths),
   },
   desktop: {
     confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),

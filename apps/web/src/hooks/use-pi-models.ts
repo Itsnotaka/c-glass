@@ -1,4 +1,4 @@
-import type { PiModelRef } from "@glass/contracts";
+import type { PiModelRef, PiThinkingLevel } from "@glass/contracts";
 import { useEffect, useState } from "react";
 import { PI_GLASS_SETTINGS_CHANGED_EVENT } from "../lib/pi-glass-constants";
 import {
@@ -13,16 +13,20 @@ import {
 interface PiModelState {
   items: PiModelItem[];
   loading: boolean;
+  thinkingLevel: PiThinkingLevel;
 }
 
 interface PiDefaultState extends PiModelState {
   model: PiModelItem | PiModelRef | null;
-  thinkingLevel: string;
   stored: boolean;
 }
 
 export function usePiModels(cur?: PiModelRef | null) {
-  const [state, setState] = useState<PiModelState>({ items: [], loading: true });
+  const [state, setState] = useState<PiModelState>({
+    items: [],
+    loading: true,
+    thinkingLevel: "off",
+  });
   const provider = cur?.provider ?? "";
   const id = cur?.id ?? "";
 
@@ -31,10 +35,12 @@ export function usePiModels(cur?: PiModelRef | null) {
     const ref = provider && id ? { provider, id } : null;
 
     const load = () => {
-      void listPiModels(ref).then((items) => {
-        if (!live) return;
-        setState({ items, loading: false });
-      });
+      void Promise.all([listPiModels(ref), resolvePiDefaultThinkingLevel()]).then(
+        ([items, thinkingLevel]) => {
+          if (!live) return;
+          setState({ items, loading: false, thinkingLevel });
+        },
+      );
     };
 
     load();

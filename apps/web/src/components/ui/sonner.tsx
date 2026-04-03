@@ -1,10 +1,4 @@
-import {
-  CircleAlertIcon,
-  CircleCheckIcon,
-  InfoIcon,
-  LoaderCircleIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { IconCircleCheck, IconLoader } from "central-icons";
 import { type CSSProperties, useSyncExternalStore } from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
@@ -27,11 +21,8 @@ export function Toaster(props: ToasterProps) {
       theme={theme}
       className="toaster group"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <CircleAlertIcon className="size-4" />,
-        loading: <LoaderCircleIcon className="size-4 animate-spin" />,
+        success: <IconCircleCheck className="size-4" />,
+        loading: <IconLoader className="size-4 animate-spin" />,
       }}
       style={
         {

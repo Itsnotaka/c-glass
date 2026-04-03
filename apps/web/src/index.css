@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../../../node_modules/streamdown/dist/*.js";
+@source "../../../node_modules/@streamdown/code/dist/*.js";
 
 @custom-variant dark (&:is(.dark, .dark *));
 
@@ -39,6 +41,7 @@
   --color-glass-menubar: var(--glass-color-menubar);
   --color-glass-border: var(--glass-color-border);
   --color-glass-stroke: var(--glass-color-stroke);
+  --color-glass-stroke-tertiary: var(--glass-color-stroke-tertiary);
   --color-glass-stroke-strong: var(--glass-color-stroke-strong);
   --color-glass-hover: var(--glass-color-hover);
   --color-glass-active: var(--glass-color-active);
@@ -163,9 +166,7 @@ body,
 }
 
 pre,
-code,
-textarea,
-input {
+code {
   font-family: var(--glass-font-mono);
 }
 
@@ -386,6 +387,79 @@ label:has(> select#reasoning-effort) select {
 
 .chat-markdown .chat-markdown-shiki .shiki {
   background: color-mix(in srgb, var(--muted) 78%, var(--background)) !important;
+}
+
+.chat-markdown [data-streamdown="code-block"] {
+  margin: 0.65rem 0;
+  overflow: clip;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--card) 90%, var(--background));
+}
+
+.chat-markdown [data-streamdown="code-block-header"] {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  padding: 0.55rem 0.85rem 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.chat-markdown [data-streamdown="code-block-header"] span {
+  font-family: var(--glass-font-mono);
+  text-transform: lowercase;
+}
+
+.chat-markdown [data-streamdown="code-block-actions"] {
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+}
+
+.chat-markdown [data-streamdown="code-block-actions"] button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+}
+
+.chat-markdown [data-streamdown="code-block-actions"] button:hover {
+  color: var(--foreground);
+}
+
+.chat-markdown [data-streamdown="code-block-body"] {
+  overflow-x: auto;
+  padding: 0.8rem 0.9rem 0.9rem;
+}
+
+.chat-markdown [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  background: var(--sdm-bg, transparent);
+  color: var(--sdm-fg, inherit);
+  padding: 0;
+}
+
+.dark .chat-markdown [data-streamdown="code-block-body"] pre {
+  background: var(--shiki-dark-bg, var(--sdm-bg, transparent));
+  color: var(--shiki-dark, var(--sdm-fg, inherit));
+}
+
+.chat-markdown [data-streamdown="code-block-body"] code {
+  display: block;
+  min-width: max-content;
+}
+
+.chat-markdown [data-streamdown="code-block-body"] code span {
+  color: var(--sdm-c, inherit);
+  background: var(--sdm-tbg, transparent);
+}
+
+.dark .chat-markdown [data-streamdown="code-block-body"] code span {
+  color: var(--shiki-dark, var(--sdm-c, inherit));
+  background: var(--shiki-dark-bg, var(--sdm-tbg, transparent));
 }
 
 .chat-markdown table {

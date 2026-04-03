@@ -1,4 +1,4 @@
-import { DownloadIcon, RefreshCwIcon } from "lucide-react";
+import { IconArrowRotateClockwise, IconCloudDownload } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
@@ -61,7 +61,7 @@ export function GlassUpdatePill() {
     >
       {action === "install" ? (
         <>
-          <RefreshCwIcon className="size-3.5 shrink-0" />
+          <IconArrowRotateClockwise className="size-3.5 shrink-0" />
           <span className="truncate">
             {state?.errorContext === "install" && typeof state.message === "string"
               ? "Retry update"
@@ -70,7 +70,7 @@ export function GlassUpdatePill() {
         </>
       ) : state?.status === "downloading" ? (
         <>
-          <DownloadIcon className="size-3.5 shrink-0 animate-pulse" />
+          <IconCloudDownload className="size-3.5 shrink-0 animate-pulse" />
           <span className="truncate">
             Downloading
             {typeof state.downloadPercent === "number"
@@ -80,7 +80,7 @@ export function GlassUpdatePill() {
         </>
       ) : (
         <>
-          <DownloadIcon className="size-3.5 shrink-0" />
+          <IconCloudDownload className="size-3.5 shrink-0" />
           <span className="truncate">Update available</span>
         </>
       )}

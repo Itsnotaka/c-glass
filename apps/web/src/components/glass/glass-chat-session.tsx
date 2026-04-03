@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useState } from "react";
+import { useCallback, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { GlassPiComposer } from "./glass-pi-composer";
@@ -14,7 +14,6 @@ export function GlassChatSession(props: { sessionId: string }) {
   const flip = useCallback(() => {
     setExpanded((cur) => !cur);
   }, []);
-  const messages = useDeferredValue(session.messages);
 
   if (sid !== props.sessionId) {
     setSid(props.sessionId);
@@ -34,8 +33,14 @@ export function GlassChatSession(props: { sessionId: string }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-editor">
-      <GlassPiMessages messages={messages} expanded={expanded} onFlip={flip} />
+      <GlassPiMessages
+        messages={session.messages}
+        live={session.live}
+        expanded={expanded}
+        onFlip={flip}
+      />
       <GlassPiComposer
+        sessionId={props.sessionId}
         draft={draft}
         onDraft={setDraft}
         busy={session.busy}
@@ -43,10 +48,8 @@ export function GlassChatSession(props: { sessionId: string }) {
         variant="dock"
         onAbort={session.abort}
         onModel={session.setModel}
-        onSend={() => {
-          session.send(draft);
-          setDraft("");
-        }}
+        onThinkingLevel={session.setThinkingLevel}
+        onSend={session.send}
       />
       <GlassProviderKeyDialog
         open={session.provider !== null}

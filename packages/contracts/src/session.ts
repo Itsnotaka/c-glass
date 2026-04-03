@@ -10,6 +10,12 @@ export interface PiThinkingBlock {
   thinking: string;
 }
 
+export interface PiImageBlock {
+  type: "image";
+  mimeType?: string;
+  data?: string;
+}
+
 export interface PiToolCallBlock {
   type: "toolCall";
   name: string;
@@ -21,7 +27,40 @@ export interface PiUnknownBlock {
   [key: string]: unknown;
 }
 
-export type PiBlock = PiTextBlock | PiThinkingBlock | PiToolCallBlock | PiUnknownBlock;
+export type PiBlock =
+  | PiTextBlock
+  | PiThinkingBlock
+  | PiImageBlock
+  | PiToolCallBlock
+  | PiUnknownBlock;
+
+export interface PiPromptPathAttachment {
+  type: "path";
+  path: string;
+  name?: string;
+}
+
+export interface PiPromptInlineAttachment {
+  type: "inline";
+  name: string;
+  mimeType: string;
+  data: string;
+}
+
+export type PiPromptAttachment = PiPromptPathAttachment | PiPromptInlineAttachment;
+
+export interface PiPromptInput {
+  text: string;
+  attachments?: PiPromptAttachment[];
+}
+
+export type PiSlashCommandSource = "extension" | "prompt" | "skill";
+
+export interface PiSlashCommand {
+  name: string;
+  description?: string;
+  source: PiSlashCommandSource;
+}
 
 export interface PiUserMessage {
   role: "user";
@@ -100,6 +139,11 @@ export type PiMessage =
   | PiCompactionSummaryMessage
   | PiSystemMessage
   | PiUnknownMessage;
+
+export interface PiSessionItem {
+  id: string;
+  message: PiMessage;
+}
 
 export interface PiSessionMessageEntry {
   type: "message";
@@ -235,7 +279,8 @@ export interface PiSessionSnapshot {
   name: string | null;
   model: PiModelRef | null;
   thinkingLevel: PiThinkingLevel;
-  messages: PiMessage[];
+  messages: PiSessionItem[];
+  live: PiSessionItem | null;
   tree: PiSessionTreeNode[];
   isStreaming: boolean;
   pending: PiSessionPending;
@@ -268,15 +313,15 @@ export interface PiSessionSyncDelta {
   snapshot: PiSessionSnapshot;
 }
 
-export interface PiSessionAppendDelta {
-  type: "append";
-  message: PiMessage;
+export interface PiSessionCommitDelta {
+  type: "commit";
+  item: PiSessionItem;
   meta: PiSessionMeta;
 }
 
-export interface PiSessionReplaceDelta {
-  type: "replace";
-  message: PiMessage;
+export interface PiSessionLiveDelta {
+  type: "live";
+  item: PiSessionItem | null;
   meta: PiSessionMeta;
 }
 
@@ -287,8 +332,8 @@ export interface PiSessionMetaDelta {
 
 export type PiSessionDelta =
   | PiSessionSyncDelta
-  | PiSessionAppendDelta
-  | PiSessionReplaceDelta
+  | PiSessionCommitDelta
+  | PiSessionLiveDelta
   | PiSessionMetaDelta;
 
 export interface PiSessionActiveEvent {
@@ -306,9 +351,10 @@ export interface SessionBridge {
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
   watch: (sessionId: string) => Promise<PiSessionSnapshot>;
   unwatch: () => Promise<void>;
-  prompt: (sessionId: string, text: string) => Promise<void>;
+  prompt: (sessionId: string, input: string | PiPromptInput) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
+  commands: (sessionId: string) => Promise<PiSlashCommand[]>;
   onSummary: (listener: (event: PiSessionSummaryEvent) => void) => () => void;
   onActive: (listener: (event: PiSessionActiveEvent) => void) => () => void;
 }

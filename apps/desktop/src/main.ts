@@ -21,6 +21,7 @@ import type {
   DesktopTheme,
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
+  PiPromptInput,
   DesktopUpdateState,
   PiSessionActiveEvent,
   PiSessionSummaryEvent,
@@ -67,6 +68,7 @@ const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
 const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
 const SESSION_ABORT_CHANNEL = "glass:session.abort";
 const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
+const SESSION_COMMANDS_CHANNEL = "glass:session.commands";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
@@ -79,6 +81,10 @@ const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
 const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
 const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
 const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
+const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
+const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
+const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
+const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
 const BASE_DIR = process.env.GLASS_HOME?.trim() || Path.join(OS.homedir(), ".glass");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SCHEME = "glass";
@@ -1155,14 +1161,22 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(SESSION_PROMPT_CHANNEL);
-  ipcMain.handle(SESSION_PROMPT_CHANNEL, async (_event, sessionId: unknown, text: unknown) => {
+  ipcMain.handle(SESSION_PROMPT_CHANNEL, async (_event, sessionId: unknown, input: unknown) => {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
       throw new Error("Missing session id");
     }
-    if (typeof text !== "string") {
-      throw new Error("Missing prompt text");
+    if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
+      throw new Error("Missing prompt input");
     }
-    await Effect.runPromise(sessionService.prompt(sessionId, text));
+    await Effect.runPromise(sessionService.prompt(sessionId, input as string | PiPromptInput));
+  });
+
+  ipcMain.removeHandler(SESSION_COMMANDS_CHANNEL);
+  ipcMain.handle(SESSION_COMMANDS_CHANNEL, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    return Effect.runPromise(sessionService.commands(sessionId));
   });
 
   ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
@@ -1272,6 +1286,36 @@ function registerIpcHandlers(): void {
       return false;
     }
     return Effect.runPromise(shellService.openExternal(externalUrl));
+  });
+
+  ipcMain.removeHandler(SHELL_SUGGEST_FILES_CHANNEL);
+  ipcMain.handle(SHELL_SUGGEST_FILES_CHANNEL, async (_event, query: unknown) => {
+    if (typeof query !== "string") {
+      throw new Error("Missing query");
+    }
+    return Effect.runPromise(shellService.suggestFiles(query));
+  });
+
+  ipcMain.removeHandler(SHELL_PREVIEW_FILE_CHANNEL);
+  ipcMain.handle(SHELL_PREVIEW_FILE_CHANNEL, async (_event, path: unknown) => {
+    if (typeof path !== "string" || !path.trim()) {
+      throw new Error("Missing path");
+    }
+    return Effect.runPromise(shellService.previewFile(path));
+  });
+
+  ipcMain.removeHandler(SHELL_PICK_FILES_CHANNEL);
+  ipcMain.handle(SHELL_PICK_FILES_CHANNEL, async () => {
+    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    return Effect.runPromise(shellService.pickFiles(owner));
+  });
+
+  ipcMain.removeHandler(SHELL_INSPECT_FILES_CHANNEL);
+  ipcMain.handle(SHELL_INSPECT_FILES_CHANNEL, async (_event, paths: unknown) => {
+    if (!Array.isArray(paths) || paths.some((item) => typeof item !== "string" || !item.trim())) {
+      throw new Error("Missing paths");
+    }
+    return Effect.runPromise(shellService.inspectFiles(paths));
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
