@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { getGlass } from "../../host";
 import { GlassPiComposer } from "./glass-pi-composer";
-import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
 import { GlassQuickActions } from "./glass-quick-actions";
 import { usePiSession } from "./use-pi-session";
 
@@ -38,13 +37,6 @@ export function GlassHeroCanvas() {
         />
         <GlassQuickActions onOpenInEditor={open} />
       </div>
-      <GlassProviderKeyDialog
-        open={session.provider !== null}
-        provider={session.provider?.name ?? ""}
-        mode={session.provider?.mode ?? "api_key"}
-        oauthSupported={session.provider?.oauthSupported}
-        onSubmit={session.resolve}
-      />
     </div>
   );
 }

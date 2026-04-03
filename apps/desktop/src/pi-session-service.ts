@@ -214,6 +214,7 @@ function message(value: unknown): PiMessage {
       content: Array.isArray(item.content) ? content(item.content) : [],
       ...(typeof item.toolName === "string" ? { toolName: item.toolName } : {}),
       ...(typeof item.isError === "boolean" ? { isError: item.isError } : {}),
+      ...(item.details !== undefined ? { details: item.details as Record<string, unknown> } : {}),
     };
   }
   if (role === "custom") {
@@ -883,7 +884,6 @@ export class PiSessionService {
   }
 
   private pushSummary(session: Session, event?: Event) {
-    if (session.sessionManager.getCwd() !== this.shell.cwd) return;
     if (event && !summaryEvent(event)) return;
 
     const next = event ? this.live(session, event) : this.full(session);
@@ -900,7 +900,6 @@ export class PiSessionService {
   }
 
   private pushActive(session: Session, event: Event) {
-    if (session.sessionManager.getCwd() !== this.shell.cwd) return;
     if ((this.refs.get(session.sessionId) ?? 0) < 1) return;
 
     this.emit({
@@ -960,13 +959,13 @@ export class PiSessionService {
     this.timer.unref();
   }
 
-  private async scan() {
+  private async scan(all = false) {
     this.ensure();
 
-    const items = await SessionManager.list(this.shell.cwd);
+    const items = all ? await SessionManager.listAll() : await SessionManager.list(this.shell.cwd);
     return items.map((item) => {
       const cur = this.items.get(item.id)?.session;
-      if (cur && cur.sessionManager.getCwd() === this.shell.cwd) {
+      if (cur) {
         return this.full(cur);
       }
       return {
@@ -989,7 +988,7 @@ export class PiSessionService {
     const items = await Effect.runPromise(
       Effect.match(
         Effect.tryPromise({
-          try: () => this.scan(),
+          try: () => this.scan(true),
           catch: () => null,
         }),
         {
@@ -1068,10 +1067,21 @@ export class PiSessionService {
     });
   }
 
+  listAll(): Effect.Effect<PiSessionSummary[], Error> {
+    return Effect.tryPromise({
+      try: async () => {
+        const items = await this.scan(true);
+        this.sums = new Map(items.map((item) => [item.id, item]));
+        return items;
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   private open(sessionId: string) {
     const cur = this.items.get(sessionId)?.session;
-    if (cur && cur.sessionManager.getCwd() === this.shell.cwd) return Effect.succeed(cur);
-    return this.list().pipe(
+    if (cur) return Effect.succeed(cur);
+    return this.listAll().pipe(
       Effect.flatMap((list) => {
         const hit = list.find((item) => item.id === sessionId);
         if (!hit) {

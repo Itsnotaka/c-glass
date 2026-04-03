@@ -16,7 +16,10 @@ function Section(props: {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="group flex w-full items-center gap-1 px-2 py-1 text-[11px] font-medium tracking-wide text-muted-foreground/60 uppercase hover:text-muted-foreground"
+        className={[
+          "group flex w-full items-center gap-1 px-2 py-1 text-[11px] font-medium tracking-wide uppercase hover:text-muted-foreground",
+          props.section.active ? "text-foreground/80" : "text-muted-foreground/60",
+        ].join(" ")}
       >
         <IconChevronBottom
           className="size-3 shrink-0 opacity-60 transition-transform duration-150"
@@ -48,7 +51,7 @@ export function GlassAgentList(props: {
   if (props.sections.length === 0) {
     return (
       <p className="px-3 py-4 text-xs text-muted-foreground/60">
-        No agents yet. Create one to begin.
+        No threads yet. Create a new agent to begin.
       </p>
     );
   }

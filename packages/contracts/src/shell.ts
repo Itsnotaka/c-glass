@@ -34,6 +34,7 @@ export interface ShellFilePreview {
 export interface ShellBridge {
   getState: () => Promise<ShellState>;
   pickWorkspace: () => Promise<ShellState | null>;
+  setWorkspace: (cwd: string) => Promise<ShellState>;
   openInEditor: (path: string, editor: EditorId) => Promise<void>;
   openExternal: (url: string) => Promise<boolean>;
   suggestFiles: (query: string) => Promise<ShellFileHit[]>;

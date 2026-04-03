@@ -3,7 +3,6 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { GlassPiComposer } from "./glass-pi-composer";
 import { GlassPiMessages } from "./glass-pi-messages";
-import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
 import { usePiSession } from "./use-pi-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
@@ -50,13 +49,6 @@ export function GlassChatSession(props: { sessionId: string }) {
         onModel={session.setModel}
         onThinkingLevel={session.setThinkingLevel}
         onSend={session.send}
-      />
-      <GlassProviderKeyDialog
-        open={session.provider !== null}
-        provider={session.provider?.name ?? ""}
-        mode={session.provider?.mode ?? "api_key"}
-        oauthSupported={session.provider?.oauthSupported}
-        onSubmit={session.resolve}
       />
     </div>
   );

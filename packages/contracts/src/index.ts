@@ -1,6 +1,7 @@
 export * from "./baseSchemas";
 export * from "./desktop";
 export * from "./editor";
+export * from "./git";
 export * from "./ipc";
 export * from "./pi";
 export * from "./session";

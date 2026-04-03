@@ -2,13 +2,15 @@ import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { getGlass } from "../host";
 import { useGlassAgents } from "../hooks/use-glass-agents";
+import { useShellCwd } from "../hooks/use-shell-cwd";
 import { GlassAgentList } from "./glass/glass-agent-list";
 import { GlassSidebarFooter } from "./glass/glass-sidebar-footer";
 import { GlassSidebarHeader } from "./glass/glass-sidebar-header";
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const agents = useGlassAgents();
+  const cwd = useShellCwd();
+  const agents = useGlassAgents(cwd);
 
   const select = useCallback(
     (id: string) => {

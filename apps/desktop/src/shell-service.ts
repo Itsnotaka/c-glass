@@ -409,6 +409,26 @@ export class ShellService {
     });
   }
 
+  setWorkspace(cwd: string) {
+    return Effect.try({
+      try: () => {
+        const next = statSync(cwd);
+        if (!next.isDirectory()) {
+          throw new Error(`Workspace is not a directory: ${cwd}`);
+        }
+        this.cwd = cwd;
+        this.clear();
+        this.save();
+        return {
+          cwd: this.cwd,
+          name: Path.basename(this.cwd) || this.cwd,
+          availableEditors: this.availableEditors(),
+        };
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   suggestFiles(query: string) {
     return Effect.tryPromise({
       try: async () => {

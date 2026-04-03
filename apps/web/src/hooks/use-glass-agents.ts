@@ -2,11 +2,11 @@ import { useParams } from "@tanstack/react-router";
 import { startTransition, useEffect, useMemo } from "react";
 import { readGlass } from "../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
-import { buildPiSessionSidebarSections, type GlassSidebarSection } from "../lib/glass-view-model";
-import { usePiIds, usePiStore } from "../lib/pi-session-store";
+import { buildWorkspaceThreadSections, type GlassSidebarSection } from "../lib/glass-view-model";
+import { usePiStore } from "../lib/pi-session-store";
 
-export function useGlassAgents() {
-  const ids = usePiIds();
+export function useGlassAgents(cwd: string | null) {
+  const sums = usePiStore((s) => s.sums);
   const clear = usePiStore((state) => state.clear);
   const dropSum = usePiStore((state) => state.dropSum);
   const putSum = usePiStore((state) => state.putSum);
@@ -25,7 +25,7 @@ export function useGlassAgents() {
 
     const load = () => {
       void glass.session
-        .list()
+        .listAll()
         .then((items) => {
           if (!live) return;
           startTransition(() => {
@@ -73,7 +73,7 @@ export function useGlassAgents() {
     };
   }, [clear, dropSum, putSum, replaceSums]);
 
-  const sections = useMemo(() => buildPiSessionSidebarSections(ids), [ids]);
+  const sections = useMemo(() => buildWorkspaceThreadSections(sums, cwd), [cwd, sums]);
 
   return { sections, routeThreadId } satisfies {
     sections: GlassSidebarSection[];

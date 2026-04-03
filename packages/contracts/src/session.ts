@@ -18,7 +18,9 @@ export interface PiImageBlock {
 
 export interface PiToolCallBlock {
   type: "toolCall";
+  id?: string;
   name: string;
+  arguments?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -85,6 +87,7 @@ export interface PiToolResultMessage {
   content: PiBlock[];
   toolName?: string;
   isError?: boolean;
+  details?: Record<string, unknown>;
 }
 
 export interface PiBashExecutionMessage {
@@ -347,6 +350,7 @@ export type PiSessionBridgeEvent = PiSessionSummaryEvent | PiSessionActiveEvent;
 
 export interface SessionBridge {
   list: () => Promise<PiSessionSummary[]>;
+  listAll: () => Promise<PiSessionSummary[]>;
   create: () => Promise<PiSessionSnapshot>;
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
   watch: (sessionId: string) => Promise<PiSessionSnapshot>;

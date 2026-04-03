@@ -29,6 +29,7 @@ import type {
 import { autoUpdater } from "electron-updater";
 import { RotatingFileSink } from "@glass/shared/logging";
 import { showDesktopConfirmDialog } from "./confirmDialog";
+import { GitService } from "./git-service";
 import { PiConfigService } from "./pi-config-service";
 import { PiSessionService } from "./pi-session-service";
 import { ShellService } from "./shell-service";
@@ -61,6 +62,7 @@ const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const SESSION_LIST_CHANNEL = "glass:session.list";
+const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
 const SESSION_WATCH_CHANNEL = "glass:session.watch";
@@ -79,12 +81,17 @@ const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
 const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
 const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
+const SHELL_SET_WORKSPACE_CHANNEL = "glass:shell.set-workspace";
 const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
 const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
 const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
 const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
 const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
 const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
+const GIT_GET_STATE_CHANNEL = "glass:git.get-state";
+const GIT_REFRESH_CHANNEL = "glass:git.refresh";
+const GIT_INIT_CHANNEL = "glass:git.init";
+const GIT_STATE_CHANNEL = "glass:git.state";
 const BASE_DIR = process.env.GLASS_HOME?.trim() || Path.join(OS.homedir(), ".glass");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SCHEME = "glass";
@@ -108,12 +115,14 @@ const DESKTOP_UPDATE_ALLOW_PRERELEASE = false;
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 
 let mainWindow: BrowserWindow | null = null;
+let gitWatch: FS.FSWatcher | null = null;
 let isQuitting = false;
 let desktopProtocolRegistered = false;
 let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
 let removeSessionEvents: (() => void) | null = null;
+let removeGitEvents: (() => void) | null = null;
 let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
 
 const pendingSessionSummaries = new Map<string, PiSessionSummaryEvent>();
@@ -124,6 +133,7 @@ const watchedSenders = new Set<number>();
 const pi = new PiConfigService();
 const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
 const sessionService = new PiSessionService(pi, shellService);
+const gitService = new GitService();
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
 const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
@@ -1024,10 +1034,34 @@ function clearAllWatchedSessions(): void {
   }
 }
 
+function restartGitWatch(root: string | null) {
+  if (gitWatch) {
+    gitWatch.close();
+    gitWatch = null;
+  }
+  if (!root) return;
+  const gitDir = Path.join(root, ".git");
+  if (!FS.existsSync(gitDir)) return;
+  let t: ReturnType<typeof setTimeout> | null = null;
+  gitWatch = FS.watch(gitDir, { persistent: true }, () => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => {
+      void Effect.runPromise(gitService.refresh(shellService.cwd)).catch(() => {});
+    }, 250);
+  });
+}
+
 function registerIpcHandlers(): void {
   removeSessionEvents?.();
   removeSessionEvents = sessionService.listen((event) => {
     emitSessionEvent(event);
+  });
+  removeGitEvents?.();
+  removeGitEvents = gitService.listen((state) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(GIT_STATE_CHANNEL, state);
+    }
   });
 
   ipcMain.removeHandler(CONFIRM_CHANNEL);
@@ -1115,6 +1149,9 @@ function registerIpcHandlers(): void {
 
   ipcMain.removeHandler(SESSION_LIST_CHANNEL);
   ipcMain.handle(SESSION_LIST_CHANNEL, async () => Effect.runPromise(sessionService.list()));
+
+  ipcMain.removeHandler(SESSION_LIST_ALL_CHANNEL);
+  ipcMain.handle(SESSION_LIST_ALL_CHANNEL, async () => Effect.runPromise(sessionService.listAll()));
 
   ipcMain.removeHandler(SESSION_CREATE_CHANNEL);
   ipcMain.handle(SESSION_CREATE_CHANNEL, async () => Effect.runPromise(sessionService.create()));
@@ -1264,7 +1301,21 @@ function registerIpcHandlers(): void {
     const next = await Effect.runPromise(shellService.pickWorkspace(owner));
     if (next) {
       clearAllWatchedSessions();
+      const state = await Effect.runPromise(gitService.refresh(next.cwd));
+      restartGitWatch(state.gitRoot);
     }
+    return next;
+  });
+
+  ipcMain.removeHandler(SHELL_SET_WORKSPACE_CHANNEL);
+  ipcMain.handle(SHELL_SET_WORKSPACE_CHANNEL, async (_event, cwd: unknown) => {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Missing cwd");
+    }
+    clearAllWatchedSessions();
+    const next = await Effect.runPromise(shellService.setWorkspace(cwd));
+    const state = await Effect.runPromise(gitService.refresh(next.cwd));
+    restartGitWatch(state.gitRoot);
     return next;
   });
 
@@ -1316,6 +1367,36 @@ function registerIpcHandlers(): void {
       throw new Error("Missing paths");
     }
     return Effect.runPromise(shellService.inspectFiles(paths));
+  });
+
+  ipcMain.removeHandler(GIT_GET_STATE_CHANNEL);
+  ipcMain.handle(GIT_GET_STATE_CHANNEL, async (_event, cwd: unknown) => {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Missing cwd");
+    }
+    const state = await Effect.runPromise(gitService.get(cwd));
+    restartGitWatch(state.gitRoot);
+    return state;
+  });
+
+  ipcMain.removeHandler(GIT_REFRESH_CHANNEL);
+  ipcMain.handle(GIT_REFRESH_CHANNEL, async (_event, cwd: unknown) => {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Missing cwd");
+    }
+    const state = await Effect.runPromise(gitService.refresh(cwd));
+    restartGitWatch(state.gitRoot);
+    return state;
+  });
+
+  ipcMain.removeHandler(GIT_INIT_CHANNEL);
+  ipcMain.handle(GIT_INIT_CHANNEL, async (_event, cwd: unknown) => {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Missing cwd");
+    }
+    const state = await Effect.runPromise(gitService.init(cwd));
+    restartGitWatch(state.gitRoot);
+    return state;
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
@@ -1475,6 +1556,10 @@ app.on("before-quit", () => {
   updateInstallInFlight = false;
   writeDesktopLogHeader("before-quit received");
   clearUpdatePollTimer();
+  gitWatch?.close();
+  gitWatch = null;
+  removeGitEvents?.();
+  removeGitEvents = null;
   removeSessionEvents?.();
   removeSessionEvents = null;
   sessionService.dispose();
@@ -1515,6 +1600,10 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGINT received");
     clearUpdatePollTimer();
+    gitWatch?.close();
+    gitWatch = null;
+    removeGitEvents?.();
+    removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
     sessionService.dispose();
@@ -1527,6 +1616,10 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGTERM received");
     clearUpdatePollTimer();
+    gitWatch?.close();
+    gitWatch = null;
+    removeGitEvents?.();
+    removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
     sessionService.dispose();

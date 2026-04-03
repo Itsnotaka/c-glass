@@ -14,6 +14,8 @@ import {
   writePiDefaultThinkingLevel,
   type PiModelItem,
 } from "../../lib/pi-models";
+import { useGlassProviderAuthStore } from "../../lib/glass-provider-auth-store";
+import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore } from "../../lib/pi-session-store";
 
 const empty: PiSessionItem[] = [];
@@ -23,10 +25,45 @@ function authError(message: string) {
   return text.includes("api key") || text.includes("auth") || text.includes("credential");
 }
 
+function paths(item: PiSessionItem | null) {
+  const msg = item?.message;
+  if (!msg || msg.role !== "assistant" || !Array.isArray(msg.content)) return [];
+
+  return msg.content.reduce<string[]>((out, part) => {
+    if (part.type !== "toolCall") return out;
+    if (part.name !== "edit" && part.name !== "write") return out;
+
+    const args = part.arguments;
+    const path = args?.path;
+    if (typeof path === "string" && path.trim()) out.push(path);
+    if (part.name !== "edit" || !Array.isArray(args?.multi)) return out;
+
+    const list: unknown[] = args.multi;
+    list.reduce<string[]>((out, item) => {
+      if (!item || typeof item !== "object") return out;
+      const path = (item as { path?: unknown }).path;
+      if (typeof path !== "string" || !path.trim()) return out;
+      out.push(path);
+      return out;
+    }, out);
+
+    return out;
+  }, []);
+}
+
+function dirty(item: PiSessionItem | null) {
+  const msg = item?.message;
+  if (!msg || msg.role !== "toolResult") return false;
+  return msg.toolName === "edit" || msg.toolName === "write";
+}
+
 export function usePiSession(sessionId: string | null) {
   const navigate = useNavigate();
   const applyActs = usePiStore((state) => state.applyActs);
   const putSnap = usePiStore((state) => state.putSnap);
+  const openAuth = useGlassProviderAuthStore((state) => state.open);
+  const note = useGlassShellStore((state) => state.note);
+  const bumpPaths = useGlassShellStore((state) => state.bump);
   const sid = usePiStore(
     useMemo(
       () => (state) => (sessionId ? (state.snaps[sessionId]?.id ?? null) : null),
@@ -59,11 +96,6 @@ export function usePiSession(sessionId: string | null) {
   );
   const [draftModel, setDraftModel] = useState<PiModelRef | null>(null);
   const [tick, setTick] = useState(0);
-  const [provider, setProvider] = useState<{
-    name: string;
-    mode: "api_key" | "oauth";
-    oauthSupported: boolean;
-  } | null>(null);
   const pending = useRef<(() => Promise<void>) | null>(null);
   const queued = useRef<Parameters<typeof applyActs>[0]>([]);
   const frame = useRef<number | null>(null);
@@ -138,6 +170,13 @@ export function usePiSession(sessionId: string | null) {
         const next = queued.current;
         queued.current = [];
         if (next.length === 0) return;
+        const hits = next.flatMap((item) =>
+          item.delta.type === "commit" ? paths(item.delta.item) : [],
+        );
+        if (hits.length > 0) note(hits);
+        if (next.some((item) => item.delta.type === "commit" && dirty(item.delta.item))) {
+          bumpPaths();
+        }
         startTransition(() => {
           applyActs(next);
         });
@@ -148,18 +187,30 @@ export function usePiSession(sessionId: string | null) {
       queued.current = [];
       off();
     };
-  }, [applyActs, sessionId, tick]);
+  }, [applyActs, bumpPaths, note, sessionId, tick]);
 
   const model = sessionModel ?? draftModel;
 
   const showProvider = async (task: () => Promise<void>, name: string) => {
-    if (!model?.provider) throw new Error("Missing model provider");
     const next = await readPiProvider(name);
     pending.current = task;
-    setProvider({
-      name,
-      mode: next.credentialType === "oauth" || next.oauthSupported ? "oauth" : "api_key",
+    const mode = next.credentialType === "oauth" || next.oauthSupported ? "oauth" : "api_key";
+    openAuth({
+      provider: name,
+      mode,
       oauthSupported: next.oauthSupported,
+      run: async (key) => {
+        if (key && mode === "api_key") {
+          await writePiApiKey(name, key);
+          const next = pending.current;
+          pending.current = null;
+          if (next) {
+            await next();
+            return;
+          }
+        }
+        pending.current = null;
+      },
     });
   };
 
@@ -216,32 +267,11 @@ export function usePiSession(sessionId: string | null) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (!authError(message)) throw err;
-        pending.current = task;
-        const auth = await readPiProvider(next.provider);
-        setProvider({
-          name: next.provider,
-          mode: auth.credentialType === "oauth" || auth.oauthSupported ? "oauth" : "api_key",
-          oauthSupported: auth.oauthSupported,
-        });
+        await showProvider(task, next.provider);
       }
     };
 
     void task();
-  };
-
-  const resolve = async (key: string | undefined) => {
-    const cur = provider;
-    setProvider(null);
-    if (key && cur?.mode === "api_key") {
-      await writePiApiKey(cur.name, key);
-      const next = pending.current;
-      pending.current = null;
-      if (next) {
-        await next();
-        return;
-      }
-    }
-    pending.current = null;
   };
 
   const setThinkingLevel = (level: PiThinkingLevel) => {
@@ -253,11 +283,9 @@ export function usePiSession(sessionId: string | null) {
     live,
     busy,
     model,
-    provider,
     send,
     abort,
     setModel,
-    resolve,
     setThinkingLevel,
   };
 }

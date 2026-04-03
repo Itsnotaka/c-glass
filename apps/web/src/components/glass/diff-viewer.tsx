@@ -1,4 +1,4 @@
-import { FileDiff, type FileDiffMetadata } from "@pierre/diffs";
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { memo, useMemo } from "react";
 import { cn } from "~/lib/utils";
 
@@ -27,7 +27,6 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
       className={cn("web-component h-full min-h-0 overflow-hidden", props.className)}
       data-diffs-container
     >
-      {/* @ts-expect-error - @pierre/diffs FileDiff has incompatible React types */}
       <FileDiff
         fileDiff={props.fileDiff}
         options={{
@@ -40,123 +39,3 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
     </div>
   );
 });
-
-/**
- * Create sample diff data for testing/development
- */
-export function createSampleDiff(): FileDiffMetadata[] {
-  return [
-    {
-      name: "src/components/button.tsx",
-      type: "change",
-      hunks: [
-        {
-          collapsedBefore: 0,
-          additionStart: 1,
-          additionCount: 8,
-          additionLines: 6,
-          additionLineIndex: 0,
-          deletionStart: 1,
-          deletionCount: 5,
-          deletionLines: 3,
-          deletionLineIndex: 0,
-          hunkContent: [
-            {
-              type: "change",
-              deletions: 2,
-              deletionLineIndex: 0,
-              additions: 4,
-              additionLineIndex: 0,
-            },
-            {
-              type: "context",
-              lines: 2,
-              additionLineIndex: 4,
-              deletionLineIndex: 2,
-            },
-            {
-              type: "change",
-              deletions: 1,
-              deletionLineIndex: 4,
-              additions: 2,
-              additionLineIndex: 6,
-            },
-          ],
-          splitLineStart: 0,
-          splitLineCount: 11,
-          unifiedLineStart: 0,
-          unifiedLineCount: 11,
-          noEOFCRDeletions: false,
-          noEOFCRAdditions: false,
-        },
-      ],
-      splitLineCount: 11,
-      unifiedLineCount: 11,
-      isPartial: false,
-      deletionLines: [
-        "import { type FC } from 'react';",
-        "import { cn } from '@/lib/utils';",
-        "",
-        "interface ButtonProps {",
-      ],
-      additionLines: [
-        "import { type FC, type ReactNode } from 'react';",
-        "import { cn } from '@/lib/utils';",
-        "import { type VariantProps } from 'class-variance-authority';",
-        "",
-        "interface ButtonProps extends VariantProps<typeof buttonVariants> {",
-        "  children: ReactNode;",
-        "  className?: string;",
-      ],
-    },
-    {
-      name: "src/lib/utils.ts",
-      type: "new",
-      hunks: [
-        {
-          collapsedBefore: 0,
-          additionStart: 1,
-          additionCount: 12,
-          additionLines: 12,
-          additionLineIndex: 0,
-          deletionStart: 0,
-          deletionCount: 0,
-          deletionLines: 0,
-          deletionLineIndex: 0,
-          hunkContent: [
-            {
-              type: "change",
-              deletions: 0,
-              deletionLineIndex: 0,
-              additions: 12,
-              additionLineIndex: 0,
-            },
-          ],
-          splitLineStart: 0,
-          splitLineCount: 12,
-          unifiedLineStart: 0,
-          unifiedLineCount: 12,
-          noEOFCRDeletions: false,
-          noEOFCRAdditions: false,
-        },
-      ],
-      splitLineCount: 12,
-      unifiedLineCount: 12,
-      isPartial: false,
-      deletionLines: [],
-      additionLines: [
-        "export function cn(...inputs: CxOptions) {",
-        "  return twMerge(cx(...inputs));",
-        "}",
-        "",
-        "export function formatDate(date: Date): string {",
-        "  return new Intl.DateTimeFormat('en-US', {",
-        "    month: 'short',",
-        "    day: 'numeric',",
-        "    year: 'numeric',",
-        "  }).format(date);",
-        "}",
-      ],
-    },
-  ];
-}

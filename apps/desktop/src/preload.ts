@@ -11,6 +11,7 @@ const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const SESSION_LIST_CHANNEL = "glass:session.list";
+const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
 const SESSION_WATCH_CHANNEL = "glass:session.watch";
@@ -29,16 +30,22 @@ const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
 const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
 const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
+const SHELL_SET_WORKSPACE_CHANNEL = "glass:shell.set-workspace";
 const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
 const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
 const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
 const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
 const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
 const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
+const GIT_GET_STATE_CHANNEL = "glass:git.get-state";
+const GIT_REFRESH_CHANNEL = "glass:git.refresh";
+const GIT_INIT_CHANNEL = "glass:git.init";
+const GIT_STATE_CHANNEL = "glass:git.state";
 
 contextBridge.exposeInMainWorld("glass", {
   session: {
     list: () => ipcRenderer.invoke(SESSION_LIST_CHANNEL),
+    listAll: () => ipcRenderer.invoke(SESSION_LIST_ALL_CHANNEL),
     create: () => ipcRenderer.invoke(SESSION_CREATE_CHANNEL),
     get: (sessionId) => ipcRenderer.invoke(SESSION_GET_CHANNEL, sessionId),
     watch: (sessionId) => ipcRenderer.invoke(SESSION_WATCH_CHANNEL, sessionId),
@@ -82,12 +89,28 @@ contextBridge.exposeInMainWorld("glass", {
   shell: {
     getState: () => ipcRenderer.invoke(SHELL_GET_STATE_CHANNEL),
     pickWorkspace: () => ipcRenderer.invoke(SHELL_PICK_WORKSPACE_CHANNEL),
+    setWorkspace: (cwd) => ipcRenderer.invoke(SHELL_SET_WORKSPACE_CHANNEL, cwd),
     openInEditor: (path, editor) => ipcRenderer.invoke(SHELL_OPEN_IN_EDITOR_CHANNEL, path, editor),
     openExternal: (url) => ipcRenderer.invoke(SHELL_OPEN_EXTERNAL_CHANNEL, url),
     suggestFiles: (query) => ipcRenderer.invoke(SHELL_SUGGEST_FILES_CHANNEL, query),
     previewFile: (path) => ipcRenderer.invoke(SHELL_PREVIEW_FILE_CHANNEL, path),
     pickFiles: () => ipcRenderer.invoke(SHELL_PICK_FILES_CHANNEL),
     inspectFiles: (paths) => ipcRenderer.invoke(SHELL_INSPECT_FILES_CHANNEL, paths),
+  },
+  git: {
+    getState: (cwd) => ipcRenderer.invoke(GIT_GET_STATE_CHANNEL, cwd),
+    refresh: (cwd) => ipcRenderer.invoke(GIT_REFRESH_CHANNEL, cwd),
+    init: (cwd) => ipcRenderer.invoke(GIT_INIT_CHANNEL, cwd),
+    onState: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+        if (typeof data !== "object" || data === null) return;
+        listener(data as Parameters<typeof listener>[0]);
+      };
+      ipcRenderer.on(GIT_STATE_CHANNEL, wrapped);
+      return () => {
+        ipcRenderer.removeListener(GIT_STATE_CHANNEL, wrapped);
+      };
+    },
   },
   desktop: {
     confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),

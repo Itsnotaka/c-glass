@@ -1,4 +1,4 @@
-import type { PiSessionItem, PiToolCallBlock } from "@glass/contracts";
+import type { PiSessionItem } from "@glass/contracts";
 import { Collapsible } from "@base-ui/react/collapsible";
 import { layoutWithLines, prepareWithSegments } from "@chenglou/pretext";
 import { code } from "@streamdown/code";
@@ -12,6 +12,7 @@ import {
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
+import { toolBody, toolHint } from "../../lib/tool-renderers";
 import { cn } from "../../lib/utils";
 import { ScrollArea } from "../ui/scroll-area";
 
@@ -21,34 +22,6 @@ const controls = {
   code: { copy: true, download: false },
   mermaid: false,
   table: false,
-} as const;
-
-const exts = {
-  bash: "bash",
-  c: "c",
-  cc: "cpp",
-  cpp: "cpp",
-  css: "css",
-  go: "go",
-  h: "c",
-  hpp: "cpp",
-  html: "html",
-  java: "java",
-  js: "javascript",
-  json: "json",
-  md: "markdown",
-  mdx: "mdx",
-  py: "python",
-  rs: "rust",
-  sh: "bash",
-  sql: "sql",
-  ts: "typescript",
-  tsx: "tsx",
-  txt: "text",
-  xml: "xml",
-  yaml: "yaml",
-  yml: "yaml",
-  zsh: "bash",
 } as const;
 
 function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
@@ -61,7 +34,7 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void, wide: number) {
   }
 
   if (row.kind === "tool") {
-    return <ToolCard key={row.id} row={row} expanded={expanded} onFlip={onFlip} wide={wide} />;
+    return <ToolCard key={row.id} row={row} expanded={expanded} onFlip={onFlip} />;
   }
 
   if (row.kind === "bash") {
@@ -142,82 +115,13 @@ function clip(text: string, wide: number) {
     .join("\n")}\n...`;
 }
 
-function first(call: PiToolCallBlock | null) {
-  const args = call?.arguments;
-  if (!args || typeof args !== "object") {
-    if (typeof args === "string" && args.trim()) return args.trim().slice(0, 72);
-    return null;
-  }
-
-  for (const key of ["command", "path", "query", "file", "url", "prompt", "target"]) {
-    const val = (args as Record<string, unknown>)[key];
-    if (typeof val === "string" && val.trim()) return val.trim().slice(0, 72);
-  }
-
-  const keys = Object.keys(args as Record<string, unknown>);
-  if (keys.length === 0) return null;
-  return `${keys.length} prop${keys.length === 1 ? "" : "s"}`;
-}
-
 function meta(row: PiRow) {
-  if (row.kind === "tool") {
-    if (row.error) return "errored";
-    if (row.result.trim()) return "returned output";
-    return "waiting";
-  }
   if (row.kind === "bash") {
     if (row.cancelled) return "cancelled";
     if (row.code === null) return "exit unknown";
     return `exit ${row.code}`;
   }
   return null;
-}
-
-function ext(path: string) {
-  const pos = path.lastIndexOf(".");
-  if (pos < 0 || pos === path.length - 1) return "";
-  return path.slice(pos + 1).toLowerCase();
-}
-
-function lang(path: string | null) {
-  if (!path) return "";
-  const key = ext(path) as keyof typeof exts;
-  return exts[key] ?? "";
-}
-
-function json(text: string) {
-  const out = text.trimStart();
-  if (!out) return false;
-  return out[0] === "{" || out[0] === "[";
-}
-
-function file(call: PiToolCallBlock | null) {
-  const args = call?.arguments;
-  if (!args || typeof args !== "object") return null;
-
-  for (const key of ["path", "file", "target"]) {
-    const val = (args as Record<string, unknown>)[key];
-    if (typeof val === "string" && val.trim()) return val.trim();
-  }
-
-  return null;
-}
-
-function guess(row: Extract<PiRow, { kind: "tool" }>, part: "args" | "result") {
-  if (part === "args") {
-    if (json(row.args)) return "json";
-    return lang(file(row.call));
-  }
-
-  if (json(row.result)) return "json";
-
-  const name = row.name.toLowerCase();
-  if (name.includes("read")) return lang(file(row.call));
-  if (name.includes("bash") || name.includes("shell") || name.includes("terminal")) {
-    return "bash";
-  }
-
-  return "";
 }
 
 function wrap(text: string, lang: string) {
@@ -399,14 +303,17 @@ const ToolCard = memo(function ToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;
   expanded: boolean;
   onFlip: () => void;
-  wide: number;
 }) {
-  const txt = useMemo(
-    () => clip(props.row.result || props.row.args || "", props.wide),
-    [props.row.args, props.row.result, props.wide],
-  );
-  const part = props.row.result.trim() ? "result" : "args";
-  const sum = first(props.row.call);
+  const hint = toolHint(props.row.call);
+  const body = toolBody({
+    name: props.row.name,
+    call: props.row.call,
+    args: props.row.args,
+    result: props.row.result,
+    error: props.row.error,
+    details: props.row.details,
+    expanded: props.expanded,
+  });
 
   return (
     <li className="group min-w-0">
@@ -426,9 +333,9 @@ const ToolCard = memo(function ToolCard(props: {
           <span className="min-w-0 flex-1 truncate text-[11px]/[1.3] font-medium text-foreground/80">
             {props.row.name}
           </span>
-          {sum ? (
+          {hint ? (
             <span className="hidden max-w-32 truncate text-[10px]/[1.2] text-muted-foreground/55 md:block">
-              {sum}
+              {hint}
             </span>
           ) : null}
           <IconChevronRight
@@ -438,34 +345,7 @@ const ToolCard = memo(function ToolCard(props: {
             )}
           />
         </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="mt-1 grid gap-1.5 px-1 pb-1">
-            <Section
-              text={props.row.args}
-              code
-              lang={guess(props.row, "args")}
-              minimal
-              error={props.row.error}
-            />
-            <Section
-              text={props.row.result}
-              error={props.row.error}
-              code
-              lang={guess(props.row, "result")}
-              minimal
-            />
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="mt-1 px-1 pb-1">
-            <Section
-              text={txt}
-              error={props.row.error}
-              code
-              lang={guess(props.row, part)}
-              minimal
-            />
-          </div>
-        ) : null}
+        {body ? <div className="mt-1 px-1 pb-1">{body}</div> : null}
       </Collapsible.Root>
     </li>
   );

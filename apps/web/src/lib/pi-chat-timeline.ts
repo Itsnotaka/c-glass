@@ -39,6 +39,7 @@ export type PiRow =
       result: string;
       error: boolean;
       call: PiToolCallBlock | null;
+      details: Record<string, unknown> | null;
     }
   | {
       id: string;
@@ -248,6 +249,7 @@ export function buildPiRows(items: PiSessionItem[]) {
           result: "",
           error: false,
           call: part as PiToolCallBlock,
+          details: null,
         });
         map.set(key, pos);
       }
@@ -269,6 +271,7 @@ export function buildPiRows(items: PiSessionItem[]) {
           name: typeof msg.toolName === "string" ? msg.toolName : row.name,
           result: out,
           error: Boolean(msg.isError),
+          details: msg.details === undefined ? null : (msg.details as Record<string, unknown>),
         };
         continue;
       }
@@ -280,6 +283,7 @@ export function buildPiRows(items: PiSessionItem[]) {
         result: out,
         error: Boolean(msg.isError),
         call: null,
+        details: msg.details === undefined ? null : (msg.details as Record<string, unknown>),
       });
       continue;
     }

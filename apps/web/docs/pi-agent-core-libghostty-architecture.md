@@ -252,7 +252,3 @@ Exit gate: `fmt`, `lint`, `typecheck`, terminal integration tests, and soak metr
 2. Adopting emdash Electron RPC shape directly.
 3. Shipping xterm-style fallback as the "libghostty solution".
 4. Collapsing structured tool metadata back into plain JSON strings.
-
-## Immediate Next Implementation Step
-
-Implement Phase A first: extend session contracts and desktop mapping to preserve tool details and tool lifecycle events. Without this, semantic tool renderers and terminal-aware orchestration cannot be implemented reliably.

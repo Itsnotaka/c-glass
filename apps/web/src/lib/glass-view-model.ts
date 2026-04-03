@@ -1,5 +1,53 @@
 import type { PiSessionSummary } from "@glass/contracts";
 
+function label(cwd: string) {
+  const text = cwd.replace(/[/\\]+$/, "");
+  if (!text) return "Workspace";
+  return text;
+}
+
+export function buildWorkspaceThreadSections(
+  sums: Record<string, PiSessionSummary>,
+  cwd: string | null,
+) {
+  const list = Object.values(sums);
+  if (list.length === 0) return [];
+
+  const by = new Map<string, PiSessionSummary[]>();
+  for (const s of list) {
+    const key = s.cwd || "/";
+    const cur = by.get(key);
+    if (cur) cur.push(s);
+    else by.set(key, [s]);
+  }
+
+  const groups = [...by.entries()].map(([cwd, items]) => {
+    const sorted = items.toSorted((a, b) =>
+      a.modifiedAt < b.modifiedAt ? 1 : a.modifiedAt > b.modifiedAt ? -1 : 0,
+    );
+    const latest = sorted[0]?.modifiedAt ?? "";
+    return { cwd, label: label(cwd), sorted, latest };
+  });
+
+  groups.sort((a, b) => {
+    const left = cwd !== null && a.cwd === cwd;
+    const right = cwd !== null && b.cwd === cwd;
+    if (left && !right) return -1;
+    if (!left && right) return 1;
+    if (a.latest < b.latest) return 1;
+    if (a.latest > b.latest) return -1;
+    return 0;
+  });
+
+  return groups.map((g) => ({
+    id: `ws:${g.cwd}`,
+    label: g.cwd === cwd ? `Current · ${g.label}` : g.label,
+    cwd: g.cwd,
+    active: g.cwd === cwd,
+    ids: g.sorted.map((s) => s.id),
+  })) satisfies GlassSidebarSection[];
+}
+
 export interface GlassSidebarAgent {
   id: string;
   title: string;
@@ -13,6 +61,8 @@ export interface GlassSidebarAgent {
 export interface GlassSidebarSection {
   id: string;
   label: string;
+  cwd: string;
+  active: boolean;
   ids: readonly string[];
 }
 
@@ -27,11 +77,6 @@ function timeAgo(iso: string) {
   if (hr < 24) return `${hr}h`;
   const day = Math.floor(hr / 24);
   return `${day}d`;
-}
-
-export function buildPiSessionSidebarSections(ids: readonly string[]) {
-  if (ids.length === 0) return [];
-  return [{ id: "pi-chats", label: "Chats", ids }] satisfies GlassSidebarSection[];
 }
 
 export function buildPiSessionSidebarAgent(
