@@ -2,13 +2,8 @@ import { useEffect, type ReactNode } from "react";
 
 import { GlassSettingsProvider, useGlassSettings } from "./glass/glass-settings-context";
 import { GlassSettingsDialog } from "./glass/glass-settings-dialog";
-import { GlassShellProvider } from "./glass/glass-shell-context";
-import { Sidebar } from "./sidebar";
-import { Sidebar as SidebarFrame, SidebarProvider, SidebarRail } from "./ui/sidebar";
 
-const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
-const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
-const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;
+import { SidebarProvider } from "./ui/sidebar";
 
 function DesktopMenuBridge(props: { children: ReactNode }) {
   const settings = useGlassSettings();
@@ -32,29 +27,13 @@ function DesktopMenuBridge(props: { children: ReactNode }) {
 
 export function AppSidebarLayout(props: { children: ReactNode }) {
   return (
-    <GlassShellProvider>
-      <GlassSettingsProvider>
-        <DesktopMenuBridge>
-          <SidebarProvider defaultOpen className="min-h-dvh bg-glass-surface">
-            <SidebarFrame
-              side="left"
-              collapsible="offcanvas"
-              className="border-r border-glass-border/80 bg-glass-sidebar text-foreground backdrop-blur-xl"
-              resizable={{
-                minWidth: THREAD_SIDEBAR_MIN_WIDTH,
-                shouldAcceptWidth: (ctx) =>
-                  ctx.wrapper.clientWidth - ctx.nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-                storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-              }}
-            >
-              <Sidebar />
-              <SidebarRail />
-            </SidebarFrame>
-            {props.children}
-          </SidebarProvider>
-          <GlassSettingsDialog />
-        </DesktopMenuBridge>
-      </GlassSettingsProvider>
-    </GlassShellProvider>
+    <GlassSettingsProvider>
+      <DesktopMenuBridge>
+        <SidebarProvider defaultOpen className="min-h-dvh bg-glass-surface">
+          {props.children}
+        </SidebarProvider>
+        <GlassSettingsDialog />
+      </DesktopMenuBridge>
+    </GlassSettingsProvider>
   );
 }

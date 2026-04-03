@@ -1,4 +1,4 @@
-import { FileDiff, parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
+import { FileDiff, type FileDiffMetadata } from "@pierre/diffs";
 import { memo, useMemo } from "react";
 import { cn } from "~/lib/utils";
 
@@ -23,7 +23,11 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
   }
 
   return (
-    <div className={cn("h-full min-h-0 overflow-hidden", props.className)} data-diffs-container>
+    <div
+      className={cn("web-component h-full min-h-0 overflow-hidden", props.className)}
+      data-diffs-container
+    >
+      {/* @ts-expect-error - @pierre/diffs FileDiff has incompatible React types */}
       <FileDiff
         fileDiff={props.fileDiff}
         options={{
@@ -38,125 +42,12 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
 });
 
 /**
- * Parse a patch string into file diffs for use with GlassDiffViewer
- */
-export function parseDiffPatch(patchContent: string): FileDiffMetadata[] {
-  const lines = patchContent.split("\n");
-  const files: FileDiffMetadata[] = [];
-
-  let currentFile: Partial<FileDiffMetadata> | null = null;
-  let additions = 0;
-  let deletions = 0;
-
-  for (const line of lines) {
-    if (line.startsWith("diff --git")) {
-      if (currentFile && currentFile.name) {
-        files.push({
-          ...(currentFile as FileDiffMetadata),
-        });
-      }
-      const match = line.match(/a\/(.+) b\/(.+)/);
-      currentFile = {
-        name: match?.[2] ?? match?.[1] ?? "unknown",
-        path: match?.[2] ?? match?.[1] ?? "unknown",
-        type: "change",
-        hunks: [],
-        splitLineCount: 0,
-        unifiedLineCount: 0,
-        isPartial: true,
-        deletionLines: [],
-        additionLines: [],
-      };
-      additions = 0;
-      deletions = 0;
-    } else if (line.startsWith("new file mode")) {
-      if (currentFile) {
-        currentFile.type = "new";
-      }
-    } else if (line.startsWith("deleted file mode")) {
-      if (currentFile) {
-        currentFile.type = "deleted";
-      }
-    } else if (line.startsWith("rename from")) {
-      if (currentFile) {
-        currentFile.prevName = line.replace("rename from ", "");
-      }
-    } else if (line.startsWith("rename to")) {
-      if (currentFile && currentFile.prevName) {
-        currentFile.type = "rename-changed";
-      }
-    } else if (line.startsWith("--- ")) {
-      // skip
-    } else if (line.startsWith("+++ ")) {
-      // skip
-    } else if (line.startsWith("+") && !line.startsWith("+++")) {
-      additions++;
-      if (currentFile) {
-        currentFile.additionLines = currentFile.additionLines ?? [];
-        currentFile.additionLines.push(line.slice(1));
-      }
-    } else if (line.startsWith("-") && !line.startsWith("---")) {
-      deletions++;
-      if (currentFile) {
-        currentFile.deletionLines = currentFile.deletionLines ?? [];
-        currentFile.deletionLines.push(line.slice(1));
-      }
-    } else if (line.startsWith("@@")) {
-      // Hunk header - simplified parsing
-      if (currentFile) {
-        currentFile.hunks = currentFile.hunks ?? [];
-        // Parse hunk header for line numbers
-        const hunkMatch = line.match(/@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@/);
-        if (hunkMatch) {
-          currentFile.hunks.push({
-            collapsedBefore: 0,
-            additionStart: parseInt(hunkMatch[3], 10),
-            additionCount: parseInt(hunkMatch[4] || "1", 10),
-            additionLines: parseInt(hunkMatch[4] || "1", 10),
-            additionLineIndex: 0,
-            deletionStart: parseInt(hunkMatch[1], 10),
-            deletionCount: parseInt(hunkMatch[2] || "1", 10),
-            deletionLines: parseInt(hunkMatch[2] || "1", 10),
-            deletionLineIndex: 0,
-            hunkContent: [],
-            splitLineStart: 0,
-            splitLineCount: 0,
-            unifiedLineStart: 0,
-            unifiedLineCount: 0,
-            noEOFCRDeletions: false,
-            noEOFCRAdditions: false,
-          });
-        }
-      }
-    }
-  }
-
-  if (currentFile && currentFile.name) {
-    files.push(currentFile as FileDiffMetadata);
-  }
-
-  // If no files parsed, try to parse as unified diff
-  if (files.length === 0 && patchContent.trim()) {
-    const result = parseDiffFromFile({
-      name: "diff.patch",
-      contents: patchContent,
-    });
-    if (result && result.files.length > 0) {
-      return result.files;
-    }
-  }
-
-  return files;
-}
-
-/**
  * Create sample diff data for testing/development
  */
 export function createSampleDiff(): FileDiffMetadata[] {
   return [
     {
       name: "src/components/button.tsx",
-      path: "src/components/button.tsx",
       type: "change",
       hunks: [
         {
@@ -220,7 +111,6 @@ export function createSampleDiff(): FileDiffMetadata[] {
     },
     {
       name: "src/lib/utils.ts",
-      path: "src/lib/utils.ts",
       type: "new",
       hunks: [
         {

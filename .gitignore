@@ -6,6 +6,7 @@ node_modules
 *.tsbuildinfo
 apps/*/dist
 .astro
+.pi/
 packages/*/dist
 .env
 .env.local

@@ -1,4 +1,5 @@
 import { IconArrowOutOfBox } from "central-icons";
+
 const chip =
   "font-glass inline-flex min-h-7 items-center gap-1.5 rounded-full border border-glass-stroke bg-glass-bubble px-2.5 text-xs/[17px] text-muted-foreground shadow-glass-card backdrop-blur-md transition-colors hover:border-glass-stroke-strong hover:bg-glass-hover hover:text-foreground";
 

@@ -1,12 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { GlassEmptyCanvas } from "../components/glass/glass-empty-canvas";
 import { GlassShell } from "../components/glass/glass-shell";
+import { GlassWorkbench } from "../components/glass/workbench";
 import { isElectron } from "../env";
 import { SidebarTrigger } from "../components/ui/sidebar";
+import { usePiIds } from "../lib/pi-session-store";
+import { buildPiSessionSidebarSections } from "../lib/glass-view-model";
 
 function ChatThreadRouteView() {
+  const nav = useNavigate();
   const id = Route.useParams({ select: (p) => p.threadId });
+  const ids = usePiIds();
+  const sections = buildPiSessionSidebarSections(ids);
 
   return (
     <GlassShell>
@@ -19,7 +24,16 @@ function ChatThreadRouteView() {
         </header>
       )}
 
-      <GlassEmptyCanvas sessionId={id} />
+      <GlassWorkbench
+        sessionId={id}
+        sections={sections}
+        selectedId={id}
+        onSelectAgent={(next) => {
+          if (next === id) return;
+          nav({ to: "/$threadId", params: { threadId: next } });
+        }}
+        className="flex-1"
+      />
     </GlassShell>
   );
 }
