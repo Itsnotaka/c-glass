@@ -143,3 +143,38 @@ const table = sqliteTable("session", {
   createdAt: integer("created_at").notNull(),
 });
 ```
+
+## Cursor Cloud specific instructions
+
+### Environment
+
+- Requires Node.js `^24.13.1` (see `engines` in root `package.json`). Install via `nvm install 24`.
+- Package manager is `pnpm@10.33.0` (managed by corepack).
+
+### Monorepo structure
+
+| Package | Path | Purpose |
+|---------|------|---------|
+| `@glass/web` | `apps/web` | React/Vite frontend (renderer UI) |
+| `@glass/desktop` | `apps/desktop` | Electron main process |
+| `@glass/contracts` | `packages/contracts` | Shared types/schemas (must be built before other packages) |
+| `@glass/shared` | `packages/shared` | Shared utilities |
+| `@glass/scripts` | `scripts/` | Build/release tooling |
+
+### Key commands
+
+All commands are in root `package.json`. Highlights:
+
+- `pnpm run build:contracts` -- must run before dev/test/typecheck (turbo `dependsOn` handles this automatically for `dev` and `test` tasks).
+- `pnpm run dev:web` -- starts Vite dev server on port 5733.
+- `pnpm run dev` -- starts full dev mode (desktop + web via turbo).
+- `pnpm run lint` -- oxlint.
+- `pnpm run fmt` -- oxfmt.
+- `pnpm run typecheck` -- tsc across all packages.
+- `pnpm run test` -- vitest via turbo (note: `@glass/contracts` has no test files and its `vitest run` exits non-zero; run individual package tests to avoid this).
+
+### Gotchas
+
+- The web app outside Electron will show "Glass bridge not found" errors when actions requiring `window.glass` IPC are triggered. This is expected -- the full app requires Electron.
+- `pnpm run test` (turbo) will fail because `@glass/contracts` uses `vitest run` without `--passWithNoTests` and has no test files. Individual package tests all pass.
+- No Docker, databases, or external services required. All state is file-based (`~/.glass/`).
