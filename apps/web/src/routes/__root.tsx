@@ -5,12 +5,14 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { QueryClient } from "@tanstack/react-query";
-import { startTransition, useEffect } from "react";
+import { startTransition, useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { readGlass } from "../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
 import { usePiStore } from "../lib/pi-session-store";
+import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
 
@@ -129,42 +131,68 @@ function NotFoundView() {
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   const message = errorMessage(error);
   const details = errorDetails(error);
+  const report = formatErrorReport(error);
+  const href = typeof window !== "undefined" ? window.location.href : "";
+  const { copyToClipboard, isCopied } = useCopyToClipboard();
+
+  const copy = useCallback(async () => {
+    const ok = await copyToClipboard(report);
+    if (ok) toast.success("Copied error report");
+    if (!ok) toast.error("Could not copy");
+  }, [copyToClipboard, report]);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,color-mix(in_srgb,var(--color-destructive)_10%,transparent),transparent)]" />
-      </div>
+    <>
+      <Toaster />
+      <div className="min-h-screen bg-background px-4 py-12 text-foreground sm:px-8">
+        <div className="mx-auto w-full max-w-2xl">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            {APP_DISPLAY_NAME}
+          </p>
 
-      <section className="relative w-full max-w-xl">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
-          {APP_DISPLAY_NAME}
-        </p>
-        <h1 className="mt-4 text-xl font-medium tracking-tight text-foreground/90 sm:text-2xl">
-          Something went wrong
-        </h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/70">{message}</p>
+          <h1 className="mt-6 text-lg font-medium tracking-tight text-foreground sm:text-xl">
+            Something went wrong
+          </h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-foreground/90">{message}</p>
 
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => reset()}>
-            Try again
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
-            Reload app
-          </Button>
+          {href ? (
+            <p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">{href}</p>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button size="sm" onClick={() => reset()}>
+              Try again
+            </Button>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto min-h-0 px-0 py-0 text-[13px] font-normal text-muted-foreground"
+              onClick={() => void copy()}
+              aria-label="Copy full error report to clipboard"
+            >
+              {isCopied ? "Copied" : "Copy error report"}
+            </Button>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto min-h-0 px-0 py-0 text-[13px] font-normal text-muted-foreground"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </Button>
+          </div>
+
+          <div className="mt-10 border-t border-border/60 pt-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+              Stack trace
+            </p>
+            <pre className="mt-3 max-h-[min(28rem,55vh)] overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+              {details}
+            </pre>
+          </div>
         </div>
-
-        <details className="group mt-6 overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm">
-          <summary className="cursor-pointer list-none px-4 py-2.5 text-[11px] font-medium text-muted-foreground/60 transition-colors hover:text-muted-foreground/80">
-            <span className="group-open:hidden">Show details</span>
-            <span className="hidden group-open:inline">Hide details</span>
-          </summary>
-          <pre className="max-h-64 overflow-auto border-t border-border/40 px-4 py-3 font-mono text-[11px]/[1.5] text-foreground/70">
-            {details}
-          </pre>
-        </details>
-      </section>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -194,4 +222,11 @@ function errorDetails(error: unknown) {
   } catch {
     return "No additional error details are available.";
   }
+}
+
+function formatErrorReport(error: unknown) {
+  const lines: string[] = [APP_DISPLAY_NAME];
+  if (typeof window !== "undefined") lines.push(window.location.href);
+  lines.push("", errorMessage(error), "", errorDetails(error));
+  return lines.join("\n");
 }

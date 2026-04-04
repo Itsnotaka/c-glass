@@ -13,6 +13,7 @@ const PREFERRED = [
   ["google-vertex", "gemini-3-pro-preview"],
   ["github-copilot", "gpt-4o"],
   ["openrouter", "openai/gpt-5.1-codex"],
+  ["cursor", "gpt-5.1-codex"],
   ["vercel-ai-gateway", "anthropic/claude-opus-4-6"],
   ["xai", "grok-4-fast-non-reasoning"],
   ["groq", "openai/gpt-oss-120b"],
@@ -30,6 +31,7 @@ const PREFERRED = [
 export interface PiModelItem extends PiModelRef {
   key: string;
   name: string;
+  supportsXhigh: boolean;
 }
 
 export interface PiDefaultsRead {
@@ -59,6 +61,7 @@ function item(model: PiConfig["models"][number]) {
     id: model.id,
     name: model.name || model.id,
     reasoning: model.reasoning,
+    supportsXhigh: model.supportsXhigh,
   };
 }
 

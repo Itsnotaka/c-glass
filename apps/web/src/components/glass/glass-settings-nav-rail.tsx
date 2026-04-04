@@ -4,6 +4,7 @@ import {
   IconAppearanceLightMode,
   IconArchive,
   IconArrowRotateCounterClockwise,
+  IconPuzzle,
 } from "central-icons";
 import type { ComponentType } from "react";
 
@@ -12,21 +13,18 @@ import { useSettingsRestore } from "../settings/settings-panels";
 import { cn } from "../../lib/utils";
 
 const items: {
-  to: "/settings/appearance" | "/settings/agents" | "/settings/archived";
+  to: "/settings/appearance" | "/settings/agents" | "/settings/extensions" | "/settings/archived";
   label: string;
   icon: ComponentType<{ className?: string }>;
 }[] = [
   { to: "/settings/appearance", label: "Appearance", icon: IconAppearanceLightMode },
   { to: "/settings/agents", label: "Agents", icon: IconAgent },
+  { to: "/settings/extensions", label: "Extensions", icon: IconPuzzle },
   { to: "/settings/archived", label: "Archived", icon: IconArchive },
 ];
 
 export function GlassSettingsNavRail(props: { onRestoreTick?: () => void }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(props.onRestoreTick);
-  const base =
-    "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors";
-  const idle = "text-muted-foreground hover:bg-glass-hover hover:text-foreground";
-  const hit = "border-glass-border/90 bg-glass-active text-foreground";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pt-1.5 pb-2">
@@ -38,10 +36,18 @@ export function GlassSettingsNavRail(props: { onRestoreTick?: () => void }) {
               key={item.to}
               to={item.to}
               activeProps={{
-                className: cn(base, hit),
+                className: cn(
+                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors",
+                  "border-glass-border/90 bg-glass-active text-foreground",
+                ),
                 "aria-current": "page",
               }}
-              inactiveProps={{ className: cn(base, idle) }}
+              inactiveProps={{
+                className: cn(
+                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors",
+                  "text-muted-foreground hover:bg-glass-hover hover:text-foreground",
+                ),
+              }}
             >
               <Icon className="size-4 shrink-0 opacity-60" />
               {item.label}

@@ -11,14 +11,10 @@ import type {
 import type { PiModelItem } from "../../lib/pi-models";
 import {
   IconArrowUp,
-  IconChevronRight,
   IconCrossSmall,
   IconFileBend,
-  IconFolder1,
   IconImages1,
   IconPlusLarge,
-  IconSearchIntelligence,
-  IconSparklesSoft,
   IconSquareX,
 } from "central-icons";
 import {
@@ -36,9 +32,19 @@ import { readGlass, getGlass } from "../../host";
 import { usePiModels } from "../../hooks/use-pi-models";
 import { usePiStore } from "../../lib/pi-session-store";
 import { cn } from "../../lib/utils";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { useGlassSettings } from "./glass-settings-context";
-import { applyFile, applySlash, fileMatch, rank, slashMatch } from "./glass-pi-composer-search";
+import {
+  applyFile,
+  applySlash,
+  fileMatch,
+  mirrorActiveSeg,
+  mirrorSegmentsDraft,
+  rankFileHits,
+  slashMatch,
+} from "./glass-pi-composer-search";
+import { buildSlashMenuRows, mergeSlashItems, type SlashMenuRow } from "./glass-slash-registry";
+import { readSlashRecents, recordSlashUse } from "./glass-slash-recents";
+import { GlassComposerTokenMenu } from "./glass-slash-menu";
 import { PiModelPicker } from "./pi-model-picker";
 
 type Pick =
@@ -95,11 +101,6 @@ function size(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function sourceLabel(source: string) {
-  if (source === "app") return "app";
-  return source;
 }
 
 function icon(item: Pick) {
@@ -251,55 +252,6 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
   );
 });
 
-const FilePreview = memo(function FilePreview(props: {
-  item: ShellFileHit | null;
-  preview: ShellFilePreview | null;
-}) {
-  if (!props.item || !props.preview) {
-    return (
-      <div className="flex h-full min-h-56 items-center justify-center px-4 py-6 text-center text-[12px]/[1.45] text-muted-foreground/72">
-        <div className="max-w-52">
-          <div className="mb-2 flex justify-center text-muted-foreground/65">
-            <IconSearchIntelligence className="size-5" />
-          </div>
-          <div>Select a file to preview</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (props.preview.kind === "image" && props.preview.data) {
-    return (
-      <div className="flex h-full min-h-56 flex-col gap-3 p-3">
-        <div className="truncate text-[12px]/[1.2] font-medium text-foreground/84">
-          {props.item.path}
-        </div>
-        <img
-          alt={props.item.name}
-          className="min-h-0 flex-1 rounded-2xl border border-glass-border/40 object-contain bg-black/12"
-          src={`data:${props.preview.mimeType ?? "image/png"};base64,${props.preview.data}`}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full min-h-56 flex-col p-3">
-      <div className="mb-3 truncate text-[12px]/[1.2] font-medium text-foreground/84">
-        {props.item.path}
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-glass-border/40 bg-glass-hover/10">
-        <ScrollArea className="h-full">
-          <pre className="font-glass-mono whitespace-pre-wrap p-3 text-[11px]/[1.45] text-foreground/78">
-            {props.preview.text || "Binary file"}
-            {props.preview.truncated ? "\n\n[truncated]" : ""}
-          </pre>
-        </ScrollArea>
-      </div>
-    </div>
-  );
-});
-
 export const GlassPiComposer = memo(
   function GlassPiComposer(props: Props) {
     const glass = readGlass();
@@ -313,8 +265,10 @@ export const GlassPiComposer = memo(
       ),
     );
     const area = useRef<HTMLTextAreaElement | null>(null);
+    const shellRef = useRef<HTMLDivElement | null>(null);
     const nextCursor = useRef<number | null>(null);
     const [cursor, setCursor] = useState(0);
+    const [composing, setComposing] = useState(false);
     const [files, setFiles] = useState<Pick[]>([]);
     const [drag, setDrag] = useState(false);
     const [remote, setRemote] = useState<PiSlashCommand[]>([]);
@@ -374,9 +328,24 @@ export const GlassPiComposer = memo(
       () => remote.map((item) => ({ ...item, source: item.source })),
       [remote],
     );
-    const cmds = useMemo(
-      () => rank([...locals, ...remotes], slash?.query ?? "", (item) => item.name),
-      [locals, remotes, slash?.query],
+    const [recSnap, setRecSnap] = useState(readSlashRecents);
+    const items = useMemo(() => mergeSlashItems(locals, remotes), [locals, remotes]);
+    const slashRows = useMemo(
+      () => buildSlashMenuRows(items, slash?.query ?? "", recSnap),
+      [items, slash?.query, recSnap],
+    );
+    const options = useMemo(
+      () =>
+        slashRows.flatMap((r): Extract<SlashMenuRow, { kind: "option" }>[] =>
+          r.kind === "option" ? [r] : [],
+        ),
+      [slashRows],
+    );
+    const rankedHits = useMemo(() => rankFileHits(hits, at?.query ?? ""), [hits, at?.query]);
+    const segs = useMemo(() => mirrorSegmentsDraft(props.draft), [props.draft]);
+    const activeSeg = useMemo(
+      () => mirrorActiveSeg(segs, cursor, slash, at),
+      [segs, cursor, slash, at],
     );
 
     useEffect(() => {
@@ -414,15 +383,15 @@ export const GlassPiComposer = memo(
     const open =
       key !== null &&
       key !== closed &&
-      (at ? hits.length > 0 || loading : Boolean(slash && cmds.length > 0));
+      (at ? rankedHits.length > 0 || loading : Boolean(slash && options.length > 0));
     const [index, setIndex] = useState(0);
 
     useEffect(() => {
       setIndex(0);
     }, [at?.token, slash?.query]);
 
-    const filePick = at ? (hits[index] ?? hits[0] ?? null) : null;
-    const cmdPick = !at ? (cmds[index] ?? cmds[0] ?? null) : null;
+    const filePick = at ? (rankedHits[index] ?? rankedHits[0] ?? null) : null;
+    const cmdPick = !at && options[index] ? options[index].item : null;
 
     useEffect(() => {
       if (!glass || !at || !filePick) {
@@ -458,6 +427,8 @@ export const GlassPiComposer = memo(
         return;
       }
       if (slash && cmdPick) {
+        recordSlashUse(cmdPick.id, cmdPick.kind);
+        setRecSnap(readSlashRecents());
         const next = applySlash(props.draft, slash, cmdPick.name);
         setClosed(null);
         update(next.value, next.cursor);
@@ -678,112 +649,40 @@ export const GlassPiComposer = memo(
         });
     };
 
-    const menu = open ? (
-      <div
-        className={cn(
-          "absolute z-30 w-full overflow-hidden rounded-[18px] border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl",
-          props.variant === "dock" ? "bottom-full mb-2" : "top-full mt-2",
-        )}
-      >
-        {at ? (
-          <div className="grid bg-glass-border/20 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-            <div className="min-w-0 border-b border-glass-border/20 md:border-r md:border-b-0">
-              <ScrollArea className="max-h-74">
-                <div className="px-2 py-2">
-                  {hits.map((item: ShellFileHit, i) => {
-                    const active = i === index;
-                    return (
-                      <button
-                        key={item.path}
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded-2xl px-2.5 py-2 text-left transition-colors",
-                          active
-                            ? "bg-glass-active text-foreground"
-                            : "text-foreground/82 hover:bg-glass-hover/40",
-                        )}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          setIndex(i);
-                          const hit = applyFile(props.draft, at, item);
-                          update(hit.value, hit.cursor);
-                        }}
-                        onMouseEnter={() => setIndex(i)}
-                      >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-                          {item.kind === "dir" ? (
-                            <IconFolder1 className="size-4.5" />
-                          ) : item.kind === "image" ? (
-                            <IconImages1 className="size-4.5" />
-                          ) : (
-                            <IconFileBend className="size-4.5" />
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12px]/[1.2] font-medium">
-                            {item.name}
-                          </span>
-                          <span className="block truncate text-[11px]/[1.2] text-muted-foreground/72">
-                            {item.path}
-                          </span>
-                        </span>
-                        {item.kind === "dir" ? (
-                          <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/62" />
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </div>
-            <FilePreview item={filePick} preview={preview} />
-          </div>
-        ) : (
-          <ScrollArea className="max-h-72">
-            <div className="px-2 py-2">
-              {cmds.map((item: Cmd, i) => {
-                const active = i === index;
-                return (
-                  <button
-                    key={`${item.name}:${item.source}`}
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition-colors",
-                      active
-                        ? "bg-glass-active text-foreground"
-                        : "text-foreground/82 hover:bg-glass-hover/40",
-                    )}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      setIndex(i);
-                      const next = applySlash(props.draft, slash!, item.name);
-                      setClosed(null);
-                      update(next.value, next.cursor);
-                    }}
-                    onMouseEnter={() => setIndex(i)}
-                  >
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-                      <IconSparklesSoft className="size-4.5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px]/[1.2] font-medium">
-                        /{item.name}
-                      </span>
-                      <span className="block truncate text-[11px]/[1.2] text-muted-foreground/72">
-                        {item.description || "Command"}
-                      </span>
-                    </span>
-                    <span className="shrink-0 rounded-full border border-glass-border/40 px-1.5 py-0.5 text-[10px]/[1] text-muted-foreground/68">
-                      {sourceLabel(item.source)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        )}
-      </div>
-    ) : null;
+    const menu = (
+      <GlassComposerTokenMenu
+        open={open}
+        onOpenChange={(next) => {
+          if (!next && key) setClosed(key);
+        }}
+        anchor={shellRef}
+        variant={props.variant}
+        mode={at ? "file" : "slash"}
+        slashRows={slashRows}
+        slashActive={index}
+        onSlashHover={setIndex}
+        onSlashPick={(item) => {
+          recordSlashUse(item.id, item.kind);
+          setRecSnap(readSlashRecents());
+          if (!slash) return;
+          const next = applySlash(props.draft, slash, item.name);
+          setClosed(null);
+          update(next.value, next.cursor);
+        }}
+        hits={rankedHits}
+        fileActive={index}
+        onFileHover={setIndex}
+        onFilePick={(hit) => {
+          if (!at) return;
+          const next = applyFile(props.draft, at, hit);
+          setClosed(null);
+          update(next.value, next.cursor);
+        }}
+        filePick={filePick}
+        preview={preview}
+        loading={loading}
+      />
+    );
 
     return (
       <div
@@ -800,6 +699,7 @@ export const GlassPiComposer = memo(
             <div className="relative">
               {menu}
               <div
+                ref={shellRef}
                 className={cn(
                   "overflow-hidden rounded-2xl border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
                   drag && "border-glass-stroke-strong bg-glass-active/18",
@@ -834,61 +734,92 @@ export const GlassPiComposer = memo(
                     ))}
                   </div>
                 ) : null}
-                <textarea
-                  ref={area}
-                  value={props.draft}
-                  onChange={(event) => {
-                    props.onDraft(event.target.value);
-                    setCursor(event.target.selectionStart ?? event.target.value.length);
-                  }}
-                  onClick={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
-                  onKeyUp={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
-                  onSelect={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
-                  onPaste={paste}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    if (!props.busy) setDrag(true);
-                  }}
-                  onDrop={(event) => {
-                    if (props.busy) return;
-                    void drop(event);
-                  }}
-                  placeholder="Message… use / for commands, @ for files"
-                  rows={1}
-                  className="field-sizing-content font-glass block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[13px]/[1.45] text-foreground outline-hidden placeholder:text-muted-foreground"
-                  onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
-                    if (open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                <div className="relative min-h-10">
+                  <div
+                    className="glass-composer-mirror font-glass pointer-events-none absolute inset-0 z-0 px-3 pt-3 pb-1 text-[13px]/[1.45] whitespace-pre-wrap break-words"
+                    aria-hidden
+                  >
+                    {composing ? (
+                      <span className="text-foreground">{props.draft}</span>
+                    ) : (
+                      segs.map((seg, idx) => {
+                        const on = activeSeg === idx;
+                        const cls =
+                          seg.kind === "slash"
+                            ? on
+                              ? "text-primary"
+                              : "text-primary/78"
+                            : seg.kind === "mention"
+                              ? on
+                                ? "text-sky-400"
+                                : "text-sky-400/82"
+                              : "text-foreground";
+                        return (
+                          <span key={`${seg.kind}-${seg.start}-${seg.end}`} className={cls}>
+                            {seg.text}
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+                  <textarea
+                    ref={area}
+                    value={props.draft}
+                    onChange={(event) => {
+                      props.onDraft(event.target.value);
+                      setCursor(event.target.selectionStart ?? event.target.value.length);
+                    }}
+                    onClick={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
+                    onKeyUp={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
+                    onSelect={(event) => setCursor(event.currentTarget.selectionStart ?? 0)}
+                    onCompositionStart={() => setComposing(true)}
+                    onCompositionEnd={() => setComposing(false)}
+                    onPaste={paste}
+                    onDragOver={(event) => {
                       event.preventDefault();
-                      const dir = event.key === "ArrowDown" ? 1 : -1;
-                      setIndex((cur) => {
-                        const max = (at ? hits.length : cmds.length) - 1;
-                        if (max < 0) return 0;
-                        const next = cur + dir;
-                        if (next < 0) return max;
-                        if (next > max) return 0;
-                        return next;
-                      });
-                      return;
-                    }
-                    if (open && (event.key === "Tab" || event.key === "Enter")) {
+                      if (!props.busy) setDrag(true);
+                    }}
+                    onDrop={(event) => {
+                      if (props.busy) return;
+                      void drop(event);
+                    }}
+                    placeholder="Message… use / for commands, @ for files"
+                    rows={1}
+                    className="field-sizing-content font-glass relative z-10 block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[13px]/[1.45] text-transparent caret-foreground outline-hidden placeholder:text-muted-foreground selection:bg-primary/25"
+                    onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+                      if (open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                        event.preventDefault();
+                        const dir = event.key === "ArrowDown" ? 1 : -1;
+                        setIndex((cur) => {
+                          const max = (at ? rankedHits.length : options.length) - 1;
+                          if (max < 0) return 0;
+                          const next = cur + dir;
+                          if (next < 0) return max;
+                          if (next > max) return 0;
+                          return next;
+                        });
+                        return;
+                      }
+                      if (open && (event.key === "Tab" || event.key === "Enter")) {
+                        event.preventDefault();
+                        choose();
+                        return;
+                      }
+                      if (open && event.key === "Escape") {
+                        event.preventDefault();
+                        if (key) setClosed(key);
+                        return;
+                      }
+                      if (event.key !== "Enter" || event.shiftKey) return;
                       event.preventDefault();
-                      choose();
-                      return;
-                    }
-                    if (open && event.key === "Escape") {
-                      event.preventDefault();
-                      if (key) setClosed(key);
-                      return;
-                    }
-                    if (event.key !== "Enter" || event.shiftKey) return;
-                    event.preventDefault();
-                    if (props.busy) {
-                      props.onAbort();
-                      return;
-                    }
-                    submit();
-                  }}
-                />
+                      if (props.busy) {
+                        props.onAbort();
+                        return;
+                      }
+                      submit();
+                    }}
+                  />
+                </div>
                 <div className="flex items-center justify-between gap-2 px-1.5 pt-0 pb-1.5">
                   <div className="flex min-w-0 items-center gap-1">
                     <button

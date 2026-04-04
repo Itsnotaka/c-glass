@@ -81,7 +81,7 @@ function file(tag: string, xy: string, path: string, prev: string | null) {
   } satisfies GitFileSummary;
 }
 
-function rows(raw: string) {
+export function rows(raw: string) {
   const out: GitFileSummary[] = [];
   const vals = raw.split("\0").filter(Boolean);
 
@@ -97,7 +97,7 @@ function rows(raw: string) {
     if (tag === "1") {
       const cols = cur.slice(2).split(" ");
       const xy = cols[0] ?? "..";
-      const path = cols.slice(8).join(" ");
+      const path = cols.slice(7).join(" ");
       if (path) out.push(file(tag, xy, path, null));
       continue;
     }
@@ -105,7 +105,7 @@ function rows(raw: string) {
     if (tag === "2") {
       const cols = cur.slice(2).split(" ");
       const xy = cols[0] ?? "..";
-      const path = cols.slice(9).join(" ");
+      const path = cols.slice(8).join(" ");
       const prev = vals[i + 1] ?? "";
       i += 1;
       if (path && prev) out.push(file(tag, xy, path, prev));
@@ -116,7 +116,7 @@ function rows(raw: string) {
 
     const cols = cur.slice(2).split(" ");
     const xy = cols[0] ?? "..";
-    const path = cols.slice(10).join(" ");
+    const path = cols.slice(9).join(" ");
     if (path) out.push(file(tag, xy, path, null));
   }
 
@@ -124,7 +124,7 @@ function rows(raw: string) {
 }
 
 async function list(cwd: string) {
-  const args = ["status", "--porcelain=v2", "-z"];
+  const args = ["status", "--porcelain=v2", "-z", "--untracked-files=all"];
   const out = await run(cwd, args);
   if (out.code !== 0) throw fail(args, out);
   return rows(out.out).toSorted((left, right) => left.path.localeCompare(right.path));

@@ -21,9 +21,11 @@ export function GlassSettingsShell() {
     ? "Appearance"
     : match({ to: "/settings/agents" })
       ? "Agents"
-      : match({ to: "/settings/archived" })
-        ? "Archived"
-        : "Settings";
+      : match({ to: "/settings/extensions" })
+        ? "Extensions"
+        : match({ to: "/settings/archived" })
+          ? "Archived"
+          : "Settings";
 
   useEffect(() => {
     if (cwd) mute(cwd);

@@ -259,12 +259,12 @@ const Code = memo(function Code(props: { text: string; lang?: string; error?: bo
   return (
     <div
       className={cn(
-        "embed-code max-h-[min(24rem,50vh)] overflow-auto border-l-2 border-glass-border/25 py-1 pl-2.5 pr-0",
-        props.error && "border-destructive/50 bg-destructive/[0.06]",
+        "embed-code max-h-[min(24rem,50vh)] overflow-auto",
+        props.error && "rounded-sm bg-destructive/[0.06]",
       )}
     >
       <Streamdown
-        className="font-glass-mono text-[11px]/[1.4] text-foreground/72"
+        className="font-glass-mono chat-markdown text-[11px]/[1.4] text-foreground"
         controls={controls}
         dir="auto"
         lineNumbers={false}
@@ -371,7 +371,7 @@ function Diff(props: { entries: EditEntry[] }) {
   const lines = props.entries.flatMap(unified);
   if (lines.length === 0) return null;
   return (
-    <div className="overflow-hidden border-l-2 border-glass-border/25">
+    <div className="overflow-hidden">
       <div className="max-h-[min(24rem,50vh)] overflow-auto font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] whitespace-pre-wrap">
         {lines}
       </div>

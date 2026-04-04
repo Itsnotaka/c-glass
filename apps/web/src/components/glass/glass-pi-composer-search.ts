@@ -167,3 +167,108 @@ export function applyFile(value: string, hit: FileMatch, item: ShellFileHit) {
     reopen: item.kind === "dir",
   };
 }
+
+export function rankFileHits(hits: ShellFileHit[], query: string): ShellFileHit[] {
+  const raw = query.trim().toLowerCase();
+  if (!raw) {
+    return hits.toSorted((a, b) => {
+      const diff =
+        a.path.split("/").filter(Boolean).length - b.path.split("/").filter(Boolean).length;
+      if (diff !== 0) return diff;
+      return a.path.localeCompare(b.path);
+    });
+  }
+  const base = rank(hits, query, (h) => h.name);
+  return base.toSorted((a, b) => {
+    const diff =
+      a.path.split("/").filter(Boolean).length - b.path.split("/").filter(Boolean).length;
+    if (diff !== 0) return diff;
+    return a.path.localeCompare(b.path);
+  });
+}
+
+export type MirrorSeg = {
+  kind: "plain" | "slash" | "mention";
+  text: string;
+  start: number;
+  end: number;
+};
+
+function pushSeg(out: MirrorSeg[], kind: MirrorSeg["kind"], text: string, at: number) {
+  if (!text) return;
+  out.push({ kind, text, start: at, end: at + text.length });
+}
+
+function tokenizeLineForMirror(line: string, base: number): MirrorSeg[] {
+  const out: MirrorSeg[] = [];
+  let i = 0;
+  if (line.startsWith("/")) {
+    const sp = line.indexOf(" ");
+    if (sp < 0) {
+      pushSeg(out, "slash", line, base);
+      return out;
+    }
+    pushSeg(out, "slash", line.slice(0, sp), base);
+    i = sp;
+  }
+  while (i < line.length) {
+    const at = line.indexOf("@", i);
+    if (at < 0) {
+      pushSeg(out, "plain", line.slice(i), base + i);
+      break;
+    }
+    pushSeg(out, "plain", line.slice(i, at), base + i);
+    if (line.startsWith('@"', at)) {
+      const end = line.indexOf('"', at + 2);
+      if (end < 0) {
+        pushSeg(out, "mention", line.slice(at), base + at);
+        break;
+      }
+      pushSeg(out, "mention", line.slice(at, end + 1), base + at);
+      i = end + 1;
+      continue;
+    }
+    let j = at + 1;
+    while (j < line.length && !/\s/.test(line[j] ?? "")) j += 1;
+    pushSeg(out, "mention", line.slice(at, j), base + at);
+    i = j;
+  }
+  return out;
+}
+
+export function mirrorSegmentsDraft(value: string): MirrorSeg[] {
+  const lines = value.split("\n");
+  const out: MirrorSeg[] = [];
+  let offset = 0;
+  for (let li = 0; li < lines.length; li += 1) {
+    const line = lines[li] ?? "";
+    out.push(...tokenizeLineForMirror(line, offset));
+    offset += line.length;
+    if (li < lines.length - 1) {
+      pushSeg(out, "plain", "\n", offset);
+      offset += 1;
+    }
+  }
+  return out;
+}
+
+export function mirrorActiveSeg(
+  segs: MirrorSeg[],
+  cursor: number,
+  slash: SlashMatch | null,
+  at: FileMatch | null,
+): number | null {
+  if (slash) {
+    const idx = segs.findIndex(
+      (s) => s.kind === "slash" && slash.start >= s.start && slash.end <= s.end,
+    );
+    return idx >= 0 ? idx : null;
+  }
+  if (at) {
+    const idx = segs.findIndex(
+      (s) => s.kind === "mention" && at.start >= s.start && at.end <= s.end,
+    );
+    return idx >= 0 ? idx : null;
+  }
+  return null;
+}

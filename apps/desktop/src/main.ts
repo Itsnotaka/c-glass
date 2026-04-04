@@ -1365,7 +1365,7 @@ function registerIpcHandlers(): void {
     }
     const id = provider.trim();
     await Effect.runPromise(
-      pi.oauthLogin(id, {
+      pi.oauthLogin(shellService.cwd, id, {
         onAuth: (info) => {
           if (info.url) void shell.openExternal(info.url);
         },
@@ -1410,6 +1410,7 @@ function registerIpcHandlers(): void {
     const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
     const next = await Effect.runPromise(shellService.pickWorkspace(owner));
     if (next) {
+      await pi.init(next.cwd);
       clearAllWatchedSessions();
       const state = await Effect.runPromise(gitService.refresh(next.cwd));
       restartGitWatch(state.gitRoot);
@@ -1425,6 +1426,7 @@ function registerIpcHandlers(): void {
     }
     clearAllWatchedSessions();
     const next = await Effect.runPromise(shellService.setWorkspace(cwd));
+    await pi.init(next.cwd);
     const state = await Effect.runPromise(gitService.refresh(next.cwd));
     restartGitWatch(state.gitRoot);
     emitGlassBootRefresh();
@@ -1657,6 +1659,7 @@ configureAppIdentity();
 
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
+  await pi.init(shellService.cwd);
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
   await Effect.runPromise(

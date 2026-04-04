@@ -9,8 +9,10 @@ import { ScrollArea } from "~/components/ui/scroll-area";
 import { GlassDiffViewer } from "./diff-viewer";
 
 function displayName(path: string) {
-  const i = path.lastIndexOf("/");
-  return i >= 0 ? path.slice(i + 1) : path;
+  const next = path.replace(/\/+$/, "");
+  const i = next.lastIndexOf("/");
+  if (i >= 0) return next.slice(i + 1) || next;
+  return next || path;
 }
 
 function KindBadge(props: { state: GitFileState }) {
@@ -136,15 +138,14 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-[var(--glass-header-height)] shrink-0 items-center justify-between border-b border-glass-border/40 px-3">
-        <h2 className="text-[12px]/[1.2] font-semibold text-foreground/85">Changes</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex h-[var(--glass-header-height)] shrink-0 items-center justify-end border-b border-glass-border/40 pl-3 pr-[calc(var(--glass-workbench-toggle-right)+var(--glass-workbench-changes-toggle-w))]">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-glass-border/40 bg-glass-hover/15 p-0.5">
             <button
               type="button"
               onClick={() => git.setDiffStyle("unified")}
               className={cn(
-                "rounded px-2 py-0.5 text-[10px]/[1] font-medium transition-colors",
+                "font-glass glass-sidebar-label rounded px-2 py-0.5 transition-colors",
                 git.diffStyle === "unified"
                   ? "bg-glass-active/80 text-foreground"
                   : "text-muted-foreground/70 hover:text-foreground",
@@ -156,7 +157,7 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
               type="button"
               onClick={() => git.setDiffStyle("split")}
               className={cn(
-                "rounded px-2 py-0.5 text-[10px]/[1] font-medium transition-colors",
+                "font-glass glass-sidebar-label rounded px-2 py-0.5 transition-colors",
                 git.diffStyle === "split"
                   ? "bg-glass-active/80 text-foreground"
                   : "text-muted-foreground/70 hover:text-foreground",

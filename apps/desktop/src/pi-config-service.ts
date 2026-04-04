@@ -2,14 +2,19 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
+import { supportsXhigh } from "@mariozechner/pi-ai";
 import type { OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import type { PiConfig, PiThinkingLevel } from "@glass/contracts";
 import {
   AuthStorage,
+  DefaultResourceLoader,
+  ExtensionRunner,
   ModelRegistry,
+  SessionManager,
   SettingsManager,
   getAgentDir,
 } from "@mariozechner/pi-coding-agent";
+import { cursorExtension, registerCursorProvider, syncCursorProvider } from "./cursor-provider";
 
 function trim(value: unknown) {
   if (typeof value !== "string") return null;
@@ -41,6 +46,31 @@ function key(provider: string, model: string) {
   return `${provider}/${model}`;
 }
 
+function scope(cwd: string, file: string) {
+  const full = Path.resolve(file);
+  const proj = Path.resolve(cwd, ".pi", "agent", "extensions") + Path.sep;
+  if (full.startsWith(proj)) return "project" as const;
+  const user = Path.resolve(getAgentDir(), "extensions") + Path.sep;
+  if (full.startsWith(user)) return "user" as const;
+  return "other" as const;
+}
+
+function extDto(cwd: string, item: { path: string; resolvedPath: string }) {
+  return {
+    name: Path.basename(item.path, Path.extname(item.path)) || item.path,
+    path: item.path,
+    resolvedPath: item.resolvedPath,
+    scope: scope(cwd, item.resolvedPath),
+  };
+}
+
+function errDto(item: { path: string; error: string }) {
+  return {
+    path: item.path,
+    error: item.error,
+  };
+}
+
 function modelDto(model: ReturnType<ModelRegistry["getAll"]>[number]) {
   return {
     provider: model.provider,
@@ -49,6 +79,7 @@ function modelDto(model: ReturnType<ModelRegistry["getAll"]>[number]) {
     api: String(model.api ?? ""),
     baseUrl: model.baseUrl ?? "",
     reasoning: Boolean(model.reasoning),
+    supportsXhigh: supportsXhigh(model),
     input: model.input ?? ["text"],
     cost: model.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: model.contextWindow ?? 0,
@@ -56,6 +87,59 @@ function modelDto(model: ReturnType<ModelRegistry["getAll"]>[number]) {
     ...(model.compat !== undefined ? { compat: model.compat } : {}),
   };
 }
+
+const core = {
+  sendMessage() {},
+  sendUserMessage() {},
+  appendEntry() {},
+  setSessionName() {},
+  getSessionName() {
+    return undefined;
+  },
+  setLabel() {},
+  getActiveTools() {
+    return [];
+  },
+  getAllTools() {
+    return [];
+  },
+  setActiveTools() {},
+  refreshTools() {},
+  getCommands() {
+    return [];
+  },
+  setModel() {
+    return Promise.resolve(true);
+  },
+  getThinkingLevel() {
+    return "off" as const;
+  },
+  setThinkingLevel() {},
+};
+
+const ctx = {
+  getModel() {
+    return undefined;
+  },
+  isIdle() {
+    return true;
+  },
+  getSignal() {
+    return undefined;
+  },
+  abort() {},
+  hasPendingMessages() {
+    return false;
+  },
+  getContextUsage() {
+    return undefined;
+  },
+  compact() {},
+  getSystemPrompt() {
+    return "";
+  },
+  shutdown() {},
+};
 
 function providerDto(input: {
   provider: string;
@@ -75,6 +159,57 @@ export class PiConfigService {
   auth = AuthStorage.create(Path.join(getAgentDir(), "auth.json"));
   reg = ModelRegistry.create(this.auth, Path.join(getAgentDir(), "models.json"));
   runtime = new Set<string>();
+  initp: Promise<void> | null = null;
+  initcwd: string | null = null;
+  exts: PiConfig["extensions"] = [];
+  xerrs: PiConfig["extensionErrors"] = [];
+
+  constructor() {
+    registerCursorProvider(this.reg);
+  }
+
+  init(cwd: string) {
+    if (this.initp && this.initcwd === cwd) return this.initp;
+
+    this.initcwd = cwd;
+    this.initp = (async () => {
+      this.exts = [];
+      this.xerrs = [];
+
+      const loader = new DefaultResourceLoader({
+        cwd,
+        agentDir: getAgentDir(),
+        settingsManager: this.settings(cwd),
+        extensionFactories: [cursorExtension],
+        noSkills: true,
+        noPromptTemplates: true,
+        noThemes: true,
+      });
+
+      try {
+        await loader.reload();
+        const exts = loader.getExtensions();
+        this.exts = exts.extensions.map((item) => extDto(cwd, item));
+        this.xerrs = exts.errors.map((item) => errDto(item));
+
+        const runner = new ExtensionRunner(
+          exts.extensions,
+          exts.runtime,
+          cwd,
+          SessionManager.inMemory(cwd),
+          this.reg,
+        );
+        runner.bindCore(core, ctx);
+        this.sync();
+      } catch (err) {
+        this.xerrs = [
+          { path: "<loader>", error: err instanceof Error ? err.message : String(err) },
+        ];
+      }
+    })();
+
+    return this.initp;
+  }
 
   sync() {
     for (const provider of this.runtime) {
@@ -117,6 +252,7 @@ export class PiConfigService {
     const out = [
       ...mgr.drainErrors().map((err) => `${err.scope} settings: ${err.error.message}`),
       ...this.auth.drainErrors().map((err) => `auth: ${err.message}`),
+      ...this.xerrs.map((err) => `extensions: ${err.path}: ${err.error}`),
       this.reg.getError(),
     ].filter(Boolean);
     return out.length > 0 ? out.join("\n\n") : null;
@@ -166,6 +302,8 @@ export class PiConfigService {
           }),
         ),
         models: all.map((model) => modelDto(model)),
+        extensions: this.exts,
+        extensionErrors: this.xerrs,
         available: available.map((model) => key(model.provider, model.id)),
         error: this.errs(cwd),
       };
@@ -218,12 +356,16 @@ export class PiConfigService {
     });
   }
 
-  oauthLogin(provider: string, callbacks: OAuthLoginCallbacks) {
+  oauthLogin(cwd: string, provider: string, callbacks: OAuthLoginCallbacks) {
     return Effect.tryPromise({
       try: async () => {
+        await this.init(cwd);
         this.sync();
         await this.auth.login(provider, callbacks);
         this.reg.refresh();
+        if (provider === "cursor") {
+          await syncCursorProvider(this.reg, await this.auth.getApiKey(provider));
+        }
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),
     });

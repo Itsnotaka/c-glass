@@ -12,6 +12,14 @@ export type ColorPaletteId = "glass" | "pierre";
 const GLASS_APPEARANCE_EVENT = "glass-appearance-changed";
 
 let listeners: Array<() => void> = [];
+const keys = new Set([
+  STORAGE_COLOR_PALETTE,
+  STORAGE_REDUCE_TRANSPARENCY,
+  STORAGE_UI_FONT_SIZE,
+  STORAGE_CODE_FONT_SIZE,
+  STORAGE_UI_FONT,
+  STORAGE_CODE_FONT,
+]);
 
 function emit() {
   for (const fn of listeners) fn();
@@ -20,8 +28,18 @@ function emit() {
 
 export function subscribeGlassAppearance(cb: () => void) {
   listeners.push(cb);
+
+  const sync = (event: StorageEvent) => {
+    if (event.storageArea !== localStorage) return;
+    if (event.key !== null && !keys.has(event.key)) return;
+    applyGlassAppearance();
+  };
+
+  window.addEventListener("storage", sync);
+
   return () => {
     listeners = listeners.filter((x) => x !== cb);
+    window.removeEventListener("storage", sync);
   };
 }
 
@@ -144,7 +162,16 @@ export function setCodeFontFamily(css: string) {
   applyGlassAppearance();
 }
 
-export function readGlassAppearanceSnapshot() {
+type GlassAppearanceSnapshot = {
+  readonly palette: ColorPaletteId;
+  readonly reduceTransparency: boolean;
+  readonly uiFontSize: number;
+  readonly codeFontSize: number;
+  readonly uiFont: string;
+  readonly codeFont: string;
+};
+
+function buildSnapshot(): GlassAppearanceSnapshot {
   return {
     palette: getColorPalette(),
     reduceTransparency: localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1",
@@ -152,5 +179,24 @@ export function readGlassAppearanceSnapshot() {
     codeFontSize: parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18),
     uiFont: localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "",
     codeFont: localStorage.getItem(STORAGE_CODE_FONT)?.trim() ?? "",
-  } as const;
+  };
+}
+
+let cached: GlassAppearanceSnapshot | undefined;
+
+export function readGlassAppearanceSnapshot() {
+  const next = buildSnapshot();
+  if (
+    cached &&
+    cached.palette === next.palette &&
+    cached.reduceTransparency === next.reduceTransparency &&
+    cached.uiFontSize === next.uiFontSize &&
+    cached.codeFontSize === next.codeFontSize &&
+    cached.uiFont === next.uiFont &&
+    cached.codeFont === next.codeFont
+  ) {
+    return cached;
+  }
+  cached = next;
+  return next;
 }

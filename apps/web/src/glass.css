@@ -14,6 +14,8 @@
   --glass-sidebar-label-leading: var(--glass-sidebar-label-leading-user, 1.35);
   --glass-workbench-toggle-left: var(--glass-workbench-toggle-left-user, 12px);
   --glass-workbench-toggle-right: var(--glass-workbench-toggle-right-user, 12px);
+  /* Width of floating Changes chip (label + count + icon) in GlassAppShell; right panel header pads by this + toggle-right */
+  --glass-workbench-changes-toggle-w: var(--glass-workbench-changes-toggle-w-user, 7rem);
   --glass-radius-card: var(--glass-radius-card-user, 12px);
   --glass-radius-chip: var(--glass-radius-chip-user, 20px);
   /* Composer toolbar icons (+, send, model row, quick actions); override via Appearance */
@@ -63,6 +65,10 @@
   --glass-color-active: color-mix(in srgb, var(--color-black) 7%, transparent);
   --glass-shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.18);
+  --glass-shell-blur: 28px;
+  --glass-shell-saturate: 160%;
+  --glass-shell-sidebar-bg: color-mix(in srgb, var(--glass-color-sidebar) 72%, transparent);
+  --glass-shell-surface-bg: color-mix(in srgb, var(--glass-color-surface) 78%, transparent);
 }
 
 [data-electron] {
@@ -111,6 +117,28 @@
 html.glass-reduce-transparency {
   --glass-color-bubble: var(--glass-color-bubble-opaque);
   --glass-color-menubar: var(--glass-color-editor);
+  --glass-shell-blur: 0px;
+  --glass-shell-saturate: 100%;
+  --glass-shell-sidebar-bg: var(--glass-color-sidebar);
+  --glass-shell-surface-bg: var(--glass-color-surface);
+}
+
+.glass-shell-sidebar,
+.glass-shell-surface {
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--background) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--glass-color-border) 65%, transparent);
+  backdrop-filter: blur(var(--glass-shell-blur)) saturate(var(--glass-shell-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-shell-blur)) saturate(var(--glass-shell-saturate));
+}
+
+.glass-shell-sidebar {
+  background: var(--glass-shell-sidebar-bg);
+}
+
+.glass-shell-surface {
+  background: var(--glass-shell-surface-bg);
 }
 
 body {
@@ -121,6 +149,37 @@ body {
       transparent 58%
     ),
     var(--glass-color-surface);
+}
+
+.glass-settings-page {
+  font-family: var(--glass-font-ui);
+  font-size: var(--glass-ui-font-size-user, 13px);
+}
+
+.glass-settings-page button,
+.glass-settings-page input,
+.glass-settings-page [data-slot="button"],
+.glass-settings-page [data-slot="input-control"] {
+  font-family: inherit;
+  font-size: var(--glass-ui-font-size-user, 13px);
+}
+
+.glass-settings-page [data-glass-settings-title] {
+  font-size: calc(var(--glass-ui-font-size-user, 13px) * 2);
+  line-height: 1.08;
+}
+
+.glass-settings-page [data-glass-settings-lead],
+.glass-settings-page [data-glass-settings-section],
+.glass-settings-page [data-glass-settings-label],
+.glass-settings-page [data-glass-settings-description],
+.glass-settings-page [data-glass-settings-number] {
+  font-size: var(--glass-ui-font-size-user, 13px);
+}
+
+.glass-settings-page [data-glass-settings-description],
+.glass-settings-page [data-glass-settings-lead] {
+  line-height: 1.45;
 }
 
 /* Pierre diffs CSS bridge - maps to glass design tokens */
@@ -149,6 +208,23 @@ body {
   display: block;
   max-width: 100%;
   min-width: 0;
+}
+
+/*
+ * Slash / @ mention launcher shell — upstream Cursor selectors:
+ * `.ui-slash-menu__content--glass`, `.ui-mention-menu-side-preview--glass`
+ * (`workbench.desktop.main.css` in Cursor.app). Ported to Tailwind: `rounded-[18px]`,
+ * `border-glass-stroke`, `bg-glass-bubble`, `shadow-glass-popup`, `backdrop-blur-xl`.
+ */
+.glass-slash-menu-popup {
+  box-shadow: var(--glass-shadow-popup);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-composer-token-menu {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 /* Skill/mention highlighting in composer */

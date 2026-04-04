@@ -6,9 +6,16 @@ import {
   IconSidebarHiddenLeftWide,
   IconSidebarHiddenRightWide,
 } from "central-icons";
-import { type ReactNode } from "react";
+import { type PointerEvent as Evt, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { cn } from "../../lib/utils";
+
+type Side = "left" | "right";
+
+const limit = {
+  left: { min: 180, max: 400 },
+  right: { min: 280, max: 600 },
+} as const;
 
 export type GlassAppShellPanels = {
   leftOpen: boolean;
@@ -35,6 +42,126 @@ export function GlassAppShell(props: {
   const p = props.panels;
   const electron = typeof window !== "undefined" && window.glass !== undefined;
   const showRight = props.right !== null;
+  const leftRef = useRef<HTMLElement | null>(null);
+  const rightRef = useRef<HTMLElement | null>(null);
+  const live = useRef({ left: p.leftW, right: p.rightW });
+  const drag = useRef<{
+    base: number;
+    id: number;
+    next: number;
+    raf: number | null;
+    rail: HTMLDivElement;
+    side: Side;
+    start: number;
+    w: number;
+  } | null>(null);
+  const [side, setSide] = useState<Side | null>(null);
+
+  useEffect(() => {
+    if (side !== "left") {
+      live.current.left = p.leftW;
+    }
+  }, [p.leftW, side]);
+
+  useEffect(() => {
+    if (side !== "right") {
+      live.current.right = p.rightW;
+    }
+  }, [p.rightW, side]);
+
+  useEffect(() => {
+    return () => {
+      const item = drag.current;
+      if (item?.raf != null) {
+        window.cancelAnimationFrame(item.raf);
+      }
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    };
+  }, []);
+
+  const stop = (id: number) => {
+    const item = drag.current;
+    if (!item || item.id !== id) return;
+
+    const next = item.raf === null ? item.w : item.next;
+    if (item.raf != null) {
+      window.cancelAnimationFrame(item.raf);
+    }
+
+    live.current[item.side] = next;
+    drag.current = null;
+    setSide(null);
+
+    if (item.rail.hasPointerCapture(id)) {
+      item.rail.releasePointerCapture(id);
+    }
+    document.body.style.removeProperty("cursor");
+    document.body.style.removeProperty("user-select");
+
+    if (item.side === "left") {
+      p.setLeftWidth(next);
+      return;
+    }
+    p.setRightWidth(next);
+  };
+
+  const begin = (side: Side) => (e: Evt<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const node = side === "left" ? leftRef.current : rightRef.current;
+    if (!node) return;
+
+    const w = live.current[side];
+    drag.current = {
+      base: w,
+      id: e.pointerId,
+      next: w,
+      raf: null,
+      rail: e.currentTarget,
+      side,
+      start: e.clientX,
+      w,
+    };
+    setSide(side);
+    node.style.width = `${w}px`;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  };
+
+  const move = (e: Evt<HTMLDivElement>) => {
+    const item = drag.current;
+    if (!item || item.id !== e.pointerId) return;
+
+    const delta = item.side === "left" ? e.clientX - item.start : item.start - e.clientX;
+    item.next = Math.max(limit[item.side].min, Math.min(limit[item.side].max, item.base + delta));
+    if (item.raf !== null) {
+      e.preventDefault();
+      return;
+    }
+
+    item.raf = window.requestAnimationFrame(() => {
+      const next = drag.current;
+      if (!next) return;
+
+      next.raf = null;
+      next.w = next.next;
+      live.current[next.side] = next.next;
+      const node = next.side === "left" ? leftRef.current : rightRef.current;
+      if (!node) return;
+      node.style.width = `${next.next}px`;
+    });
+    e.preventDefault();
+  };
+
+  const up = (e: Evt<HTMLDivElement>) => {
+    stop(e.pointerId);
+    e.preventDefault();
+  };
+
+  const leftW = p.leftOpen ? (side === "left" ? live.current.left : p.leftW) : 0;
+  const rightW = p.rightOpen ? (side === "right" ? live.current.right : p.rightW) : 0;
 
   return (
     <div
@@ -43,38 +170,28 @@ export function GlassAppShell(props: {
     >
       {/* Full-height sidebar */}
       <aside
-        className="relative flex shrink-0 flex-col overflow-hidden border-glass-border/50 bg-glass-sidebar transition-[width] duration-150 ease-out"
+        className={cn(
+          "glass-shell-sidebar relative flex shrink-0 flex-col overflow-hidden border-glass-border/50",
+          side === "left" ? "transition-none" : "transition-[width] duration-150 ease-out",
+        )}
+        ref={leftRef}
         style={{
-          width: p.leftOpen ? p.leftW : 0,
+          width: leftW,
           borderRightWidth: p.leftOpen ? 1 : 0,
         }}
       >
-        <div
-          aria-hidden={!p.leftOpen}
-          className="flex h-full min-h-0 flex-col"
-          style={{ width: p.leftW }}
-        >
+        <div aria-hidden={!p.leftOpen} className="flex h-full min-h-0 w-full flex-col">
           {props.left}
         </div>
         {p.leftOpen ? (
           <div
-            className="absolute top-0 right-0 z-10 h-full w-1 cursor-col-resize"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const startX = e.clientX;
-              const startW = p.leftW;
-              const onMove = (ev: MouseEvent) => {
-                p.setLeftWidth(startW + (ev.clientX - startX));
-              };
-              const onUp = () => {
-                document.removeEventListener("mousemove", onMove);
-                document.removeEventListener("mouseup", onUp);
-              };
-              document.addEventListener("mousemove", onMove);
-              document.addEventListener("mouseup", onUp);
-            }}
+            className="absolute top-0 right-0 z-10 h-full w-1 touch-none cursor-col-resize"
+            onPointerCancel={up}
+            onPointerDown={begin("left")}
+            onPointerMove={move}
+            onPointerUp={up}
           >
-            <div className="h-full w-full hover:bg-muted-foreground/20" />
+            <div className="h-full w-full hover:bg-glass-hover/70" />
           </div>
         ) : null}
       </aside>
@@ -87,38 +204,28 @@ export function GlassAppShell(props: {
           </main>
           {showRight ? (
             <aside
-              className="relative flex shrink-0 flex-col overflow-hidden border-glass-border/50 bg-glass-surface transition-[width] duration-150 ease-out"
+              className={cn(
+                "glass-shell-surface relative flex shrink-0 flex-col overflow-hidden border-glass-border/50",
+                side === "right" ? "transition-none" : "transition-[width] duration-150 ease-out",
+              )}
+              ref={rightRef}
               style={{
-                width: p.rightOpen ? p.rightW : 0,
+                width: rightW,
                 borderLeftWidth: p.rightOpen ? 1 : 0,
               }}
             >
-              <div
-                aria-hidden={!p.rightOpen}
-                className="flex h-full min-h-0 flex-col"
-                style={{ width: p.rightW }}
-              >
+              <div aria-hidden={!p.rightOpen} className="flex h-full min-h-0 w-full flex-col">
                 {props.right}
               </div>
               {p.rightOpen ? (
                 <div
-                  className="absolute top-0 left-0 z-10 h-full w-1 cursor-col-resize"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startW = p.rightW;
-                    const onMove = (ev: MouseEvent) => {
-                      p.setRightWidth(startW + (startX - ev.clientX));
-                    };
-                    const onUp = () => {
-                      document.removeEventListener("mousemove", onMove);
-                      document.removeEventListener("mouseup", onUp);
-                    };
-                    document.addEventListener("mousemove", onMove);
-                    document.addEventListener("mouseup", onUp);
-                  }}
+                  className="absolute top-0 left-0 z-10 h-full w-1 touch-none cursor-col-resize"
+                  onPointerCancel={up}
+                  onPointerDown={begin("right")}
+                  onPointerMove={move}
+                  onPointerUp={up}
                 >
-                  <div className="h-full w-full hover:bg-muted-foreground/20" />
+                  <div className="h-full w-full hover:bg-glass-hover/70" />
                 </div>
               ) : null}
             </aside>
@@ -163,20 +270,20 @@ export function GlassAppShell(props: {
               type="button"
               onClick={() => p.toggleRight()}
               className={cn(
-                "pointer-events-auto no-drag flex h-6 min-h-6 items-center gap-1 rounded-md px-2 text-[11px] font-medium leading-none transition-colors",
+                "pointer-events-auto no-drag font-glass glass-sidebar-label flex min-h-7 items-center gap-1 rounded-md px-2 transition-colors",
                 p.rightOpen
                   ? "bg-glass-active/60 text-foreground"
                   : "text-muted-foreground/70 hover:bg-glass-hover hover:text-foreground",
               )}
             >
               <span>Changes</span>
-              <span className="flex h-4 min-w-4 items-center justify-center rounded bg-muted-foreground/20 px-1 text-[10px]">
+              <span className="flex min-w-4 items-center justify-center rounded bg-muted-foreground/20 px-1 py-0.5 text-inherit tabular-nums">
                 {props.changesCount}
               </span>
               {p.rightOpen ? (
-                <IconSidebarHiddenRightWide className="size-4 opacity-60" />
+                <IconSidebarHiddenRightWide className="glass-composer-icon opacity-60" />
               ) : (
-                <IconSidebar className="size-4 opacity-60" />
+                <IconSidebar className="glass-composer-icon opacity-60" />
               )}
             </button>
           </div>

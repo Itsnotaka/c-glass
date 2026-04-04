@@ -33,6 +33,7 @@ export const PiModel = Schema.Struct({
   api: Schema.String,
   baseUrl: Schema.String,
   reasoning: Schema.Boolean,
+  supportsXhigh: Schema.Boolean,
   input: Schema.Array(Schema.Literals(["text", "image"])),
   cost: PiModelCost,
   contextWindow: Schema.Number,
@@ -52,6 +53,23 @@ export const PiProviderState = Schema.Struct({
 });
 export type PiProviderState = typeof PiProviderState.Type;
 
+export const PiExtensionScope = Schema.Literals(["user", "project", "other"]);
+export type PiExtensionScope = typeof PiExtensionScope.Type;
+
+export const PiExtension = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  path: Schema.String,
+  resolvedPath: Schema.String,
+  scope: PiExtensionScope,
+});
+export type PiExtension = typeof PiExtension.Type;
+
+export const PiExtensionError = Schema.Struct({
+  path: Schema.String,
+  error: Schema.String,
+});
+export type PiExtensionError = typeof PiExtensionError.Type;
+
 export const PiDefaults = Schema.Struct({
   provider: Schema.NullOr(TrimmedNonEmptyString),
   model: Schema.NullOr(TrimmedNonEmptyString),
@@ -68,6 +86,8 @@ export const PiConfig = Schema.Struct({
   defaults: PiDefaults,
   providers: Schema.Array(PiProviderState),
   models: Schema.Array(PiModel),
+  extensions: Schema.Array(PiExtension),
+  extensionErrors: Schema.Array(PiExtensionError),
   available: Schema.Array(TrimmedNonEmptyString),
   error: Schema.NullOr(Schema.String),
 });

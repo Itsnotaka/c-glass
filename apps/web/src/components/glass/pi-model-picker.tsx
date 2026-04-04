@@ -81,6 +81,11 @@ export function thinkingDetailLabel(level: PiThinkingLevel) {
   return row?.label ?? level;
 }
 
+function clamp(level: PiThinkingLevel, xhigh: boolean) {
+  if (level === "xhigh" && !xhigh) return "high";
+  return level;
+}
+
 export type PiModelPickerSelection = {
   model: PiModelRef | null;
   thinkingLevel?: PiThinkingLevel;
@@ -108,19 +113,24 @@ export function PiModelPicker(props: {
       ),
     [props.items, props.selection.model],
   );
+  const xhigh = Boolean(cur?.supportsXhigh);
+  const thinkingItems = useMemo(
+    () => (xhigh ? thinkingOptions : thinkingOptions.filter((item) => item.value !== "xhigh")),
+    [xhigh],
+  );
 
   useEffect(() => {
     if (open) return;
     setQuery("");
   }, [open]);
 
-  const thinkingValue = props.selection.thinkingLevel ?? "off";
+  const thinkingValue = clamp(props.selection.thinkingLevel ?? "off", xhigh);
   const status = props.status ?? (props.loading ? "loading" : "ready");
   const busy = status === "loading";
   const failed = status === "error";
   const idle = !props.disabled && !busy && !failed && props.items.length > 0;
   const locked = (props.disabled ?? false) || busy || failed;
-  const showThinking = Boolean(props.onThinkingLevel && props.items.some((x) => x.reasoning));
+  const showThinking = Boolean(props.onThinkingLevel && cur?.reasoning);
 
   const triggerLabel = busy
     ? "Loading models"
@@ -311,7 +321,7 @@ export function PiModelPicker(props: {
                               props.onThinkingLevel?.(v as PiThinkingLevel);
                             }}
                           >
-                            {thinkingOptions.map((opt) => (
+                            {thinkingItems.map((opt) => (
                               <Menu.RadioItem
                                 key={opt.value}
                                 value={opt.value}

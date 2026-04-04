@@ -29,7 +29,7 @@ export function Sidebar() {
   }, [bump, navigate]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-glass-sidebar/90 px-4 backdrop-blur-xl">
+    <div className="glass-shell-sidebar flex h-full min-h-0 flex-col px-4">
       <GlassSidebarHeader onNewAgent={create} />
       <GlassAgentList
         loading={agents.loading}

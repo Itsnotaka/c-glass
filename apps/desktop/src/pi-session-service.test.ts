@@ -78,10 +78,16 @@ const mocks = vi.hoisted(() => {
       getSessionDir: () => `${session.sessionManager.getCwd()}/.sessions`,
     })),
     listSessions: vi.fn(async () => []),
+    createLoader: vi.fn(
+      class {
+        reload = vi.fn(async () => {});
+      },
+    ),
   };
 });
 
 vi.mock("@mariozechner/pi-coding-agent", () => ({
+  DefaultResourceLoader: mocks.createLoader,
   SessionManager: {
     create: mocks.createSessionManager,
     open: mocks.openSessionManager,
@@ -113,6 +119,7 @@ describe("PiSessionService", () => {
     mocks.session.abort.mockClear();
     mocks.session.dispose.mockClear();
     mocks.createAgentSession.mockClear();
+    mocks.createLoader.mockClear();
     mocks.createSessionManager.mockClear();
     mocks.openSessionManager.mockClear();
     mocks.listSessions.mockResolvedValue([]);
@@ -131,6 +138,7 @@ describe("PiSessionService", () => {
       reg: { find: vi.fn(() => null) },
       auth: {},
       settings: vi.fn(() => ({})),
+      paths: vi.fn(() => ({ agent: dir })),
     };
     const shell = { cwd: dir };
     const service = new PiSessionService(
@@ -183,6 +191,7 @@ describe("PiSessionService", () => {
       reg: { find: vi.fn(() => null) },
       auth: {},
       settings: vi.fn(() => ({})),
+      paths: vi.fn(() => ({ agent: dir })),
     };
     const shell = { cwd: dir };
     const service = new PiSessionService(
@@ -240,6 +249,7 @@ describe("PiSessionService", () => {
       reg: { find: vi.fn(() => null) },
       auth: {},
       settings: vi.fn(() => ({})),
+      paths: vi.fn(() => ({ agent: dir })),
     };
     const shell = { cwd: dir };
     const service = new PiSessionService(

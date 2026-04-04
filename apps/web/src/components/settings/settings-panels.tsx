@@ -1,4 +1,4 @@
-import type { ShellState } from "@glass/contracts";
+import type { PiConfig, ShellState } from "@glass/contracts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconArrowRotateCounterClockwise } from "central-icons";
 
@@ -36,12 +36,12 @@ import { PiModelPicker } from "../glass/pi-model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
-const settingsShell = "mx-auto w-full max-w-2xl px-1 py-2";
-
 function SettingsSection(props: { label: string; children: ReactNode }) {
   return (
     <div className="mt-8 first:mt-0">
-      <div className="mb-2 font-medium text-muted-foreground text-sm">{props.label}</div>
+      <div data-glass-settings-section className="mb-2 font-medium text-muted-foreground">
+        {props.label}
+      </div>
       <div className="divide-y divide-border/70 border-border/70 border-b">{props.children}</div>
     </div>
   );
@@ -51,8 +51,12 @@ function SettingsRow(props: { label: string; description: string; control?: Reac
   return (
     <div className="flex min-h-14 flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-foreground text-sm">{props.label}</div>
-        <div className="mt-0.5 text-muted-foreground text-sm">{props.description}</div>
+        <div data-glass-settings-label className="font-medium text-foreground">
+          {props.label}
+        </div>
+        <div data-glass-settings-description className="mt-0.5 text-muted-foreground">
+          {props.description}
+        </div>
       </div>
       {props.control != null ? (
         <div className="shrink-0 sm:max-w-[min(100%,20rem)] sm:justify-end">{props.control}</div>
@@ -105,9 +109,13 @@ function AppearancePage() {
   const g = useGlassAppearance();
 
   return (
-    <div className={settingsShell}>
-      <h1 className="font-semibold text-2xl text-foreground tracking-tight">Appearance</h1>
-      <p className="mt-1 text-muted-foreground text-sm">Customize how Glass looks and feels.</p>
+    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
+        Appearance
+      </h1>
+      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
+        Customize how Glass looks and feels.
+      </p>
 
       <SettingsSection label="Theme">
         <SettingsRow
@@ -163,7 +171,9 @@ function AppearancePage() {
               >
                 −
               </Button>
-              <span className="min-w-8 text-center tabular-nums text-sm">{g.uiFontSize}</span>
+              <span className="min-w-8 text-center tabular-nums" data-glass-settings-number>
+                {g.uiFontSize}
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -190,7 +200,9 @@ function AppearancePage() {
               >
                 −
               </Button>
-              <span className="min-w-8 text-center tabular-nums text-sm">{g.codeFontSize}</span>
+              <span className="min-w-8 text-center tabular-nums" data-glass-settings-number>
+                {g.codeFontSize}
+              </span>
               <Button
                 type="button"
                 size="sm"
@@ -600,15 +612,130 @@ function KeysSection() {
   );
 }
 
+function scopeLabel(scope: PiConfig["extensions"][number]["scope"]) {
+  if (scope === "project") return "Workspace";
+  if (scope === "user") return "User";
+  return "Other";
+}
+
+export function ExtensionsSettingsPanel() {
+  const cfg = usePiCfg();
+  const status = usePiCfgStatus();
+  const exts = useMemo(
+    () =>
+      cfg?.extensions.toSorted(
+        (left, right) =>
+          left.name.localeCompare(right.name) ||
+          left.resolvedPath.localeCompare(right.resolvedPath),
+      ) ?? [],
+    [cfg],
+  );
+  const errs = useMemo(
+    () =>
+      cfg?.extensionErrors.toSorted(
+        (left, right) =>
+          left.path.localeCompare(right.path) || left.error.localeCompare(right.error),
+      ) ?? [],
+    [cfg],
+  );
+  const user = cfg ? `${cfg.agentDir}/extensions` : null;
+
+  return (
+    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
+        Extensions
+      </h1>
+      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
+        Extensions Glass sees through your Pi setup.
+      </p>
+      <SettingsSection label="Discovery">
+        <SettingsRow
+          label="User extensions"
+          description="Loaded from your Pi agent directory."
+          control={
+            <span className="max-w-xs truncate text-right text-sm" title={user ?? ""}>
+              {user ?? (status === "loading" ? "Loading…" : "Not available")}
+            </span>
+          }
+        />
+        <SettingsRow
+          label="Workspace extensions"
+          description="Pi also checks `.pi/agent/extensions` inside the active workspace."
+        />
+      </SettingsSection>
+      <SettingsSection label="Loaded">
+        {status === "loading" ? (
+          <div className="py-3 text-muted-foreground text-sm">Loading extensions…</div>
+        ) : status === "error" ? (
+          <div className="py-3 text-muted-foreground text-sm">Unable to load extensions.</div>
+        ) : exts.length === 0 ? (
+          <div className="py-3 text-muted-foreground text-sm">No Pi extensions found.</div>
+        ) : (
+          <ul className="space-y-2 py-3">
+            {exts.map((item) => (
+              <li
+                key={item.resolvedPath}
+                className="rounded-lg border border-border/70 bg-background px-3 py-2"
+              >
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-sm">{item.name}</div>
+                    <div
+                      className="mt-1 truncate font-mono text-xs text-muted-foreground"
+                      title={item.path}
+                    >
+                      {item.path}
+                    </div>
+                    <div
+                      className="mt-1 truncate text-muted-foreground/80 text-xs"
+                      title={item.resolvedPath}
+                    >
+                      {item.resolvedPath}
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+                    {scopeLabel(item.scope)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
+      {errs.length > 0 ? (
+        <SettingsSection label="Load issues">
+          <ul className="space-y-2 py-3">
+            {errs.map((item) => (
+              <li
+                key={`${item.path}:${item.error}`}
+                className="rounded-lg border border-border/70 bg-background px-3 py-2"
+              >
+                <div className="truncate font-mono text-xs text-foreground" title={item.path}>
+                  {item.path}
+                </div>
+                <div className="mt-1 text-muted-foreground text-sm">{item.error}</div>
+              </li>
+            ))}
+          </ul>
+        </SettingsSection>
+      ) : null}
+    </div>
+  );
+}
+
 export function AppearanceSettingsPanel() {
   return <AppearancePage />;
 }
 
 export function AgentsSettingsPanel() {
   return (
-    <div className={settingsShell}>
-      <h1 className="font-semibold text-2xl text-foreground tracking-tight">Agents</h1>
-      <p className="mt-1 text-muted-foreground text-sm">Defaults and credentials for Pi.</p>
+    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
+        Agents
+      </h1>
+      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
+        Defaults and credentials for Pi.
+      </p>
       <SettingsSection label="Workspace">
         <WorkspaceRows />
       </SettingsSection>
@@ -627,7 +754,7 @@ export function GeneralSettingsPanel() {
   return (
     <div className="space-y-6">
       <AppearancePage />
-      <div className={settingsShell}>
+      <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
         <SettingsSection label="Workspace">
           <WorkspaceRows />
         </SettingsSection>
@@ -644,9 +771,13 @@ export function GeneralSettingsPanel() {
 
 export function ArchivedThreadsPanel() {
   return (
-    <div className={settingsShell}>
-      <h1 className="font-semibold text-2xl text-foreground tracking-tight">Archived</h1>
-      <p className="mt-1 text-muted-foreground text-sm">Archived thread behavior.</p>
+    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
+        Archived
+      </h1>
+      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
+        Archived thread behavior.
+      </p>
       <SettingsSection label="Threads">
         <SettingsRow
           label="Archived threads"

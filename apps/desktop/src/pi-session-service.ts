@@ -23,7 +23,12 @@ import type {
   PiSlashCommand,
   PiThinkingLevel,
 } from "@glass/contracts";
-import { SessionManager, createAgentSession } from "@mariozechner/pi-coding-agent";
+import {
+  DefaultResourceLoader,
+  SessionManager,
+  createAgentSession,
+} from "@mariozechner/pi-coding-agent";
+import { cursorExtension } from "./cursor-provider";
 import { image, resolveFile, text as textFile } from "./files";
 import { PiConfigService } from "./pi-config-service";
 import { ShellService } from "./shell-service";
@@ -1030,12 +1035,21 @@ export class PiSessionService {
       try: async () => {
         this.ensure();
         this.cfg.sync();
+        const settings = this.cfg.settings(this.shell.cwd);
+        const loader = new DefaultResourceLoader({
+          cwd: this.shell.cwd,
+          agentDir: this.cfg.paths(this.shell.cwd).agent,
+          settingsManager: settings,
+          extensionFactories: [cursorExtension],
+        });
+        await loader.reload();
         const result = await createAgentSession({
           cwd: this.shell.cwd,
           authStorage: this.cfg.auth,
           modelRegistry: this.cfg.reg,
+          resourceLoader: loader,
           sessionManager: mgr,
-          settingsManager: this.cfg.settings(this.shell.cwd),
+          settingsManager: settings,
         });
         const session = result.session;
         this.items.set(session.sessionId, { session });

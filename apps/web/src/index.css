@@ -505,6 +505,17 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* Embedded diffs: compact pierre/diffs inside tool panels */
+.embed-diff {
+  --diffs-bg-addition-override: var(--glass-diff-addition-bg);
+  --diffs-bg-deletion-override: var(--glass-diff-deletion-bg);
+  --diffs-addition-color-override: var(--glass-diff-addition);
+  --diffs-deletion-color-override: var(--glass-diff-deletion);
+  --diffs-bg-context-override: transparent;
+  --diffs-bg-buffer-override: transparent;
+  --diffs-bg-hover-override: transparent;
+  --diffs-bg-separator-override: transparent;
+}
+
 .embed-diff [data-diffs-container] {
   overflow: visible;
 }

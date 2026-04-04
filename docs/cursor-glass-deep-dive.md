@@ -277,6 +277,39 @@ It already supports:
 
 From a product perspective, this component is not the missing piece. The missing piece is the orchestration layer behind it.
 
+### Settings Flow
+
+The settings subtree now needs to be read as two different state domains, not one.
+
+1. `apps/web/src/routes/_chat/settings/route.tsx` mounts `GlassSettingsShell`, which owns settings chrome only.
+2. `apps/web/src/components/settings/settings-panels.tsx` contains the actual settings leaf surfaces.
+3. `AppearanceSettingsPanel` is intentionally local-app state.
+4. `AgentsSettingsPanel` mixes shell workspace actions with Pi-backed defaults and provider credentials.
+
+That split is important.
+
+Appearance settings are allowed to stay local because they affect this local Glass renderer directly.
+
+The canonical path for appearance is:
+
+1. `AppearanceSettingsPanel` reads `useTheme()` and `useGlassAppearance()`,
+2. local setters in `apps/web/src/lib/glass-appearance.ts` write browser `localStorage`,
+3. `applyGlassAppearance()` writes CSS variables like `--glass-font-ui`, `--glass-ui-font-size-user`, and `--glass-code-font-size-user` onto `document.documentElement`,
+4. the settings page and the rest of the app both consume those same live CSS variables,
+5. `useGlassAppearance()` now subscribes through `useSyncExternalStore`, so the numeric controls and settings-page preview state rerender reliably.
+
+The canonical path for Pi and workspace settings is different.
+
+1. workspace actions in `WorkspaceRows` call `glass.shell.*`,
+2. Pi defaults and provider credentials call helpers in `apps/web/src/lib/pi-models.ts`,
+3. those helpers cross the preload bridge into Electron IPC,
+4. the desktop side delegates into `ShellService` or `PiConfigService`.
+
+So the settings subtree is now explicitly hybrid by design:
+
+1. local renderer appearance stays local,
+2. runtime and auth settings stay Pi- and desktop-backed.
+
 ### Linked Chains: Component -> Hook/Function -> Electron Bridge
 
 The clearest way to understand the current architecture is as linked lists from a UI surface to a bridge call to a desktop service.
@@ -287,6 +320,8 @@ The clearest way to understand the current architecture is as linked lists from 
 4. File mention and picker path: `GlassPiComposer` -> `glass.shell.suggestFiles(query)`, `glass.shell.previewFile(path)`, and `glass.shell.pickFiles()` -> preload shell bridge in `apps/desktop/src/preload.ts` -> shell IPC handlers in `apps/desktop/src/main.ts` -> `ShellService` file-system helpers -> suggestions and previews flow back into the composer picker UI.
 5. Review linkage path: assistant tool output in a watched session -> `usePiSession()` extracts changed file paths and writes them into `useGlassShellStore` -> `useGlassGitPanel()` in `apps/web/src/hooks/use-glass-git.ts#L117` correlates those paths with `glass.git` state -> preload git bridge -> desktop git service -> `GlassGitPanel` renders the diff rail.
 6. Boot and summary hydration path: `PiBootBridge` in `apps/web/src/routes/__root.tsx#L40` -> `usePiStore.boot()` -> preload `readBootConfig()` and `readBootSummaries()` from `apps/desktop/src/preload.ts#L83` -> later async `glass.pi.getConfig()` and `glass.session.listAll()` -> desktop config/session services -> live summary patches return through `glass.session.onSummary()` back into `usePiStore.applySummaryEvent()`.
+7. Local appearance settings path: `AppearanceSettingsPanel` -> `useGlassAppearance()` / `useTheme()` -> `setUiFontSize()`, `setCodeFontSize()`, `setUiFontFamily()`, `setCodeFontFamily()`, `setColorPalette()`, or `setReduceTransparency()` in `apps/web/src/lib/glass-appearance.ts` -> browser `localStorage` + `applyGlassAppearance()` -> `document.documentElement` CSS variables and classes -> app and settings page reflow immediately without desktop IPC.
+8. Pi settings path: `AgentsSettingsPanel` -> `writePiDefaultModel()`, `writePiDefaultThinkingLevel()`, `writePiApiKey()`, `startPiOAuthLogin()` in `apps/web/src/lib/pi-models.ts` -> preload Pi bridge -> Electron IPC -> `PiConfigService` -> Pi settings and auth storage.
 
 ## Pi Session Runtime Wiring
 

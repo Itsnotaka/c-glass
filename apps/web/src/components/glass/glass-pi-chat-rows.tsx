@@ -71,7 +71,7 @@ function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "b
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 text-[12px] leading-none",
+        "inline-flex shrink-0 items-center gap-1 text-[12px] leading-tight",
         s === "errored" ? "text-destructive/85" : "text-foreground/48",
       )}
     >
@@ -382,7 +382,7 @@ function BashOutputRich(props: { text: string; error: boolean }) {
 
   if (parsed !== null) {
     return (
-      <div className="max-h-[min(24rem,50vh)] overflow-auto border-l-2 border-glass-border/25 py-1 pl-2.5">
+      <div className="max-h-[min(24rem,50vh)] overflow-auto">
         <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
           {renderValue(parsed, 0)}
         </div>
@@ -393,8 +393,8 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   return (
     <pre
       className={cn(
-        "max-h-[min(24rem,50vh)] overflow-auto whitespace-pre-wrap border-l-2 border-glass-border/25 py-1 pl-2.5 font-glass-mono text-[11px]/[1.45] text-foreground/75",
-        props.error && "border-destructive/45 bg-destructive/[0.06] text-destructive/90",
+        "max-h-[min(24rem,50vh)] overflow-auto whitespace-pre-wrap font-glass-mono text-[11px]/[1.45] text-foreground/75",
+        props.error && "rounded-sm bg-destructive/[0.06] text-destructive/90",
       )}
     >
       {props.text}
@@ -460,7 +460,7 @@ function ToolRailCard(props: {
             {props.icon}
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-none text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate text-[13px] leading-tight text-foreground/[0.94]">
               {props.title}
             </span>
             <span className="shrink-0 select-none text-foreground/40" aria-hidden>
@@ -590,9 +590,11 @@ const ToolCard = memo(function ToolCard(props: {
             options={{
               theme: isDark() ? "pierre-dark" : "pierre-light",
               diffStyle: "unified",
-              hunkSeparators: "line-info",
               overflow: "scroll",
               disableFileHeader: true,
+              disableBackground: true,
+              expandUnchanged: false,
+              unsafeCSS: "[data-separator] { display: none !important; }",
             }}
           />
         </div>
@@ -763,7 +765,7 @@ const BashCard = memo(function BashCard(props: {
             <IconConsole className="size-3 shrink-0" />
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate font-glass-mono text-[12px] leading-none text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate font-glass-mono text-[12px] leading-tight text-foreground/[0.94]">
               {props.row.command}
             </span>
             <span className="shrink-0 select-none text-foreground/40" aria-hidden>
@@ -828,7 +830,7 @@ const TextCard = memo(function TextCard(props: {
           );
         }
         return (
-          <div className="max-h-[min(24rem,50vh)] overflow-auto rounded-md border border-glass-border/20 bg-glass-hover/5 p-2">
+          <div className="max-h-[min(24rem,50vh)] overflow-auto">
             <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
               {renderValue(j, 0)}
             </div>
