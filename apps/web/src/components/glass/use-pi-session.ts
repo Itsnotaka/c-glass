@@ -6,6 +6,7 @@ import { getGlass, readGlass } from "../../host";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import {
   readPiProvider,
+  startPiOAuthLogin,
   writePiApiKey,
   writePiDefaultModel,
   writePiDefaultThinkingLevel,
@@ -194,6 +195,17 @@ export function usePiSession(sessionId: string | null) {
         }
         pending.current = null;
       },
+      ...(mode === "oauth"
+        ? {
+            oauth: async () => {
+              await startPiOAuthLogin(name);
+              const next = pending.current;
+              pending.current = null;
+              if (!next) return;
+              await next();
+            },
+          }
+        : {}),
     });
   };
 

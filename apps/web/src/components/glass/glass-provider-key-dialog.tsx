@@ -19,11 +19,15 @@ export function GlassProviderKeyDialog(props: {
   mode: "api_key" | "oauth";
   oauthSupported: boolean | undefined;
   onSubmit: (key: string | undefined) => void;
+  onOAuth?: () => Promise<void>;
 }) {
   const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (props.open) setValue("");
+    if (!props.open) return;
+    setValue("");
+    setBusy(false);
   }, [props.open]);
 
   return (
@@ -46,7 +50,7 @@ export function GlassProviderKeyDialog(props: {
             ) : props.oauthSupported ? (
               <>
                 Provider <span className="font-medium">{props.provider}</span> uses OAuth in Pi.
-                Re-authenticate it in Pi, then retry here.
+                Re-authenticate it here and Glass will retry the blocked action.
               </>
             ) : (
               <>
@@ -69,18 +73,39 @@ export function GlassProviderKeyDialog(props: {
           </div>
         ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => props.onSubmit(undefined)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => props.onSubmit(undefined)}
+          >
             {props.mode === "api_key" ? "Cancel" : "Close"}
           </Button>
           {props.mode === "api_key" ? (
             <Button
               type="button"
+              disabled={busy}
               onClick={() => {
                 const v = value.trim();
                 props.onSubmit(v.length > 0 ? v : undefined);
               }}
             >
               Save
+            </Button>
+          ) : props.oauthSupported && props.onOAuth ? (
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                const oauth = props.onOAuth;
+                if (!oauth) return;
+                setBusy(true);
+                void oauth().finally(() => {
+                  setBusy(false);
+                });
+              }}
+            >
+              {busy ? "Connecting..." : "Connect with OAuth"}
             </Button>
           ) : null}
         </DialogFooter>

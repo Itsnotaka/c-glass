@@ -6,6 +6,7 @@ import { GlassProviderKeyDialog } from "./glass-provider-key-dialog";
 export function GlassProviderShellOverlay() {
   const req = useGlassProviderAuthStore((state) => state.req);
   const submit = useGlassProviderAuthStore((state) => state.submit);
+  const oauth = useGlassProviderAuthStore((state) => state.oauth);
 
   return (
     <GlassProviderKeyDialog
@@ -14,6 +15,7 @@ export function GlassProviderShellOverlay() {
       mode={req?.mode ?? "api_key"}
       oauthSupported={req?.oauthSupported}
       onSubmit={submit}
+      {...(req?.oauthSupported ? { onOAuth: oauth } : {})}
     />
   );
 }

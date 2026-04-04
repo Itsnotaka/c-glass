@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   IconAgent,
   IconAppearanceLightMode,
@@ -22,26 +22,26 @@ const items: {
 ];
 
 export function GlassSettingsNavRail(props: { onRestoreTick?: () => void }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(props.onRestoreTick);
+  const base =
+    "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors";
+  const idle = "text-muted-foreground hover:bg-glass-hover hover:text-foreground";
+  const hit = "border-glass-border/90 bg-glass-active text-foreground";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1 px-2 pt-1.5 pb-2">
       <nav className="flex min-h-0 flex-1 flex-col gap-px" aria-label="Settings">
         {items.map((item) => {
-          const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
           const Icon = item.icon;
           return (
             <Link
               key={item.to}
               to={item.to}
-              className={cn(
-                "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors",
-                active
-                  ? "border-glass-border/90 bg-glass-active text-foreground"
-                  : "text-muted-foreground hover:bg-glass-hover hover:text-foreground",
-              )}
-              aria-current={active ? "page" : undefined}
+              activeProps={{
+                className: cn(base, hit),
+                "aria-current": "page",
+              }}
+              inactiveProps={{ className: cn(base, idle) }}
             >
               <Icon className="size-4 shrink-0 opacity-60" />
               {item.label}

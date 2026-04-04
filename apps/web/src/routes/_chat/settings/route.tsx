@@ -1,14 +1,8 @@
 "use client";
 
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-function SettingsLayout() {
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden px-4 py-4">
-      <Outlet />
-    </div>
-  );
-}
+import { GlassSettingsShell } from "../../../components/glass/glass-settings-shell";
 
 export const Route = createFileRoute("/_chat/settings")({
   beforeLoad: ({ location }) => {
@@ -16,5 +10,5 @@ export const Route = createFileRoute("/_chat/settings")({
       throw redirect({ to: "/settings/appearance", replace: true });
     }
   },
-  component: SettingsLayout,
+  component: GlassSettingsShell,
 });

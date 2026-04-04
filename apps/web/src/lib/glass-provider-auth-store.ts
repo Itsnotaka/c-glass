@@ -5,6 +5,7 @@ type Req = {
   mode: "api_key" | "oauth";
   oauthSupported: boolean;
   run: (key?: string) => Promise<void>;
+  oauth?: () => Promise<void>;
 };
 
 type State = {
@@ -12,6 +13,7 @@ type State = {
   open: (req: Req) => void;
   close: () => void;
   submit: (key?: string) => Promise<void>;
+  oauth: () => Promise<void>;
 };
 
 export const useGlassProviderAuthStore = create<State>()((set, get) => ({
@@ -27,5 +29,11 @@ export const useGlassProviderAuthStore = create<State>()((set, get) => ({
     set({ req: null });
     if (!req) return;
     await req.run(key);
+  },
+  oauth: async () => {
+    const req = get().req;
+    if (!req?.oauth) return;
+    await req.oauth();
+    set({ req: null });
   },
 }));
