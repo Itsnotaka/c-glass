@@ -1,7 +1,7 @@
 "use client";
 
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react";
+import { IconCheckmark1Small, IconChevronBottom, IconX } from "central-icons";
 import * as React from "react";
 
 import { cn } from "~/lib/utils";
@@ -109,7 +109,7 @@ function ComboboxInput({
           )}
         >
           <ComboboxPrimitive.Icon data-slot="combobox-icon">
-            <ChevronsUpDownIcon />
+            <IconChevronBottom className="size-4 opacity-60" />
           </ComboboxPrimitive.Icon>
         </ComboboxTrigger>
       )}
@@ -120,7 +120,7 @@ function ComboboxInput({
             sizeValue === "sm" ? "end-0" : "end-0.5",
           )}
         >
-          <XIcon />
+          <IconX className="size-4" />
         </ComboboxClear>
       )}
     </div>
@@ -202,7 +202,7 @@ function ComboboxItem({
       {...props}
     >
       <ComboboxPrimitive.ItemIndicator className={cn("col-start-1", hideIndicator && "hidden")}>
-        <CheckIcon />
+        <IconCheckmark1Small className="size-4" />
       </ComboboxPrimitive.ItemIndicator>
       <div className={hideIndicator ? "col-start-1 col-span-full" : "col-start-2"}>{children}</div>
     </ComboboxPrimitive.Item>
@@ -351,7 +351,7 @@ function ComboboxChipRemove(props: ComboboxPrimitive.ChipRemove.Props) {
       data-slot="combobox-chip-remove"
       {...props}
     >
-      <XIcon />
+      <IconX className="size-4" />
     </ComboboxPrimitive.ChipRemove>
   );
 }
