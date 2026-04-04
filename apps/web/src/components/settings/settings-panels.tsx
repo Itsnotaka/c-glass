@@ -392,7 +392,8 @@ function KeysSection() {
   const [oauthBusy, setOauthBusy] = useState("");
 
   const providers = useMemo(
-    () => cfg?.providers.toSorted((left, right) => left.provider.localeCompare(right.provider)) ?? [],
+    () =>
+      cfg?.providers.toSorted((left, right) => left.provider.localeCompare(right.provider)) ?? [],
     [cfg],
   );
 

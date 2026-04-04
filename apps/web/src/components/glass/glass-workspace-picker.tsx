@@ -44,7 +44,10 @@ export function GlassWorkspacePicker(props: { className?: string }) {
             window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
           })
           .catch(() => {
-            void Promise.all([usePiStore.getState().refreshCfg(), usePiStore.getState().refreshSums()]);
+            void Promise.all([
+              usePiStore.getState().refreshCfg(),
+              usePiStore.getState().refreshSums(),
+            ]);
           });
       }}
       className={cn(

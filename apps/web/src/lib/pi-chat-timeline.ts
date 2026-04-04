@@ -315,6 +315,7 @@ export function buildPiRows(items: PiSessionItem[]) {
             result: "",
             error: false,
             call: part as PiToolCallBlock,
+            details: null,
           });
           map.set(key, rows.length - 1);
           continue;

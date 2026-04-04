@@ -71,7 +71,9 @@ export function GlassAgentList(props: {
 
   if (props.error) {
     return (
-      <p className="px-2 py-4 text-xs text-muted-foreground/60">Unable to load threads right now.</p>
+      <p className="px-2 py-4 text-xs text-muted-foreground/60">
+        Unable to load threads right now.
+      </p>
     );
   }
 

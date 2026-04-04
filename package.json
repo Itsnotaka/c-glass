@@ -21,6 +21,7 @@
     "fmt": "oxfmt -c .config/oxfmtrc.json",
     "fmt:check": "oxfmt --check -c .config/oxfmtrc.json",
     "build:contracts": "turbo run build --filter=@glass/contracts",
+    "sync:vscode-icons": "node scripts/sync-vscode-icons.mjs",
     "dist:desktop:artifact": "node scripts/build-desktop-artifact.ts --skip-build",
     "dist:desktop:dmg": "node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --skip-build",
     "release-mock": "turbo run release-mock --filter=@glass/scripts",

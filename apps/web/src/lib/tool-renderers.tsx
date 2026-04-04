@@ -1,4 +1,5 @@
 import type { PiToolCallBlock } from "@glass/contracts";
+import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
 import { code } from "@streamdown/code";
 import { memo } from "react";
 import { Streamdown } from "streamdown";
@@ -45,6 +46,62 @@ export function toolBody(data: ToolData): React.ReactNode {
   return fallback(data);
 }
 
+export { type FileDiffMetadata };
+
+export function toolFileDiff(name: string, call: PiToolCallBlock | null): FileDiffMetadata | null {
+  const r = resolvedToolName(name);
+  const raw = (call?.arguments ?? {}) as Record<string, unknown>;
+  const path = editPath(raw);
+  if (!path) return null;
+
+  if (r === "write") {
+    const body = typeof raw.content === "string" ? raw.content : "";
+    if (!body.trim()) return null;
+    return parseDiffFromFile({ name: path, contents: "" }, { name: path, contents: body });
+  }
+
+  if (r === "edit") {
+    const args = raw as EditArgs;
+    const list = edits(args);
+    if (list.length === 0 && !args.patch) return null;
+    const old = list.map((e) => e.oldText ?? "").join("\n");
+    const next = list.map((e) => e.newText ?? "").join("\n");
+    return parseDiffFromFile({ name: path, contents: old }, { name: path, contents: next });
+  }
+
+  return null;
+}
+
+export function isFileTool(name: string) {
+  const r = resolvedToolName(name);
+  return r === "edit" || r === "write";
+}
+
+export function isShellTool(name: string, call: PiToolCallBlock | null, argsJson?: string) {
+  if (resolvedToolName(name) === "bash") return true;
+  const args = call?.arguments;
+  if (
+    args &&
+    typeof args === "object" &&
+    typeof (args as { command?: unknown }).command === "string"
+  ) {
+    return true;
+  }
+  if (!argsJson?.trim()) return false;
+  try {
+    const o = JSON.parse(argsJson) as unknown;
+    if (
+      o &&
+      typeof o === "object" &&
+      "command" in o &&
+      typeof (o as { command: unknown }).command === "string"
+    ) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 export function toolHint(call: PiToolCallBlock | null): string | null {
   const args = call?.arguments;
   if (!args || typeof args !== "object") return null;
@@ -64,7 +121,30 @@ export function toolHint(call: PiToolCallBlock | null): string | null {
 
 function editPath(args: Record<string, unknown>) {
   const path = args.path ?? args.file ?? args.target_file ?? args.file_path;
-  return typeof path === "string" ? path : "";
+  if (typeof path === "string" && path.trim()) return path;
+  const multi = args.multi;
+  if (Array.isArray(multi) && multi[0] && typeof multi[0] === "object") {
+    const p = (multi[0] as { path?: string }).path;
+    if (typeof p === "string" && p.trim()) return p;
+  }
+  return "";
+}
+
+export function toolPathFromCall(call: PiToolCallBlock | null, argsJson?: string): string | null {
+  const raw = call?.arguments;
+  if (raw && typeof raw === "object") {
+    const p = editPath(raw as Record<string, unknown>).trim();
+    if (p) return p;
+  }
+  if (!argsJson?.trim()) return null;
+  try {
+    const o = JSON.parse(argsJson) as unknown;
+    if (o && typeof o === "object") {
+      const p = editPath(o as Record<string, unknown>).trim();
+      return p || null;
+    }
+  } catch {}
+  return null;
 }
 
 export function toolLabel(name: string, call: PiToolCallBlock | null): string | null {
@@ -179,8 +259,8 @@ const Code = memo(function Code(props: { text: string; lang?: string; error?: bo
   return (
     <div
       className={cn(
-        "rounded-lg border border-glass-border/25 bg-glass-hover/8",
-        props.error && "border-destructive/20 bg-destructive/5",
+        "embed-code max-h-[min(24rem,50vh)] overflow-auto border-l-2 border-glass-border/25 py-1 pl-2.5 pr-0",
+        props.error && "border-destructive/50 bg-destructive/[0.06]",
       )}
     >
       <Streamdown
@@ -196,27 +276,20 @@ const Code = memo(function Code(props: { text: string; lang?: string; error?: bo
   );
 });
 
-function Field(props: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline gap-1.5 text-[11px]/[1.3]">
-      <span className="shrink-0 font-medium text-muted-foreground/55">{props.label}</span>
-      <span className="min-w-0 truncate text-foreground/75">{props.children}</span>
-    </div>
-  );
-}
-
-function Badge(props: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex rounded border border-glass-border/30 bg-glass-hover/15 px-1 py-0.5 text-[10px]/[1] font-medium text-muted-foreground/70">
-      {props.children}
-    </span>
-  );
-}
-
 function Result(props: { text: string; error: boolean; lang?: string }) {
   if (!props.text.trim()) return null;
   return (
     <Code text={props.text} error={props.error} {...(props.lang ? { lang: props.lang } : {})} />
+  );
+}
+
+function Truncation(props: { truncated: boolean; limit?: unknown; noun: string }) {
+  if (!props.truncated && props.limit == null) return null;
+  return (
+    <div className="text-[10px]/[1.2] text-muted-foreground/50">
+      {typeof props.limit === "number" && `${props.limit} ${props.noun} limit reached. `}
+      {props.truncated && "Output truncated."}
+    </div>
   );
 }
 
@@ -237,20 +310,7 @@ function read(data: ToolData): React.ReactNode {
     return <Code text={text} lang={lang || "text"} error={data.error} />;
   }
 
-  return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Field label="path">
-          <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-            {path || "?"}
-          </code>
-        </Field>
-        {args.offset != null && <Badge>offset {args.offset}</Badge>}
-        {args.limit != null && <Badge>limit {args.limit}</Badge>}
-      </div>
-      <Result text={data.result} error={data.error} lang={lang || "text"} />
-    </div>
-  );
+  return <Result text={data.result} error={data.error} lang={lang || "text"} />;
 }
 
 interface EditEntry {
@@ -311,8 +371,8 @@ function Diff(props: { entries: EditEntry[] }) {
   const lines = props.entries.flatMap(unified);
   if (lines.length === 0) return null;
   return (
-    <div className="overflow-hidden rounded-lg border border-glass-border/25 bg-glass-hover/8">
-      <div className="max-h-[min(24rem,50vh)] overflow-auto px-2.5 py-1.5 font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] whitespace-pre-wrap">
+    <div className="overflow-hidden border-l-2 border-glass-border/25">
+      <div className="max-h-[min(24rem,50vh)] overflow-auto font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] whitespace-pre-wrap">
         {lines}
       </div>
     </div>
@@ -322,36 +382,17 @@ function Diff(props: { entries: EditEntry[] }) {
 function edit(data: ToolData): React.ReactNode {
   const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, unknown>;
   const args = raw as EditArgs;
-  const path =
-    typeof raw.path === "string"
-      ? raw.path
-      : typeof raw.file === "string"
-        ? raw.file
-        : typeof raw.target_file === "string"
-          ? raw.target_file
-          : typeof raw.file_path === "string"
-            ? raw.file_path
-            : Array.isArray(raw.multi) && raw.multi[0] && typeof raw.multi[0].path === "string"
-              ? raw.multi[0].path
-              : "";
   const entries = edits(args);
 
   if (!data.expanded) {
-    if (data.error && data.result.trim()) {
-      return <Code text={data.result} lang="text" error />;
-    }
+    if (data.error && data.result.trim()) return <Code text={data.result} lang="text" error />;
     if (entries.length > 0) return <Diff entries={entries} />;
     if (args.patch) return <Code text={args.patch} lang="diff" />;
     return null;
   }
 
   return (
-    <div className="grid gap-1.5">
-      <Field label="path">
-        <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-          {path || "?"}
-        </code>
-      </Field>
+    <div className="flex flex-col gap-1">
       {args.patch ? <Code text={args.patch} lang="diff" /> : <Diff entries={entries} />}
       {data.error && data.result.trim() && <Result text={data.result} error lang="text" />}
     </div>
@@ -365,35 +406,16 @@ interface WriteArgs {
 
 function write(data: ToolData): React.ReactNode {
   const args = (data.call?.arguments ?? {}) as WriteArgs;
-  const path = args.path ?? "";
-  const lang = langFor(path);
   const body = args.content ?? "";
 
   if (!data.expanded) {
-    if (data.error && data.result.trim()) {
-      return <Code text={data.result} lang="text" error />;
-    }
-    const lines = body.split("\n").length;
-    const bytes = body.length;
-    return (
-      <div className="flex items-center gap-2 px-1 text-[11px]/[1.3] text-muted-foreground/60">
-        <span className="truncate text-foreground/70">{basename(path) || path}</span>
-        <Badge>
-          {lines} line{lines === 1 ? "" : "s"}
-        </Badge>
-        <Badge>{bytes.toLocaleString()} bytes</Badge>
-      </div>
-    );
+    if (data.error && data.result.trim()) return <Code text={data.result} lang="text" error />;
+    return null;
   }
 
   return (
-    <div className="grid gap-1.5">
-      <Field label="path">
-        <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-          {path || "?"}
-        </code>
-      </Field>
-      {body && <Code text={body} lang={lang} />}
+    <div className="flex flex-col gap-1">
+      {body && <Diff entries={[{ newText: body }]} />}
       {data.error && data.result.trim() && <Result text={data.result} error lang="text" />}
     </div>
   );
@@ -415,150 +437,69 @@ function bash(data: ToolData): React.ReactNode {
   }
 
   return (
-    <div className="grid gap-1.5">
-      {cmd && <Code text={cmd} lang="bash" />}
-      {args.timeout != null && <Field label="timeout">{args.timeout}s</Field>}
+    <div className="flex flex-col gap-1">
+      {cmd ? <Code text={cmd} lang="bash" /> : null}
+      {args.timeout != null ? (
+        <div className="text-[10px] text-muted-foreground/50">{args.timeout}s timeout</div>
+      ) : null}
       <Result text={data.result} error={data.error} lang="bash" />
     </div>
   );
 }
 
-interface GrepArgs {
-  pattern?: string;
-  path?: string;
-  glob?: string;
-  ignoreCase?: boolean;
-  literal?: boolean;
-  context?: number;
-  limit?: number;
-}
-
 function grep(data: ToolData): React.ReactNode {
-  const args = (data.call?.arguments ?? {}) as GrepArgs;
-  const pattern = args.pattern ?? "";
-
   if (!data.expanded) {
     const text = data.result || data.args;
     if (!text.trim()) return null;
     return <Code text={text} lang="text" error={data.error} />;
   }
 
-  const flags: string[] = [];
-  if (args.ignoreCase) flags.push("-i");
-  if (args.literal) flags.push("--literal");
-  if (args.glob) flags.push(`--glob ${args.glob}`);
-  if (args.context != null) flags.push(`-C ${args.context}`);
-  if (args.limit != null) flags.push(`limit ${args.limit}`);
-
-  const truncated = data.details?.truncation != null;
-  const count = data.details?.matchLimitReached;
-
   return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Field label="pattern">
-          <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-            /{pattern}/
-          </code>
-        </Field>
-        {args.path && (
-          <Field label="in">
-            <span className="text-foreground/70">{args.path}</span>
-          </Field>
-        )}
-        {flags.length > 0 && <Badge>{flags.join(" ")}</Badge>}
-      </div>
+    <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
-      {(truncated || count != null) && (
-        <div className="text-[10px]/[1.2] text-muted-foreground/50">
-          {typeof count === "number" && `${count} match limit reached. `}
-          {truncated && "Output truncated."}
-        </div>
-      )}
+      <Truncation
+        truncated={data.details?.truncation != null}
+        limit={data.details?.matchLimitReached}
+        noun="match"
+      />
     </div>
   );
-}
-
-interface FindArgs {
-  pattern?: string;
-  path?: string;
-  limit?: number;
 }
 
 function find(data: ToolData): React.ReactNode {
-  const args = (data.call?.arguments ?? {}) as FindArgs;
-  const pattern = args.pattern ?? "";
-
   if (!data.expanded) {
     const text = data.result || data.args;
     if (!text.trim()) return null;
     return <Code text={text} lang="text" error={data.error} />;
   }
 
-  const truncated = data.details?.truncation != null;
-  const limit = data.details?.resultLimitReached;
-
   return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Field label="pattern">
-          <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-            {pattern}
-          </code>
-        </Field>
-        {args.path && (
-          <Field label="in">
-            <span className="text-foreground/70">{args.path}</span>
-          </Field>
-        )}
-        {args.limit != null && <Badge>limit {args.limit}</Badge>}
-      </div>
+    <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
-      {(truncated || limit != null) && (
-        <div className="text-[10px]/[1.2] text-muted-foreground/50">
-          {typeof limit === "number" && `${limit} results limit reached. `}
-          {truncated && "Output truncated."}
-        </div>
-      )}
+      <Truncation
+        truncated={data.details?.truncation != null}
+        limit={data.details?.resultLimitReached}
+        noun="results"
+      />
     </div>
   );
 }
 
-interface LsArgs {
-  path?: string;
-  limit?: number;
-}
-
 function ls(data: ToolData): React.ReactNode {
-  const args = (data.call?.arguments ?? {}) as LsArgs;
-  const dir = args.path ?? ".";
-
   if (!data.expanded) {
     const text = data.result || data.args;
     if (!text.trim()) return null;
     return <Code text={text} lang="text" error={data.error} />;
   }
 
-  const truncated = data.details?.truncation != null;
-  const limit = data.details?.entryLimitReached;
-
   return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Field label="path">
-          <code className="rounded bg-glass-hover/20 px-1 py-0.5 font-[family-name:var(--glass-font-mono)] text-[10px]/[1.2]">
-            {dir}
-          </code>
-        </Field>
-        {args.limit != null && <Badge>limit {args.limit}</Badge>}
-      </div>
+    <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
-      {(truncated || limit != null) && (
-        <div className="text-[10px]/[1.2] text-muted-foreground/50">
-          {typeof limit === "number" && `${limit} entries limit reached. `}
-          {truncated && "Output truncated."}
-        </div>
-      )}
+      <Truncation
+        truncated={data.details?.truncation != null}
+        limit={data.details?.entryLimitReached}
+        noun="entries"
+      />
     </div>
   );
 }
@@ -572,7 +513,7 @@ function fallback(data: ToolData): React.ReactNode {
   }
 
   return (
-    <div className="grid gap-1.5">
+    <div className="flex flex-col gap-1">
       {data.args.trim() && <Code text={data.args} lang={looksJson(data.args) ? "json" : "text"} />}
       <Result
         text={data.result}

@@ -92,29 +92,31 @@ function PiBootBridge() {
 function NotFoundView() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <div className="pointer-events-none absolute inset-0 opacity-75">
-        <div className="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(40rem_18rem_at_50%_-10%,color-mix(in_srgb,var(--color-primary)_12%,transparent),transparent)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(160deg,color-mix(in_srgb,var(--background)_92%,var(--color-neutral-500))_0%,var(--background)_50%)]" />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-20%,color-mix(in_srgb,var(--color-primary)_8%,transparent),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,color-mix(in_srgb,var(--color-primary)_4%,transparent),transparent)]" />
       </div>
 
-      <section className="relative w-full max-w-md rounded-2xl border border-border/70 bg-card/85 p-8 text-center shadow-xl shadow-black/10 backdrop-blur-md sm:p-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+      <section className="relative flex w-full max-w-sm flex-col items-center text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
           {APP_DISPLAY_NAME}
         </p>
-        <p className="mt-6 font-mono text-5xl font-semibold tabular-nums tracking-tight text-foreground sm:text-6xl">
+        <p className="mt-8 font-mono text-[8rem] leading-none font-bold tracking-tighter text-foreground/[0.04] sm:text-[10rem] select-none">
           404
         </p>
-        <h1 className="mt-4 text-xl font-semibold tracking-tight sm:text-2xl">Page not found</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          That path does not exist or was moved. Head back to chat or open settings.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+        <div className="-mt-16 sm:-mt-20">
+          <h1 className="text-lg font-medium tracking-tight text-foreground/90">Page not found</h1>
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/70">
+            This path doesn&rsquo;t exist. It may have been moved or removed.
+          </p>
+        </div>
+        <div className="mt-8 flex items-center gap-2">
           <Link to="/" className={buttonVariants({ size: "sm", variant: "default" })}>
             Back to chat
           </Link>
           <Link
             to="/settings/appearance"
-            className={buttonVariants({ size: "sm", variant: "outline" })}
+            className={buttonVariants({ size: "sm", variant: "ghost" })}
           >
             Settings
           </Link>
@@ -130,33 +132,34 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground sm:px-6">
-      <div className="pointer-events-none absolute inset-0 opacity-80">
-        <div className="absolute inset-x-0 top-0 h-44 bg-[radial-gradient(44rem_16rem_at_top,color-mix(in_srgb,var(--color-red-500)_16%,transparent),transparent)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(145deg,color-mix(in_srgb,var(--background)_90%,var(--color-black))_0%,var(--background)_55%)]" />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,color-mix(in_srgb,var(--color-destructive)_10%,transparent),transparent)]" />
       </div>
 
-      <section className="relative w-full max-w-xl rounded-2xl border border-border/80 bg-card/90 p-6 shadow-2xl shadow-black/20 backdrop-blur-md sm:p-8">
-        <p className="text-[11px] font-semibold text-muted-foreground">{APP_DISPLAY_NAME}</p>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Something went wrong.
+      <section className="relative w-full max-w-xl">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
+          {APP_DISPLAY_NAME}
+        </p>
+        <h1 className="mt-4 text-xl font-medium tracking-tight text-foreground/90 sm:text-2xl">
+          Something went wrong
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/70">{message}</p>
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-2">
           <Button size="sm" onClick={() => reset()}>
             Try again
           </Button>
-          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+          <Button size="sm" variant="ghost" onClick={() => window.location.reload()}>
             Reload app
           </Button>
         </div>
 
-        <details className="group mt-5 overflow-hidden rounded-lg border border-border/70 bg-background/55">
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-muted-foreground">
-            <span className="group-open:hidden">Show error details</span>
-            <span className="hidden group-open:inline">Hide error details</span>
+        <details className="group mt-6 overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm">
+          <summary className="cursor-pointer list-none px-4 py-2.5 text-[11px] font-medium text-muted-foreground/60 transition-colors hover:text-muted-foreground/80">
+            <span className="group-open:hidden">Show details</span>
+            <span className="hidden group-open:inline">Hide details</span>
           </summary>
-          <pre className="max-h-56 overflow-auto border-t border-border/70 bg-background/80 px-3 py-2 text-xs text-foreground/85">
+          <pre className="max-h-64 overflow-auto border-t border-border/40 px-4 py-3 font-mono text-[11px]/[1.5] text-foreground/70">
             {details}
           </pre>
         </details>

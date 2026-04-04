@@ -476,6 +476,45 @@ label:has(> select#reasoning-effort) select {
   text-align: left;
 }
 
+/* Embedded code blocks: strip Streamdown inner chrome (no card-in-card) */
+.embed-code [data-streamdown="code-block"] {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.embed-code [data-streamdown="code-block-header"] {
+  display: none;
+}
+
+.embed-code [data-streamdown="code-block-actions"] {
+  display: none;
+}
+
+.embed-code [data-streamdown="code-block-body"] {
+  padding: 0;
+}
+
+.embed-code [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent !important;
+  padding: 0;
+}
+
+/* Embedded diffs: compact pierre/diffs inside tool panels */
+.embed-diff [data-diffs-container] {
+  overflow: visible;
+}
+
+.embed-diff .diff-render-file {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
 /* Diffs theme bridge (match diff surfaces to app palette) */
 .diff-panel-viewport {
   background: color-mix(in srgb, var(--background) 94%, var(--card));

@@ -81,16 +81,15 @@ export function GlassChatShell() {
     setRightOpen(true);
   }, [git.hit, muted, rightOpen, routeThreadId, setRightOpen, settingsMode]);
 
-  const threadTitle =
-    !routeThreadId
-      ? "New chat"
-      : sumsStatus === "loading"
-        ? "Loading chat"
-        : sumsStatus === "error"
-          ? "Chat unavailable"
-          : sum?.messageCount === 0
-            ? "New chat"
-            : sum?.name?.trim() || sum?.firstMessage?.trim()?.slice(0, 48) || "Untitled";
+  const threadTitle = !routeThreadId
+    ? "New chat"
+    : sumsStatus === "loading"
+      ? "Loading chat"
+      : sumsStatus === "error"
+        ? "Chat unavailable"
+        : sum?.messageCount === 0
+          ? "New chat"
+          : sum?.name?.trim() || sum?.firstMessage?.trim()?.slice(0, 48) || "Untitled";
 
   const title = settingsMode
     ? pathname.startsWith("/settings/appearance")
@@ -126,7 +125,10 @@ export function GlassChatShell() {
           go();
         })
         .catch(() => {
-          void Promise.all([usePiStore.getState().refreshCfg(), usePiStore.getState().refreshSums()]);
+          void Promise.all([
+            usePiStore.getState().refreshCfg(),
+            usePiStore.getState().refreshSums(),
+          ]);
         });
     },
     [cwd, navigate, reset, sums],

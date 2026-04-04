@@ -20,6 +20,7 @@ const ASSOCIATIONS_PATH = path.join(
   REPO_ROOT,
   "apps/web/src/vscode-icons-language-associations.json",
 );
+const PUBLIC_ICONS_DIR = path.join(REPO_ROOT, "apps/web/public/vscode-icons");
 
 const normalizeExtension = (value) => value.trim().toLowerCase().replace(/^\./, "");
 
@@ -118,6 +119,17 @@ function buildLanguageAssociations(manifest, languages) {
   };
 }
 
+async function extractIconsFromVsix(vsixPath, destDir) {
+  const extractRoot = path.join(path.dirname(vsixPath), "extract");
+  await fs.mkdir(extractRoot, { recursive: true });
+  await execFileAsync("unzip", ["-q", "-o", vsixPath, "extension/icons/*.svg", "-d", extractRoot]);
+  const srcIcons = path.join(extractRoot, "extension/icons");
+  await fs.rm(destDir, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(destDir), { recursive: true });
+  await fs.cp(srcIcons, destDir, { recursive: true });
+  await fs.rm(extractRoot, { recursive: true, force: true });
+}
+
 async function main() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "t3-vscode-icons-sync-"));
   try {
@@ -128,12 +140,14 @@ async function main() {
 
     await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest)}\n`, "utf8");
     await fs.writeFile(ASSOCIATIONS_PATH, `${JSON.stringify(associations)}\n`, "utf8");
+    await extractIconsFromVsix(vsixPath, PUBLIC_ICONS_DIR);
 
     process.stdout.write(
       [
         `Synced vscode-icons ${VERSION}`,
         `manifest: ${MANIFEST_PATH}`,
         `language associations: ${ASSOCIATIONS_PATH}`,
+        `public icons: ${PUBLIC_ICONS_DIR}`,
         `extension mappings: ${Object.keys(associations.extensionToLanguageId).length}`,
         `filename mappings: ${Object.keys(associations.fileNameToLanguageId).length}`,
       ].join("\n") + "\n",

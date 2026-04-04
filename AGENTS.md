@@ -153,13 +153,13 @@ const table = sqliteTable("session", {
 
 ### Monorepo structure
 
-| Package | Path | Purpose |
-|---------|------|---------|
-| `@glass/web` | `apps/web` | React/Vite frontend (renderer UI) |
-| `@glass/desktop` | `apps/desktop` | Electron main process |
+| Package            | Path                 | Purpose                                                    |
+| ------------------ | -------------------- | ---------------------------------------------------------- |
+| `@glass/web`       | `apps/web`           | React/Vite frontend (renderer UI)                          |
+| `@glass/desktop`   | `apps/desktop`       | Electron main process                                      |
 | `@glass/contracts` | `packages/contracts` | Shared types/schemas (must be built before other packages) |
-| `@glass/shared` | `packages/shared` | Shared utilities |
-| `@glass/scripts` | `scripts/` | Build/release tooling |
+| `@glass/shared`    | `packages/shared`    | Shared utilities                                           |
+| `@glass/scripts`   | `scripts/`           | Build/release tooling                                      |
 
 ### Key commands
 
