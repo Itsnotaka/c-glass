@@ -14,7 +14,7 @@ Glass is a **distinct workbench mode**, not only a skin:
 
 - `nativeWorkbenchEnvironmentService.isGlass` gates behavior (e.g. selected-context utilities only run when Glass is active).
 - Window chrome strings reference an **Agents window**: “Minimize / Maximize / Restore / Close **Agents window**”.
-- Opening flows use `**cursorForceNewWindow`** (alongside normal `forceNewWindow`) when routing folder/file opens.
+- Opening flows use `**cursorForceNewWindow`\*\* (alongside normal `forceNewWindow`) when routing folder/file opens.
 - **Unified sidebar / agents toggles:** `workbench.action.toggleAgents`, `workbench.action.toggleAgentsFromKeyboard`, `workbench.action.toggleUnifiedSidebar`, `workbench.action.toggleUnifiedSidebarFromKeyboard`, and `cursor.toggleAgentWindowIDEUnification`.
 
 Treat “new agent window” as: **a BrowserWindow (or equivalent) running the workbench with Glass layout + agent UI**, separate from the classic IDE shell where the agent is only a side panel.
@@ -27,12 +27,11 @@ Each track is what a dedicated pass over the same bundle would own. Evidence is 
 
 ### 1. DOM contract: `data-cursor-glass-mode` and body classes
 
-- `**data-cursor-glass-mode`** on `body` (boolean attribute; CSS uses both `=true` and `="true"` forms in different rules).
+- `**data-cursor-glass-mode`\*\* on `body` (boolean attribute; CSS uses both `=true` and `="true"` forms in different rules).
 - **Theme family:** `body.cursor-light`, `body.cursor-dark`, `body.cursor-high-contrast` (and Glass-specific rules stack on top).
 - **macOS vibrancy:** `body.cursor-glass-os-vibrancy-on` vs `cursor-glass-os-vibrancy-off` — switches which **surface** tokens map to vibrancy-tuned values.
 
 ### 2. `data-component` hooks (stable selectors)
-
 
 | Value                  | Role                                                                                                |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
@@ -41,9 +40,7 @@ Each track is what a dedicated pass over the same bundle would own. Evidence is 
 | `glass-in-app-menubar` | In-window menu bar region for Glass.                                                                |
 | `workspaces-container` | Workspace switcher / workspace UI host.                                                             |
 
-
 ### 3. CSS variables: `--glass-*` (authoritative list from `workbench.desktop.main.css`)
-
 
 | Token                                             | Typical role                                                                   |
 | ------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -70,19 +67,18 @@ Each track is what a dedicated pass over the same bundle would own. Evidence is 
 | `--glass-sidebar-agent-status-dot-size`           | Status dot in sidebar.                                                         |
 | `--glass-sidebar-status-affordance-opacity`       | Muted status affordance.                                                       |
 
-
 **Vibrancy mapping (matches your DevTools snippet):** when `body...cursor-glass-os-vibrancy-on[data-cursor-glass-mode=true] [data-component=root]` applies, the **surface** variables alias the **vibrancy-on** ones, e.g.:
 
 `--glass-sidebar-surface-background` → `var(--glass-vibrancy-on-sidebar-surface-background)` (and similarly for chat / editor).
 
-**Underlying Cursor palette:** vibrancy-on/off entries resolve to `**--cursor-bg-*`** tokens (e.g. `--cursor-bg-sidebar`, `--cursor-bg-chrome`, `--cursor-bg-elevated`), not raw hex in the vibrancy layer.
+**Underlying Cursor palette:** vibrancy-on/off entries resolve to `**--cursor-bg-*`\*\* tokens (e.g. `--cursor-bg-sidebar`, `--cursor-bg-chrome`, `--cursor-bg-elevated`), not raw hex in the vibrancy layer.
 
 ### 4. Layout: traffic lights and sidebar top bar
 
 - `**--ui-sidebar-traffic-lights-spacer-width**`: used with sidebar top padding; width rule pattern:  
-`max(0px, var(--ui-sidebar-traffic-lights-spacer-width) - var(--ui-sidebar-top-bar-horizontal-padding, 0px))`.
+  `max(0px, var(--ui-sidebar-traffic-lights-spacer-width) - var(--ui-sidebar-top-bar-horizontal-padding, 0px))`.
 - **Class:** `.traffic-lights-spacer` — `flex-shrink: 0; width: var(--glass-traffic-lights-spacer-width)`.
-- `**--zoom-factor`**: appears in bundle (used for scaled UI).
+- `**--zoom-factor`\*\*: appears in bundle (used for scaled UI).
 
 ### 5. Typography
 
@@ -127,14 +123,12 @@ Those blocks are generated next to theme color maps (minified names like `OAn`, 
 
 ### 10. Gaps for c-glass
 
-
 | Cursor Glass                                     | c-glass direction                                                                                                                   |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `data-cursor-glass-mode` + vibrancy body classes | Your app can use `data-glass-mode` + theme class on `document.body` or root layout.                                                 |
 | `--glass-*` / `--cursor-bg-*` cascade            | Map to CSS variables in web app + `desktop:set-theme`; no need to copy names unless you want token parity.                          |
-| `contextBridge` + 100+ VS Code services          | Keep `**glass:*`** IPC as the narrow, stable surface.                                                                               |
+| `contextBridge` + 100+ VS Code services          | Keep `**glass:*`\*\* IPC as the narrow, stable surface.                                                                             |
 | Native traffic-light inset                       | On Electron, use `titleBarStyle: hiddenInset` (or platform equivalent) and replicate `--glass-traffic-lights-spacer-width` padding. |
-
 
 ---
 
@@ -168,7 +162,7 @@ Exact default values can differ by platform and settings; **read computed styles
 ## Files to re-scan after each Cursor update
 
 1. `Contents/Resources/app/package.json` — app version
-2. `out/vs/workbench/workbench.desktop.main.css` — `--glass-`* / `--cursor-*` tokens
+2. `out/vs/workbench/workbench.desktop.main.css` — `--glass-`_ / `--cursor-_` tokens
 3. `out/vs/workbench/workbench.desktop.main.js` — `isGlass`, command IDs, `data-component` strings
 
 ---

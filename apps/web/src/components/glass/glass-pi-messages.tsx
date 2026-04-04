@@ -1,15 +1,19 @@
-import type { PiSessionItem, PiToolCallBlock } from "@glass/contracts";
+import type { PiSessionItem } from "@glass/contracts";
 import { Collapsible } from "@base-ui/react/collapsible";
-import { layoutWithLines, prepareWithSegments } from "@chenglou/pretext";
 import { code } from "@streamdown/code";
 import {
-  IconChevronRight,
+  IconChevronBottom,
+  IconCircleCheck,
+  IconCircleX,
+  IconClipboard,
   IconConsole,
   IconFileBend,
   IconImages1,
+  IconLoader,
   IconToolbox,
 } from "central-icons";
-import { memo, useEffect, useMemo, useRef } from "react";
+import React from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
 import { cn } from "../../lib/utils";
@@ -23,9 +27,51 @@ const controls = {
   table: false,
 } as const;
 
+type ToolState = "pending" | "running" | "completed" | "errored";
+
+function state(row: PiRow): ToolState {
+  if (row.kind === "tool") {
+    if (row.error) return "errored";
+    if (row.result.trim()) return "completed";
+    if (row.args.trim()) return "running";
+    return "pending";
+  }
+  if (row.kind === "bash") {
+    if (row.cancelled) return "errored";
+    if (row.code !== null && row.code !== 0) return "errored";
+    if (row.output.trim() || row.code !== null) return "completed";
+    return "running";
+  }
+  return "completed";
+}
+
+const labels: Record<ToolState, string> = {
+  pending: "Pending",
+  running: "Running",
+  completed: "Completed",
+  errored: "Error",
+};
+
+function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "bash" }> }) {
+  const s = state(props.row);
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/70">
+      {s === "pending" && <IconLoader className="size-3.5 animate-spin text-muted-foreground/60" />}
+      {s === "running" && <IconLoader className="size-3.5 animate-spin text-info-foreground" />}
+      {s === "completed" && <IconCircleCheck className="size-3.5 text-success-foreground" />}
+      {s === "errored" && <IconCircleX className="size-3.5 text-destructive" />}
+      {labels[s]}
+    </span>
+  );
+}
+
 function draw(row: PiRow, expanded: boolean, onFlip: () => void) {
   if (row.kind === "user") {
     return <HumanBubble key={row.id} text={row.text || ""} attachments={row.attachments} />;
+  }
+
+  if (row.kind === "thinking") {
+    return <ThinkingRow key={row.id} text={row.text} expanded={expanded} onFlip={onFlip} />;
   }
 
   if (row.kind === "assistant") {
@@ -79,47 +125,6 @@ function draw(row: PiRow, expanded: boolean, onFlip: () => void) {
   return (
     <TextCard key={row.id} label={row.role} text={row.text} expanded={expanded} onFlip={onFlip} />
   );
-}
-
-function clip(text: string) {
-  const prep = prepareWithSegments(text, "12px ui-monospace", { whiteSpace: "pre-wrap" });
-  const out = layoutWithLines(prep, 640, 20);
-  if (out.lines.length <= 8) return text;
-  return `${out.lines
-    .slice(0, 8)
-    .map((line) => line.text)
-    .join("\n")}\n...`;
-}
-
-function first(call: PiToolCallBlock | null) {
-  const args = call?.arguments;
-  if (!args || typeof args !== "object") {
-    if (typeof args === "string" && args.trim()) return args.trim().slice(0, 72);
-    return null;
-  }
-
-  for (const key of ["command", "path", "query", "file", "url", "prompt", "target"]) {
-    const val = (args as Record<string, unknown>)[key];
-    if (typeof val === "string" && val.trim()) return val.trim().slice(0, 72);
-  }
-
-  const keys = Object.keys(args as Record<string, unknown>);
-  if (keys.length === 0) return null;
-  return `${keys.length} prop${keys.length === 1 ? "" : "s"}`;
-}
-
-function meta(row: PiRow) {
-  if (row.kind === "tool") {
-    if (row.error) return "errored";
-    if (row.result.trim()) return "returned output";
-    return "waiting";
-  }
-  if (row.kind === "bash") {
-    if (row.cancelled) return "cancelled";
-    if (row.code === null) return "exit unknown";
-    return `exit ${row.code}`;
-  }
-  return null;
 }
 
 const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachment }) {
@@ -200,6 +205,38 @@ const HumanBubble = memo(function HumanBubble(props: {
   );
 });
 
+const ThinkingRow = memo(function ThinkingRow(props: {
+  text: string;
+  expanded: boolean;
+  onFlip: () => void;
+}) {
+  return (
+    <li className="py-0.5">
+      <Collapsible.Root open={props.expanded}>
+        <Collapsible.Trigger
+          onClick={props.onFlip}
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-0 py-0.5 text-left transition-colors hover:bg-glass-hover/10"
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground/70">
+            Thinking
+          </span>
+          <IconChevronBottom
+            className={cn(
+              "size-3 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+              !props.expanded && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="mt-1 border-l border-glass-border/35 pb-1 pl-3 text-[13px]/5 text-muted-foreground/85">
+            {props.text}
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+});
+
 const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   return (
     <li className="py-1">
@@ -216,139 +253,352 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   );
 });
 
-const Section = memo(function Section(props: {
-  label?: string;
-  text: string;
-  error?: boolean | undefined;
-}) {
+function renderValue(value: unknown, depth: number): React.ReactNode {
+  if (value === null) return <span className="text-destructive/80">null</span>;
+  if (value === undefined) return <span className="text-muted-foreground/60">undefined</span>;
+  if (typeof value === "boolean")
+    return <span className="text-accent-foreground">{String(value)}</span>;
+  if (typeof value === "number") return <span className="text-info-foreground">{value}</span>;
+  if (typeof value === "string") {
+    if (value.length > 200 && depth > 0) {
+      return (
+        <span className="text-success-foreground/90">
+          &ldquo;{value.slice(0, 200)}&hellip;&rdquo;
+        </span>
+      );
+    }
+    return <span className="text-success-foreground/90">&ldquo;{value}&rdquo;</span>;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted-foreground/50">[]</span>;
+    return (
+      <span>
+        <span className="text-muted-foreground/50">[</span>
+        <div className="pl-4" style={{ borderLeft: "1px solid hsl(var(--glass-border) / 0.25)" }}>
+          {value.map((item, i) => (
+            <div key={i}>
+              {renderValue(item, depth + 1)}
+              {i < value.length - 1 && <span className="text-muted-foreground/50">,</span>}
+            </div>
+          ))}
+        </div>
+        <span className="text-muted-foreground/50">]</span>
+      </span>
+    );
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return <span className="text-muted-foreground/50">{"{}"}</span>;
+    return (
+      <span>
+        <span className="text-muted-foreground/50">{"{"}</span>
+        <div
+          className="grid grid-cols-[auto_1fr] gap-x-3 pl-4"
+          style={{ borderLeft: "1px solid hsl(var(--glass-border) / 0.25)" }}
+        >
+          {entries.map(([key, val], i) => (
+            <React.Fragment key={key}>
+              <span className="text-primary/80 font-medium">{key}</span>
+              <span className="text-muted-foreground/40">:</span>
+              <span className="min-w-0">{renderValue(val, depth + 1)}</span>
+              {i < entries.length - 1 && <span className="text-muted-foreground/50">,</span>}
+            </React.Fragment>
+          ))}
+        </div>
+        <span className="text-muted-foreground/50">{"}"}</span>
+      </span>
+    );
+  }
+  return <span className="text-muted-foreground/60">{String(value)}</span>;
+}
+
+function JsonSection(props: { label: string; text: string; error?: boolean | undefined }) {
   if (!props.text.trim()) return null;
 
+  const parsed = useMemo(() => {
+    try {
+      return JSON.parse(props.text);
+    } catch {
+      return null;
+    }
+  }, [props.text]);
+
+  const copy = useCallback(() => {
+    navigator.clipboard.writeText(props.text);
+  }, [props.text]);
+
   return (
-    <div
-      className={cn(
-        "rounded-xl border px-2.5 py-2",
-        props.error
-          ? "border-destructive/25 bg-destructive/6"
-          : "border-glass-border/30 bg-glass-hover/12",
-      )}
-    >
-      {props.label ? (
-        <div className="mb-1.5 text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/60 uppercase">
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/55 uppercase">
           {props.label}
+        </span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 rounded p-1 text-muted-foreground/40 transition-colors hover:bg-glass-hover/20 hover:text-muted-foreground/70"
+        >
+          <IconClipboard className="size-3" />
+          <span>copy</span>
+        </button>
+      </div>
+      {parsed !== null ? (
+        <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
+          {renderValue(parsed, 0)}
         </div>
-      ) : null}
-      <pre className="font-glass-mono whitespace-pre-wrap text-[11px]/[1.45] text-foreground/78">
-        {props.text}
-      </pre>
+      ) : (
+        <pre className="whitespace-pre-wrap text-[11px]/[1.45] text-foreground/75">
+          {props.text}
+        </pre>
+      )}
     </div>
   );
-});
+}
+
+function ToolRailCard(props: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: React.ReactNode;
+  expanded: boolean;
+  onFlip: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="overflow-hidden rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
+      <Collapsible.Root open={props.expanded}>
+        <Collapsible.Trigger
+          onClick={props.onFlip}
+          className="flex w-full cursor-pointer items-stretch text-left transition-colors hover:bg-glass-hover/12"
+        >
+          <div className="flex w-[7.25rem] shrink-0 items-center justify-center border-r border-glass-border/35 bg-glass-bubble/70 py-4">
+            {props.icon}
+          </div>
+          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 pl-6 sm:pl-7">
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-1 text-[13px] font-medium text-foreground/90">
+                {props.title}
+              </div>
+              <div className="mt-0.5">{props.subtitle}</div>
+            </div>
+            <IconChevronBottom
+              className={cn(
+                "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+                !props.expanded && "-rotate-90",
+              )}
+            />
+          </div>
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="flex flex-col gap-3 px-4 py-3 sm:pl-[calc(7.25rem+1.75rem)]">
+            {props.children}
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+}
 
 const ToolCard = memo(function ToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;
   expanded: boolean;
   onFlip: () => void;
 }) {
-  const txt = useMemo(
-    () => clip(props.row.result || props.row.args || ""),
-    [props.row.args, props.row.result],
-  );
-  const sum = first(props.row.call);
-  const info = meta(props.row);
+  const s = state(props.row);
+  const args = useMemo(() => {
+    try {
+      return JSON.parse(props.row.args);
+    } catch {
+      return null;
+    }
+  }, [props.row.args]);
+
+  const result = useMemo(() => {
+    try {
+      return JSON.parse(props.row.result);
+    } catch {
+      return null;
+    }
+  }, [props.row.result]);
+
+  const summary = useMemo(() => {
+    if (!args || typeof args !== "object") return null;
+    const entries = Object.entries(args);
+    if (entries.length === 0) return null;
+
+    const label = props.row.name.toLowerCase().includes("read")
+      ? "Read"
+      : props.row.name.toLowerCase().includes("grep")
+        ? "Grepped"
+        : props.row.name.toLowerCase().includes("write")
+          ? "Wrote"
+          : props.row.name.toLowerCase().includes("edit")
+            ? "Edited"
+            : props.row.name.toLowerCase().includes("bash") ||
+                props.row.name.toLowerCase().includes("shell")
+              ? "Ran"
+              : props.row.name.toLowerCase().includes("search")
+                ? "Searched"
+                : props.row.name.toLowerCase().includes("fetch") ||
+                    props.row.name.toLowerCase().includes("web")
+                  ? "Fetched"
+                  : null;
+
+    if (label) {
+      const parts: string[] = [];
+      for (const [key, val] of entries) {
+        if (key === "path" || key === "file" || key === "files") {
+          const files = Array.isArray(val) ? val : [val];
+          parts.push(`${files.length} ${files.length === 1 ? "file" : "files"}`);
+        } else if (key === "query" || key === "pattern") {
+          parts.push(`"${String(val).slice(0, 50)}"`);
+        } else if (key === "command") {
+          parts.push(String(val).slice(0, 30));
+        }
+      }
+      if (parts.length > 0) {
+        return `${label} ${parts.join(", ")}`;
+      }
+    }
+    return null;
+  }, [args, props.row.name]);
 
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
-        >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-            <IconToolbox className="size-4" />
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] text-foreground/78">
-            {props.row.name}
-          </span>
-          {sum ? (
-            <span className="hidden max-w-40 truncate text-[11px]/[1.2] text-muted-foreground/72 md:block">
-              {sum}
-            </span>
-          ) : null}
-          {info ? (
-            <span className="shrink-0 text-[11px]/[1.2] text-muted-foreground/72">{info}</span>
-          ) : null}
-          <IconChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="grid gap-2 px-3 pb-3">
-            <Section label="Props" text={props.row.args} />
-            <Section label="Output" text={props.row.result} error={props.row.error} />
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section text={txt} error={props.row.error} />
-          </div>
-        ) : null}
-      </Collapsible.Root>
-    </li>
+    <ToolRailCard
+      icon={
+        <IconToolbox
+          className={cn(
+            "size-[18px]",
+            s === "errored" && "text-destructive",
+            s === "completed" && "text-success-foreground/90",
+            (s === "pending" || s === "running") && "text-muted-foreground/75",
+          )}
+        />
+      }
+      title={summary ?? props.row.name}
+      subtitle={<ToolSubtitle row={props.row} />}
+      expanded={props.expanded}
+      onFlip={props.onFlip}
+    >
+      {args && typeof args === "object" && (
+        <div className="flex flex-col gap-2">
+          {Object.entries(args).map(([key, val]) => (
+            <div key={key} className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <span className="text-[13px] font-medium text-foreground/90 line-clamp-1">
+                  {formatArgValue(key, val)}
+                </span>
+                <IconChevronBottom className="size-3 shrink-0 text-muted-foreground/40 -rotate-90" />
+              </div>
+              {shouldShowContent(val) && (
+                <div className="rounded-lg overflow-hidden bg-glass-hover/5 border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] p-2">
+                  <div className="max-h-48 overflow-auto">
+                    <pre className="font-glass-mono whitespace-pre-wrap text-[11px]/3.5 text-foreground/70">
+                      {formatContentValue(val)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {!args && props.row.args.trim() && <JsonSection label="Parameters" text={props.row.args} />}
+      {props.row.result.trim() && (
+        <JsonSection
+          label={props.row.error ? "Error" : "Result"}
+          text={props.row.result}
+          error={props.row.error}
+        />
+      )}
+    </ToolRailCard>
   );
 });
+
+function formatArgValue(key: string, value: unknown): string {
+  if (key === "path" || key === "file") {
+    const str = Array.isArray(value) ? value.join(", ") : String(value);
+    return str.split(/[\\/]/).at(-1) ?? str;
+  }
+  if (key === "query" || key === "pattern" || key === "search") {
+    return `"${String(value)}"`;
+  }
+  if (key === "command") {
+    const cmd = String(value);
+    return cmd.length > 50 ? `${cmd.slice(0, 50)}…` : cmd;
+  }
+  if (Array.isArray(value)) {
+    if (value.every((v) => typeof v === "string" || v === null)) {
+      return (
+        value
+          .filter(Boolean)
+          .map((v) => String(v).split(/[\\/]/).at(-1))
+          .join(", ") || key
+      );
+    }
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return key;
+}
+
+function shouldShowContent(value: unknown): boolean {
+  if (typeof value === "string") return value.includes("\n") || value.length > 200;
+  if (Array.isArray(value))
+    return value.some((v) => typeof v === "string" && (v.includes("\n") || v.length > 200));
+  if (typeof value === "object" && value !== null) return true;
+  return false;
+}
+
+function formatContentValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value))
+    return value.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join("\n");
+  if (typeof value === "object" && value !== null) return JSON.stringify(value, null, 2);
+  return String(value);
+}
 
 const BashCard = memo(function BashCard(props: {
   row: Extract<PiRow, { kind: "bash" }>;
   expanded: boolean;
   onFlip: () => void;
 }) {
-  const info = meta(props.row);
-  const txt = useMemo(
-    () => clip(props.row.output || props.row.command),
-    [props.row.command, props.row.output],
-  );
+  const err = props.row.code !== null && props.row.code !== 0;
 
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
+    <li className="overflow-hidden rounded-lg border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
       <Collapsible.Root open={props.expanded}>
         <Collapsible.Trigger
           onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
+          className="flex w-full cursor-pointer items-center gap-1.5 px-2 py-1 text-left transition-colors hover:bg-glass-hover/12"
         >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
-            <IconConsole className="size-4" />
-          </span>
-          <span className="truncate text-[13px]/[1.3] text-foreground/78">Ran command</span>
-          <span className="min-w-0 flex-1 truncate text-[11px]/[1.2] text-muted-foreground/72">
+          <div className="flex h-5 w-3 shrink-0 items-center justify-center font-glass-mono text-xs font-semibold text-muted-foreground/70">
+            $
+          </div>
+          <div className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground/85">
             {props.row.command}
-          </span>
-          {info ? (
-            <span className="shrink-0 text-[11px]/[1.2] text-muted-foreground/72">{info}</span>
-          ) : null}
-          <IconChevronRight
+          </div>
+          <IconChevronBottom
             className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
+              "size-3.5 shrink-0 text-muted-foreground/55 transition-transform duration-200",
+              !props.expanded && "-rotate-90",
             )}
           />
         </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="grid gap-2 px-3 pb-3">
-            <Section label="Command" text={props.row.command} />
-            <Section
+        <Collapsible.Panel>
+          <div className="grid gap-3 border-t border-glass-border/25 px-3 py-3">
+            <div className="flex items-center gap-2">
+              <IconConsole className="size-4 shrink-0 text-muted-foreground/65" />
+              <ToolSubtitle row={props.row} />
+            </div>
+            <JsonSection label="Command" text={props.row.command} />
+            <JsonSection
               label="Output"
               text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
-              error={props.row.code !== null && props.row.code !== 0}
+              error={err}
             />
-            {props.row.path ? <Section label="Full output path" text={props.row.path} /> : null}
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section text={txt} error={props.row.code !== null && props.row.code !== 0} />
+            {props.row.path ? <JsonSection label="Full output path" text={props.row.path} /> : null}
           </div>
-        ) : null}
+        </Collapsible.Panel>
       </Collapsible.Root>
     </li>
   );
@@ -361,36 +611,16 @@ const TextCard = memo(function TextCard(props: {
   onFlip: () => void;
   error?: boolean;
 }) {
-  const txt = useMemo(() => clip(props.text), [props.text]);
-
   return (
-    <li className="rounded-2xl border border-glass-border/40 bg-glass-bubble/45 shadow-glass-card backdrop-blur-sm">
-      <Collapsible.Root open={props.expanded}>
-        <Collapsible.Trigger
-          onClick={props.onFlip}
-          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left hover:bg-glass-hover/18"
-        >
-          <span className="min-w-0 flex-1 truncate text-[13px]/[1.3] text-foreground/78">
-            {props.label}
-          </span>
-          <IconChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground/70 transition-transform",
-              props.expanded && "rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        {props.expanded ? (
-          <Collapsible.Panel className="px-3 pb-3">
-            <Section label={props.label} text={props.text} error={props.error} />
-          </Collapsible.Panel>
-        ) : txt ? (
-          <div className="px-3 pb-3">
-            <Section label="Preview" text={txt} error={props.error} />
-          </div>
-        ) : null}
-      </Collapsible.Root>
-    </li>
+    <ToolRailCard
+      icon={<IconToolbox className="size-[18px] text-muted-foreground/75" />}
+      title={props.label}
+      subtitle={<span className="text-[13px] text-muted-foreground/70">Completed</span>}
+      expanded={props.expanded}
+      onFlip={props.onFlip}
+    >
+      <JsonSection label="Content" text={props.text} error={props.error} />
+    </ToolRailCard>
   );
 });
 
@@ -455,7 +685,7 @@ export const GlassPiMessages = memo(function GlassPiMessages(props: {
         stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
       }}
     >
-      <ul className="mx-auto flex max-w-[44rem] flex-col gap-4 px-4 py-4 md:px-8">
+      <ul className="mx-auto flex max-w-[43.875rem] flex-col gap-2 px-4 py-4 md:px-8">
         <GlassPiTranscript items={props.messages} expanded={props.expanded} onFlip={props.onFlip} />
         <GlassPiLive item={props.live} expanded={props.expanded} onFlip={props.onFlip} />
       </ul>
