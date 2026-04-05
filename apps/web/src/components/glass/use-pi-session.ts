@@ -99,13 +99,13 @@ export function usePiSession(sessionId: string | null) {
   const frame = useRef<number | null>(null);
 
   useEffect(() => {
-    const bump = () => {
-      setTick((cur) => cur + 1);
+    const reload = () => {
+      setTick((value) => value + 1);
     };
 
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, bump);
+    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, reload);
     return () => {
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, bump);
+      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, reload);
     };
   }, []);
 
@@ -116,15 +116,12 @@ export function usePiSession(sessionId: string | null) {
     if (!glass) return;
 
     let live = true;
-    const start = performance.now();
 
     void glass.session
-      .peek(sessionId)
-      .then((next) => {
+      .read(sessionId)
+      .then((snap) => {
         if (!live) return;
-        putSnap(next);
-        const dur = Math.round(performance.now() - start);
-        console.log(`[timing] usePiSession peek ${dur}ms`);
+        putSnap(snap);
       })
       .catch(() => {});
 
@@ -140,15 +137,12 @@ export function usePiSession(sessionId: string | null) {
     if (!glass) return;
 
     let live = true;
-    const start = performance.now();
 
     void glass.session
       .watch(sessionId)
-      .then((next) => {
+      .then((snap) => {
         if (!live) return;
-        putSnap(next);
-        const dur = Math.round(performance.now() - start);
-        console.log(`[timing] usePiSession watch ${dur}ms`);
+        putSnap(snap);
       })
       .catch(() => {});
 
@@ -178,18 +172,18 @@ export function usePiSession(sessionId: string | null) {
       if (frame.current !== null) return;
       frame.current = window.requestAnimationFrame(() => {
         frame.current = null;
-        const next = queued.current;
+        const batch = queued.current;
         queued.current = [];
-        if (next.length === 0) return;
-        const hits = next.flatMap((item) =>
+        if (batch.length === 0) return;
+        const hits = batch.flatMap((item) =>
           item.delta.type === "commit" ? paths(item.delta.item) : [],
         );
         if (hits.length > 0) note(hits);
-        if (next.some((item) => item.delta.type === "commit" && dirty(item.delta.item))) {
+        if (batch.some((item) => item.delta.type === "commit" && dirty(item.delta.item))) {
           bumpPaths();
         }
         startTransition(() => {
-          applyActs(next);
+          applyActs(batch);
         });
       });
     });

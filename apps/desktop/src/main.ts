@@ -68,7 +68,7 @@ const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
 const SESSION_LIST_ALL_BOOT_CHANNEL = "glass:session.list-all-boot";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
-const SESSION_PEEK_CHANNEL = "glass:session.peek";
+const SESSION_READ_CHANNEL = "glass:session.read";
 const SESSION_WATCH_CHANNEL = "glass:session.watch";
 const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
 const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
@@ -1207,12 +1207,12 @@ function registerIpcHandlers(): void {
     return Effect.runPromise(sessionService.get(sessionId));
   });
 
-  ipcMain.removeHandler(SESSION_PEEK_CHANNEL);
-  ipcMain.handle(SESSION_PEEK_CHANNEL, async (_event, sessionId: unknown) => {
+  ipcMain.removeHandler(SESSION_READ_CHANNEL);
+  ipcMain.handle(SESSION_READ_CHANNEL, async (_event, sessionId: unknown) => {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
       throw new Error("Missing session id");
     }
-    const snap = sessionService.view(sessionId);
+    const snap = sessionService.read(sessionId);
     if (snap) return snap;
     return Effect.runPromise(sessionService.get(sessionId));
   });
@@ -1225,16 +1225,16 @@ function registerIpcHandlers(): void {
 
     bindWatchedSession(event.sender);
 
-    const cur = watchedSessions.get(event.sender.id);
-    if (cur === sessionId) {
-      return Effect.runPromise(sessionService.get(sessionId, `watch_reuse:${sessionId.slice(-8)}`));
+    const current = watchedSessions.get(event.sender.id);
+    if (current === sessionId) {
+      return Effect.runPromise(sessionService.get(sessionId));
     }
-    if (cur) {
+    if (current) {
       clearWatchedSession(event.sender.id);
     }
     watchedSessions.set(event.sender.id, sessionId);
     return Effect.runPromise(
-      sessionService.watch(sessionId, { ctx: `watch_cold:${sessionId.slice(-8)}` }).pipe(
+      sessionService.watch(sessionId).pipe(
         Effect.tapError(() =>
           Effect.sync(() => {
             watchedSessions.delete(event.sender.id);

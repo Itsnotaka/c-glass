@@ -1,31 +1,11 @@
 import type { PiModelRef, PiThinkingLevel } from "@glass/contracts";
-import { layoutWithLines, prepareWithSegments } from "@chenglou/pretext";
 import { Menu } from "@base-ui/react/menu";
 import { IconBrain, IconCheckmark1Small, IconChevronRight } from "central-icons";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { usePretextOneLine } from "../../hooks/use-glass-pretext-one-line";
 import { displayModelName, filterPiModels, type PiModelItem } from "../../lib/pi-models";
 import { cn } from "../../lib/utils";
-
-function wellFormed(s: string) {
-  const fn = Reflect.get(String.prototype, "toWellFormed") as
-    | undefined
-    | ((this: string) => string);
-  return typeof fn === "function" ? fn.call(s) : s;
-}
-
-function useGlassPretextFont(px: number) {
-  const [font, setFont] = useState(`400 ${px}px ui-sans-serif, system-ui, sans-serif`);
-
-  useLayoutEffect(() => {
-    const stack = getComputedStyle(document.documentElement)
-      .getPropertyValue("--glass-font-ui")
-      .trim();
-    if (stack) setFont(`400 ${px}px ${stack}`);
-  }, [px]);
-
-  return font;
-}
 
 function PretextOneLine(props: {
   text: string;
@@ -33,49 +13,13 @@ function PretextOneLine(props: {
   fontPx?: number;
   lineHeightPx?: number;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [w, setW] = useState(0);
-  const px = props.fontPx ?? 12;
-  const line = props.lineHeightPx ?? Math.round(px * 1.3);
-  const font = useGlassPretextFont(px);
-  const t = useMemo(() => {
-    if (!props.text) return "";
-    return wellFormed(props.text);
-  }, [props.text]);
-
-  const prep = useMemo(() => {
-    if (!t) return null;
-    try {
-      return prepareWithSegments(t, font);
-    } catch {
-      return null;
-    }
-  }, [t, font]);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const next = () => setW(el.clientWidth);
-    next();
-    const ro = new ResizeObserver(next);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const shown = useMemo(() => {
-    if (!t) return "";
-    if (!prep) return t;
-    if (w <= 0) return t;
-    const out = layoutWithLines(prep, w, line);
-    const head = out.lines[0];
-    if (!head) return "";
-    if (out.lines.length === 1) return head.text;
-    const first = head.text.replace(/\s+$/, "");
-    return first ? `${first}…` : "…";
-  }, [prep, t, w, line]);
-
+  const { ref, shown, fallback } = usePretextOneLine({
+    text: props.text,
+    ...(props.fontPx !== undefined ? { fontPx: props.fontPx } : {}),
+    ...(props.lineHeightPx !== undefined ? { lineHeightPx: props.lineHeightPx } : {}),
+  });
   return (
-    <span ref={ref} className={cn(props.className, !prep && t.length > 0 && "truncate")}>
+    <span ref={ref} className={cn(props.className, fallback && "truncate")}>
       {shown}
     </span>
   );
