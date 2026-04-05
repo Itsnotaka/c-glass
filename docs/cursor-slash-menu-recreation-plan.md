@@ -1,280 +1,140 @@
-# Cursor-Style Slash Menu Recreation Plan
+# Glass Slash Menu Plan
 
 ## Goal
 
-Recreate Cursor's Glass slash menu in `c-glass` as a polished, typed launcher that feels like the screenshot, while fitting the current architecture in `apps/web` and using Base UI correctly.
+Build a polished, typed slash and `@` mention launcher for `c-glass` that feels intentional and fast in the current Glass composer.
 
-## Release Standard
+The result should be canonical for Glass, not a Cursor compatibility layer.
 
-This work is unreleased.
+## Product Position
 
-That changes the bar.
+Cursor is useful as a UX reference, not as a source model.
 
-The implementation must be canonical from the first merge.
+We can borrow interaction ideas that are clearly good:
 
-1. Do not build throwaway parity code.
-2. Do not create temporary UI paths that will later be replaced by the "real" version.
-3. Do not introduce approximate styling if the exact shipped Cursor source can be discovered.
-4. Do not split ownership across duplicate components when one canonical component can own the feature.
-5. Implement the full slash, `@` mention, and inline token-highlight architecture needed for Cursor-equivalent behavior, even if delivery is staged.
+1. one unified launcher surface,
+2. grouped results,
+3. strong keyboard and pointer behavior,
+4. recency-aware ranking,
+5. file-side preview for `@` mentions,
+6. inline token highlighting when the editor shell is ready.
+
+We should not inherit Cursor-specific storage, filesystem conventions, or backend assumptions.
+
+## Why The Earlier Plan Was Wrong
+
+The previous version of this plan pushed too hard toward Cursor parity and `.cursor/*` compatibility.
+
+That is exactly the kind of lock-in we do not want.
+
+Problems with that direction:
+
+1. it treated Cursor bundle CSS as the canonical visual source,
+2. it treated Cursor local storage and command registries as architectural targets,
+3. it implied future support for `.cursor/commands`, `.claude/commands`, and related command-file ecosystems,
+4. it blurred the line between inspiration and product ownership,
+5. it made unimplemented work look blocked by missing Cursor parity instead of normal product prioritization.
+
+## Explicit Non-Goals
+
+This feature should not introduce Cursor lock-in.
+
+That means:
+
+1. do not read from `~/.cursor/*`, workspace `.cursor/*`, or `.claude/*`,
+2. do not model Glass command discovery around Cursor command-file formats,
+3. do not require exact copied CSS, selectors, or tokens from Cursor bundles,
+4. do not add remote payload shapes just because Cursor has them,
+5. do not create placeholder support for team commands, plugin commands, or Cursor-style subagents unless Glass or Pi actually owns those concepts,
+6. do not block shipping on exact visual parity with Cursor.
 
 ## Canonicality Requirements
 
-All code written for this feature should be treated as product-canonical.
+The implementation still needs to be canonical.
 
 1. The composer popup system should have one canonical implementation for slash and `@` mention.
 2. Token parsing should have one canonical source of truth.
 3. Ranking and recency should have one canonical source of truth.
-4. The inline highlight system should have one canonical rendering path.
-5. Styling should be sourced from discovered Cursor code, not designer memory or hand-tuned approximation.
-6. Documentation must preserve exact source paths back to Cursor's shipped bundle so design and product can inspect the upstream artifact directly.
+4. Inline token highlighting should have one canonical rendering path when we ship it.
+5. Styling should come from Glass design language and local primitives, not copied foreign product internals.
+6. New sources should only be added when they are native to Glass or Pi.
 
-## Non-Goal
+## Current Glass State
 
-This plan is not a license to approximate Cursor.
+The app already has the important building blocks.
 
-What is out of scope is only the subset of Cursor backend systems that we cannot yet support locally without new platform work.
+1. `apps/web/src/components/glass/glass-pi-composer.tsx` already detects `/` and `@` tokens and applies selections back into the draft.
+2. `apps/web/src/components/glass/glass-pi-composer-search.ts` already owns token parsing and insertion helpers.
+3. `packages/contracts/src/session.ts` already exposes Pi slash commands.
+4. `glass.shell.suggestFiles()` and `glass.shell.previewFile()` already support `@` mention search and preview.
+5. `apps/web` already uses Base UI and has established Glass popup patterns.
 
-What is in scope for this plan is the full product surface we can implement canonically now:
+## Implementation Status
 
-1. slash menu,
-2. `@` file mention picker,
-3. file side preview,
-4. typed item model,
-5. grouped ranking and recency,
-6. keyboard and pointer parity,
-7. inline token highlighting,
-8. canonical styling sourced from Cursor's shipped code.
+What is already in the tree:
 
-## What Cursor Actually Built
+1. one shared popup family for slash and `@` mention in `apps/web/src/components/glass/glass-slash-menu.tsx`,
+2. typed slash item normalization and grouped rows in `apps/web/src/components/glass/glass-slash-registry.ts`,
+3. local recency storage and ranking boosts in `apps/web/src/components/glass/glass-slash-recents.ts`,
+4. keyboard and pointer selection that keeps textarea ownership in `apps/web/src/components/glass/glass-pi-composer.tsx`,
+5. `@` mention results plus side preview backed by `glass.shell.suggestFiles()` and `glass.shell.previewFile()`,
+6. a first mirror-layer highlight pass for slash tokens and file mentions in `apps/web/src/components/glass/glass-pi-composer-search.ts` and `apps/web/src/components/glass/glass-pi-composer.tsx`.
 
-Cursor's slash menu is not a plain text autocomplete.
+What is not shipped yet:
 
-From the Cursor app bundle and local storage:
+1. project-local slash command discovery under a Glass-owned workspace namespace,
+2. first-class local skill discovery outside the current Pi session command list,
+3. a real subagent registry or runtime-backed slash source,
+4. shortcut hints,
+5. argument hints,
+6. provenance badges.
 
-1. the menu is a unified launcher over multiple typed registries,
-2. item types include at least `command`, `skill`, and `subagent`,
-3. commands come from local files, team commands, global commands, and plugin commands,
-4. skills are file-backed `SKILL.md` artifacts and can also come from plugin caches,
-5. subagents are distinct runtime entities with background-work lifecycle,
-6. recency is tracked per type and also in a global cross-type order,
-7. Glass and Classic can receive different remote command payloads.
+## Current Limitation
 
-### Key Cursor Findings
+The old inline picker was useful but not a good long-term shape.
 
-1. Commands are loaded from `~/.cursor/commands`, workspace `.cursor/commands`, optional `.claude/commands`, team commands, global commands, and plugin commands.
-2. Cursor stores recents under `cursor.commands.recentlyUsed`, `cursor.skills.recentlyUsed`, `cursor.subagents.recentlyUsed`, and a merged `cursor.recentlyUsed.globalOrder`.
-3. Skills are first-class extensibility artifacts, not just prompt snippets.
-4. Manual skill activation creates a new agent, adds the skill file as structured context, and sends a typed pending slash selection of `type: "skill"`.
-5. Glass has slash-menu-specific styling and a surface-aware remote command fetch path.
+The work that remained was not blocked because we needed more Cursor parity.
+It remained because we only want to ship the parts that fit Glass cleanly.
 
-## Cursor Source Of Truth
+## Source Model
 
-Any styling, layout, or interaction claim in this plan should point back to Cursor's shipped bundle, not memory.
+The source model should stay Glass-native.
 
-### Primary Bundle Paths
+Phase 1 sources:
 
-1. `/System/Volumes/Data/Applications/Cursor.app/Contents/Resources/app/package.json`
-2. `/System/Volumes/Data/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.css`
-3. `/System/Volumes/Data/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js`
+1. Pi slash commands from the current session,
+2. local app actions like `/new` and `/settings`,
+3. shell file suggestions for `@` mention.
 
-### Local Research Anchors
+Possible later sources, only if they become native to Glass or Pi:
 
-1. `research-scratchpad.md`
-2. `docs/cursor-glass-deep-dive.md`
-3. `/Users/workgyver/Library/Application Support/CleanShot/media/media_RKuOsRH8w7/CleanShot 2026-04-04 at 15.08.31.png`
+1. Pi-provided skills,
+2. Pi-provided agents or subagents,
+3. workspace-local Glass config under a Glass-owned namespace such as `.pi/*` if we actually decide to support that.
 
-### Styling Discovery Rules
+Not planned:
 
-For this feature, styling must be copied from Cursor's shipped implementation as exactly as practical.
+1. `.cursor/commands`,
+2. `.claude/commands`,
+3. team-command sync modeled after Cursor,
+4. plugin command caches copied from another product.
 
-1. Use the exact selectors, variables, and declarations from `workbench.desktop.main.css` when they are discoverable.
-2. When translating into Tailwind or app CSS, preserve the exact values and structure from Cursor instead of redesigning.
-3. Record the original Cursor selector and file path in the plan or implementation notes whenever a visual rule is ported.
-4. If a value cannot be extracted confidently, mark it as undiscovered instead of inventing a replacement.
-5. Designers should be able to inspect the exact upstream source path for every major visual decision.
+## Primitive Choice
 
-### Known Cursor Styling Anchors For This Feature
+Use `Popover` as the popup primitive for slash and `@` mention.
 
-These are the important bundle-level names already discovered and should be treated as investigation targets during implementation.
+Why:
 
-1. `ui-slash-menu__content--glass`
-2. `ui-mention-menu-side-preview--glass`
-3. `ui-agent-tray__prompt-wrap`
-4. `ui-prompt-input`
-5. `ui-prompt-input--agent-tray-stack`
-6. `glass-model-picker-wrapper`
-7. `data-cursor-glass-mode`
-8. `data-component="root"`
-9. `--glass-sidebar-surface-background`
-10. `--glass-chat-surface-background`
-11. `--glass-editor-surface-background`
-12. `--glass-chat-bubble-background`
-13. `--glass-window-border-color`
-14. `--glass-traffic-lights-spacer-width`
+1. the query lives inside the multiline composer textarea,
+2. `Menu` is too button-oriented,
+3. `Combobox` is not the right top-level owner while the textarea remains the input source,
+4. `Popover` gives us the right overlay mechanics without creating a second input model.
 
-### Canonical Styling Requirement
+## Architecture
 
-Do not attempt to recreate Cursor's visual style from taste.
+### Typed Item Model
 
-1. Discovery comes first.
-2. Copy comes second.
-3. Interpretation is only allowed where Cursor's compiled output is ambiguous.
-
-### Designer Review Checklist
-
-For each shipped visual surface, the implementation notes should include:
-
-1. the original Cursor bundle path,
-2. the original selector or token name,
-3. the copied declaration or equivalent literal value,
-4. the destination `c-glass` file path,
-5. whether the rule was copied exactly or translated into Tailwind utilities.
-
-## Current `c-glass` State
-
-The app already has the core ingredients for a good first implementation.
-
-### Existing Code Paths
-
-1. `apps/web/src/components/glass/glass-pi-composer.tsx` already detects `/` and `@` tokens, fetches remote slash commands, ranks items, and inserts the selected command into the draft.
-2. `apps/web/src/components/glass/glass-pi-composer-search.ts` already provides `slashMatch()`, `rank()`, and `applySlash()`.
-3. `packages/contracts/src/session.ts` already defines `PiSlashCommand` with `source: "extension" | "prompt" | "skill"`.
-4. `apps/web` already depends on `@base-ui/react`.
-5. `apps/web/src/components/glass/glass-combobox.tsx` already wraps Base UI Combobox with Glass styling.
-6. `apps/web/src/components/glass/pi-model-picker.tsx` already shows a good Base UI `Menu` usage pattern in this codebase.
-7. `apps/web/src/components/ui/combobox.tsx` already provides a richer Combobox primitive wrapper if we need it later.
-
-### Current Product Limitation
-
-The current slash menu in `glass-pi-composer.tsx` is functionally useful, but architecturally still a lightweight inline picker.
-
-It does not yet have:
-
-1. a typed slash item model beyond local `Cmd`,
-2. persistent recency,
-3. clear sections like Cursor,
-4. richer previews and metadata,
-5. a dedicated floating menu component with clean ownership,
-6. a future-ready registry seam for commands, skills, and subagents.
-
-## Recommended Primitive Choice In Base UI
-
-### Recommendation
-
-Use `Popover` as the primary Base UI primitive for the slash menu popup in phase 1.
-
-### Why `Popover` First
-
-Our slash query currently lives inside the composer `textarea`, not inside a dedicated Combobox input.
-
-That matters.
-
-Base UI `Combobox` is excellent when it owns the text input. Cursor's slash query, and our current composer query, are embedded in a multiline editor-like draft field. For that setup:
-
-1. `Menu` is not a good fit because the list is query-driven and not button-triggered.
-2. `Combobox` is not an ideal top-level fit yet because the searchable text source is external to the Combobox input.
-3. `Popover` is the correct anchor/overlay primitive for a caret-relative or composer-relative floating surface.
-
-### Recommended Base UI Composition
-
-Phase 1 should use:
-
-1. `Popover.Root` with controlled `open`,
-2. `Popover.Portal`,
-3. `Popover.Positioner`,
-4. `Popover.Popup`,
-5. a custom list with app-owned active index and keyboard handling.
-
-This gives us correct overlay semantics and leaves filtering logic in the composer where it already exists.
-
-### Why Not Force `Combobox` Immediately
-
-A true Base UI `Combobox` rewrite only becomes natural if we first split slash search into its own dedicated input model.
-
-That is not how the current composer works.
-
-Trying to force `Combobox.Input` over the textarea would create a brittle split-brain input model.
-
-### Future Evolution
-
-After the phase 1 popover lands, we can optionally migrate the popup internals toward Base UI `Combobox` semantics if we later:
-
-1. make slash mode a dedicated transient input model,
-2. support richer filtering and item virtualization,
-3. want automatic listbox semantics from Base UI instead of app-owned roving state.
-
-## Base UI Syntax We Should Follow
-
-### Phase 1 Popup Skeleton
-
-```tsx
-import { Popover } from "@base-ui/react/popover";
-
-<Popover.Root open={open} onOpenChange={setOpen}>
-  <Popover.Portal>
-    <Popover.Positioner side="top" align="start" sideOffset={8} anchor={anchor} className="z-50">
-      <Popover.Popup className="rounded-2xl border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl outline-none">
-        <div role="listbox" aria-label="Slash commands">
-          {items.map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              role="option"
-              aria-selected={i === active}
-              data-highlighted={i === active ? "" : undefined}
-              onMouseEnter={() => setActive(i)}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(item)}
-            >
-              {item.name}
-            </button>
-          ))}
-        </div>
-      </Popover.Popup>
-    </Popover.Positioner>
-  </Popover.Portal>
-</Popover.Root>;
-```
-
-### Optional Combobox-Compatible Internal Shape Later
-
-If we later refactor slash mode into a dedicated input model, the intended Base UI direction is:
-
-```tsx
-import { Combobox } from "@base-ui/react/combobox";
-
-<Combobox.Root
-  open={open}
-  inputValue={query}
-  onInputValueChange={setQuery}
-  value={value}
-  onValueChange={setValue}
->
-  <Combobox.Portal>
-    <Combobox.Positioner side="top" align="start" sideOffset={8}>
-      <Combobox.Popup>
-        <Combobox.List>
-          {items.map((item) => (
-            <Combobox.Item key={item.id} value={item.id}>
-              {item.name}
-            </Combobox.Item>
-          ))}
-          <Combobox.Empty>No results</Combobox.Empty>
-        </Combobox.List>
-      </Combobox.Popup>
-    </Combobox.Positioner>
-  </Combobox.Portal>
-</Combobox.Root>;
-```
-
-For now, this should be treated as a future option, not the first implementation.
-
-## Proposed `c-glass` Slash Architecture
-
-### New Item Model
-
-Introduce a local typed slash item view model for the web app.
+Keep a local item model in `apps/web`.
 
 ```ts
 export type GlassSlashItemKind = "command" | "skill" | "subagent" | "app";
@@ -286,7 +146,6 @@ export type GlassSlashItem = {
   description?: string;
   source: "pi" | "app" | "local";
   section: "recent" | "commands" | "skills" | "subagents" | "app";
-  keyword?: string[];
   run: {
     type: "insert" | "navigate" | "open-settings" | "new-chat";
     value?: string;
@@ -294,354 +153,226 @@ export type GlassSlashItem = {
 };
 ```
 
-### Mapping Strategy
+This model is about Glass UI behavior, not about mirroring any external product.
 
-Map current sources into that shape.
+### Ownership
 
-1. Existing `PiSlashCommand` becomes `kind: "command"` or `kind: "skill"` based on `source`.
-2. Local app commands like `/new` and `/settings` become `kind: "app"`.
-3. Future project-local skills or subagents can plug into the same model.
-4. Sections should be derived after ranking so we can support Cursor-style grouped rendering.
+`glass-pi-composer-search.ts`
 
-## Proposed Interaction Model
-
-### Detection
-
-Keep using the current inline parser in `glass-pi-composer-search.ts` as the first parser seam.
-
-1. `slashMatch()` stays.
-2. `fileMatch()` stays.
-3. `applySlash()` stays.
-4. `applyFile()` stays.
-5. `rank()` evolves into typed ranking with recency boosts.
-
-### Open State
-
-The floating launcher should open when either token detector is active.
-
-1. slash mode opens when the draft cursor is on a valid `/token`,
-2. file mode opens when the draft cursor is on a valid `@token`,
-3. the popup remains open only while the active token remains valid,
-4. results may be empty only while loading,
-5. `Escape` closes only the current token popup, not the whole composer.
-
-### Navigation
-
-Support:
-
-1. `ArrowDown` and `ArrowUp` to move active item,
-2. `Enter` and `Tab` to apply the active item,
-3. `Escape` to close,
-4. pointer hover to update active item,
-5. pointer down prevention so the textarea keeps focus.
-
-### Insertion Behavior
-
-Phase 1 should preserve current insertion behavior.
-
-1. selecting a slash item replaces the active `/query` token with `/name `,
-2. selecting a file item replaces the active `@query` token with `@path` or `@"path with spaces"`,
-3. directory selection should keep the file popup open for further drill-in,
-4. the draft cursor moves to the correct insertion point after replacement,
-5. settings and app actions can still short-circuit into local actions when needed.
-
-## `@` File Mention Plan
-
-The current composer already has a meaningful part of this behavior.
-
-Today it already does all of the following in `apps/web/src/components/glass/glass-pi-composer.tsx`:
-
-1. detects active `@` tokens with `fileMatch()`,
-2. fetches file suggestions with `glass.shell.suggestFiles(query)`,
-3. previews the active file with `glass.shell.previewFile(path)`,
-4. inserts quoted or unquoted file mentions with `applyFile()`.
-
-That means we should not rewrite mention semantics from scratch.
-
-### Cursor-Equivalent Direction
-
-To get much closer to Cursor, phase 1 should preserve the current backend behavior and replace the UI shell around it.
-
-1. Reuse `fileMatch()`, `applyFile()`, and current shell preview fetching.
-2. Move the mention popup into the same new floating launcher component family as slash.
-3. Keep the current split layout for file mention mode, because it already maps well to Cursor's list-plus-preview behavior.
-4. Improve ranking for file paths with basename-first and workspace-near boosts.
-5. Add better row metadata like relative dir, file type icon, and optional repository/workspace label later.
-
-### Base UI Recommendation For `@`
-
-Use the same `Popover` strategy as slash.
-
-`@` mention is also textarea-driven, not Combobox-input-driven. The popup should be another controlled `Popover.Popup` branch rendered from the same composer token state.
-
-## Text Highlight Plan
-
-This is the part we cannot get to Cursor parity on by only swapping the popup.
-
-Cursor-like inline token highlighting requires a text-decoration layer above or behind the textarea.
-
-### What We Have Today
-
-We do not currently have a draft text mirror or token highlight layer in `glass-pi-composer.tsx`.
-
-We only have:
-
-1. raw textarea input,
-2. token parsing for `/` and `@`,
-3. floating popup rendering.
-
-### What Exact Replication Requires
-
-To get close to Cursor's inline composer feel, we need a mirrored text rendering layer.
-
-Recommended phase 2 approach:
-
-1. keep the native `textarea` for actual editing,
-2. add a visually matched mirror layer behind it,
-3. tokenize the draft into plain text, slash tokens, file mention tokens, and maybe selected command spans,
-4. render highlighted spans in the mirror,
-5. make textarea text transparent enough that the mirror styling is visible while caret and selection still work,
-6. keep selection colors and IME behavior native by not replacing the editor with contenteditable yet.
-
-### Why Not Jump To `contenteditable`
-
-A full `contenteditable` or Lexical rewrite is the fastest path to bugs.
-
-For a Cursor-like look with lower risk, a mirror-overlay architecture is the right middle ground.
-
-### Highlight Scope
-
-Phase 2 highlighting should cover:
-
-1. active slash tokens like `/commit`,
-2. inserted slash commands,
-3. valid file mentions like `@src/app.tsx`,
-4. quoted file mentions like `@"src/my file.tsx"`,
-5. optional invalid-token styling later.
-
-## Recency Plan
-
-Cursor stores recent slash usage by type. We should do the same in a smaller first-pass form.
-
-### Local Storage Keys
-
-Add local keys in the web app:
-
-1. `glass.slash.recent.commands`
-2. `glass.slash.recent.skills`
-3. `glass.slash.recent.subagents`
-4. `glass.slash.recent.global`
-
-### Behavior
-
-1. store the last 5 items per type,
-2. store the last 15 items globally,
-3. boost recent items in ranking,
-4. render a `Recent` section only when the query is empty or shallow.
-
-## UI Plan
-
-### Menu Layout
-
-Copy the Cursor menu layout from shipped source, not by visual approximation.
-
-1. extract the exact popup shell rules from Cursor's CSS before implementation,
-2. extract the exact row spacing, radius, border, blur, and shadow treatment,
-3. preserve Cursor's left icon lane, label line, description line, and trailing affordance structure,
-4. preserve section spacing and separator behavior,
-5. preserve no-layout-shift row states,
-6. store the original Cursor selector and file path for each major visual rule.
-
-### Row Taxonomy
-
-Use distinct visual markers for each kind.
-
-1. `command`: lightning or action icon,
-2. `skill`: sparkles or star-like icon,
-3. `subagent`: branch/agent icon,
-4. `app`: local app glyph.
-
-All icons must come from `central-icons`.
-
-The icon mapping can be local, but spacing, container shape, and row emphasis should still follow Cursor's discovered layout exactly.
-
-### Animation
-
-Animation should be copied from Cursor's shipped behavior when discoverable.
-
-1. prefer exact copied transition properties and durations from Cursor CSS when available,
-2. if the bundle only exposes the resulting values and not semantic names, port those literal values,
-3. do not invent spring motion,
-4. honor reduced motion.
-
-### Styling Porting Rule
-
-Every major visual surface in this feature should have a traceable upstream reference.
-
-1. popup container,
-2. mention preview pane,
-3. slash rows,
-4. mention rows,
-5. active row state,
-6. section labels,
-7. composer token highlight colors,
-8. input shell and borders.
-
-If the Cursor source for a visual rule is not yet extracted, implementation should mark it as pending discovery instead of silently approximating.
-
-## File Plan
-
-### New Files
-
-1. `apps/web/src/components/glass/glass-slash-menu.tsx`
-2. `apps/web/src/components/glass/glass-slash-registry.ts`
-3. `apps/web/src/components/glass/glass-slash-recents.ts`
-
-### Touched Files
-
-1. `apps/web/src/components/glass/glass-pi-composer.tsx`
-2. `apps/web/src/components/glass/glass-pi-composer-search.ts`
-
-### Responsibilities
+1. token parsing,
+2. insertion helpers,
+3. search ranking primitives.
 
 `glass-slash-registry.ts`
 
-1. merge local app commands and remote Pi slash commands,
-2. normalize them into `GlassSlashItem[]`,
-3. assign kind and section metadata.
+1. normalize app and Pi items,
+2. assign kind and section metadata,
+3. build grouped rows for rendering.
 
 `glass-slash-recents.ts`
 
 1. read and write local recents,
-2. expose a ranking boost helper.
+2. expose small ranking boosts.
 
 `glass-slash-menu.tsx`
 
-1. render the popup,
-2. own section rendering,
+1. render the popup surface,
+2. render sections,
 3. own pointer interactions,
 4. stay stateless about draft parsing.
 
 `glass-pi-composer.tsx`
 
 1. keep textarea ownership,
-2. keep slash detection,
-3. keep async loading,
+2. keep async loading,
+3. keep keyboard handling,
 4. pass normalized items to the popup,
 5. apply selection back into the draft.
 
+## Interaction Model
+
+### Detection
+
+Keep the current parser seam.
+
+1. `slashMatch()` stays,
+2. `fileMatch()` stays,
+3. `applySlash()` stays,
+4. `applyFile()` stays,
+5. ranking grows from the current matcher instead of replacing it.
+
+### Open State
+
+1. slash mode opens when the cursor is on a valid `/token`,
+2. file mode opens when the cursor is on a valid `@token`,
+3. the popup stays open only while the active token remains valid,
+4. `Escape` closes only the token popup,
+5. loading state is allowed, empty idle state is allowed only when the token is valid and the result set is empty.
+
+### Navigation
+
+1. `ArrowDown` and `ArrowUp` move the active row,
+2. `Enter` and `Tab` apply the active row,
+3. pointer hover updates the active row,
+4. pointer down should not steal textarea focus,
+5. selection should not collapse unexpectedly.
+
+### Insertion
+
+1. slash selection replaces the active `/query` token with `/name `,
+2. file selection replaces the active `@query` token with `@path` or `@"path with spaces"`,
+3. directory selection can keep the file popup open for drill-in,
+4. app actions can short-circuit into local behavior when appropriate.
+
+## Recency
+
+Recency is useful and Glass-owned. Keep it local.
+
+Suggested keys:
+
+1. `glass.slash.recent.commands`,
+2. `glass.slash.recent.skills`,
+3. `glass.slash.recent.subagents`,
+4. `glass.slash.recent.global`.
+
+Suggested behavior:
+
+1. keep the last 5 items per type,
+2. keep the last 15 items globally,
+3. boost recent items modestly,
+4. show `Recent` only for shallow queries.
+
 ## Section Strategy
 
-Cursor's menu feels ordered, not flat.
+Recommended sections for the first complete build:
 
-Recommended phase 1 sections:
+1. `Recent`,
+2. `Commands`,
+3. `Skills`,
+4. `App`.
 
-1. `Recent`
-2. `Commands`
-3. `Skills`
-4. `App`
+Do not render `Subagents` until Glass or Pi has a real source for them.
+The type can support future kinds without the UI pretending they exist.
 
-Do not add `Subagents` until we actually have a local source for them.
+## `@` Mention Plan
 
-The model should support them now, but the UI should not render empty future sections.
+The mention backend behavior is already good enough to keep.
 
-## Ranking Strategy
+Phase 1 should:
 
-Keep the existing simple matcher and layer on small typed boosts.
+1. reuse `fileMatch()` and `applyFile()`,
+2. reuse `glass.shell.suggestFiles()` and `glass.shell.previewFile()`,
+3. move mention rendering into the same popup family as slash,
+4. preserve the list-plus-preview layout,
+5. improve ranking and row metadata only where clearly useful.
 
-### Base Score
+## Inline Highlight Plan
 
-Keep current rules from `rank()`:
+Inline token highlighting is already in the tree in first-pass form, and it is not a reason to block the popup architecture.
 
-1. exact match,
-2. prefix match,
-3. substring match,
-4. ordered character sequence fallback.
+Follow-up work should stay on the mirror layer behind the textarea.
 
-### Boosts
+Why:
 
-Add small boosts for:
+1. it preserves native textarea behavior,
+2. it avoids jumping to `contenteditable`,
+3. it keeps one real editing surface.
 
-1. recent global hit,
-2. exact section-kind preference,
-3. shorter names,
-4. local app commands for exact matches.
+Scope for the first highlight pass:
 
-Do not overfit ranking in phase 1.
+1. active slash tokens,
+2. inserted slash commands,
+3. valid file mentions,
+4. quoted file mentions.
+
+## Styling Guidance
+
+This should be Glass-native.
+
+Use existing Glass visual language:
+
+1. Glass surface tokens,
+2. Glass border and blur treatment,
+3. existing popup shadows,
+4. existing row highlight patterns,
+5. existing spacing and typography conventions where they already feel right.
+
+Cursor can still be used as a reference for:
+
+1. overall information density,
+2. row composition,
+3. section ordering,
+4. preview-pane usefulness.
+
+But we should not require exact selector, token, or bundle-level provenance to ship.
 
 ## Execution Strategy
 
 ### Phase 1
 
-Build the canonical popup and registry system with current backend capabilities.
+Ship the canonical popup architecture.
 
 1. typed normalized items,
-2. one proper popup component for slash and `@`,
-3. recency,
-4. grouped rendering,
-5. polished keyboard and pointer behavior,
-6. no contract changes,
-7. exact styling sourced from Cursor bundle references.
+2. one popup component for slash and `@`,
+3. grouped rendering,
+4. recency,
+5. reliable keyboard and pointer behavior,
+6. no second input model,
+7. Glass-native styling.
+
+Status: done.
 
 ### Phase 2
 
-Add the rest of the canonical composer parity that requires a deeper editor shell.
+Ship editor-shell improvements.
 
 1. textarea mirror layer,
 2. inline token highlighting,
-3. exact mention token visuals,
-4. exact slash token visuals,
-5. selection-safe overlay behavior.
+3. selection-safe overlay behavior.
+
+Status: partly done. The mirror layer and first highlight pass are in place; selection-safe polish can keep iterating without reopening the architecture.
 
 ### Phase 3
 
-Add remaining registry breadth and advanced parity.
+Add more sources only if they are truly ours.
 
-1. project-local slash command files,
-2. first-class local skills if we want parity with Cursor-style `SKILL.md` discovery,
-3. subagent registry,
-4. richer metadata,
-5. shortcut hints,
-6. argument hints,
-7. command provenance badges.
+1. richer metadata,
+2. shortcut hints,
+3. argument hints,
+4. provenance badges,
+5. additional Glass-owned or Pi-owned registries.
 
-## Why This Plan Fits `c-glass`
+If workspace-local commands ever happen, they should live under a Glass- or Pi-owned convention, not `.cursor/*`.
 
-This plan matches the current repo instead of fighting it.
-
-1. It keeps the multiline composer as the source of truth.
-2. It uses Base UI where Base UI is strongest here: overlay positioning and semantics.
-3. It keeps the current slash parser and insertion flow.
-4. It creates a clean registry seam that can later grow toward Cursor's multi-source architecture.
-5. It avoids forcing a fake Combobox input over a textarea-driven query.
+Status: not started beyond the current Pi session command source.
 
 ## Acceptance Criteria
 
-The first implementation should satisfy all of these.
+The first complete implementation should satisfy all of these.
 
-1. Typing `/` in the composer opens a polished floating menu.
-2. Typing `/com` ranks `commit`-like items naturally.
+1. Typing `/` opens a polished floating menu.
+2. Typing `/com` ranks likely command matches naturally.
 3. Arrow keys move selection without losing textarea focus.
-4. Enter applies the highlighted item and leaves a trailing space.
+4. `Enter` applies the highlighted item and leaves a trailing space.
 5. Mouse interaction works without collapsing focus or selection state.
 6. The menu has sections and recency.
 7. The implementation uses Base UI `Popover` cleanly.
 8. The code does not add a second competing input model.
+9. The implementation does not read or depend on `.cursor/*` or `.claude/*`.
 
-## Recommended First Build Order
+## Recommended Build Order
 
-1. Extract slash item normalization into `glass-slash-registry.ts`.
-2. Add local recency storage and ranking boosts.
+1. Extract slash normalization into `glass-slash-registry.ts`.
+2. Add recency storage and ranking boosts.
 3. Build `glass-slash-menu.tsx` on Base UI `Popover`.
-4. Replace the inline popup rendering in `glass-pi-composer.tsx` with the new component.
-5. Polish row visuals and motion.
-6. Verify keyboard, pointer, and reduced-motion behavior.
+4. Replace inline popup rendering in `glass-pi-composer.tsx`.
+5. Polish row visuals and reduced-motion behavior.
+6. Add mirror-layer highlighting when the popup path is stable.
 
-## Notes For The Actual Implementation Pass
+## Notes For Implementation
 
-1. Reuse existing `rank()`, `slashMatch()`, and `applySlash()` logic instead of rewriting parsing.
-2. Reuse the visual vocabulary from `pi-model-picker.tsx` for surface, border, blur, and z-index behavior.
-3. Prefer keeping the new item model local to `apps/web` unless phase 2 requires contract changes.
-4. Do not introduce `lucide-react` icons in new code.
-5. Use `Popover`, not `Menu`, for phase 1.
-6. Only move to `Combobox` if we later split slash mode into a dedicated input state.
+1. Reuse existing parser and insertion helpers instead of rewriting them.
+2. Keep the new item model local to `apps/web` unless a real contract need appears.
+3. Use `Popover`, not `Menu`, for the slash and mention launcher.
+4. Use `central-icons` only.
+5. Prefer Glass-native conventions over source-compatible parity with another app.

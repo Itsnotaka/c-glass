@@ -37,14 +37,14 @@ export function GlassSettingsNavRail(props: { onRestoreTick?: () => void }) {
               to={item.to}
               activeProps={{
                 className: cn(
-                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors",
+                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-glass-control border border-transparent px-2 py-1 text-body/[18px] transition-colors",
                   "border-glass-border/90 bg-glass-active text-foreground",
                 ),
                 "aria-current": "page",
               }}
               inactiveProps={{
                 className: cn(
-                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-lg border border-transparent px-2 py-1 text-[13px]/[18px] transition-colors",
+                  "font-glass glass-sidebar-label flex min-h-7.5 min-w-0 w-full items-center justify-start gap-2 rounded-glass-control border border-transparent px-2 py-1 text-body/[18px] transition-colors",
                   "text-muted-foreground hover:bg-glass-hover hover:text-foreground",
                 ),
               }}

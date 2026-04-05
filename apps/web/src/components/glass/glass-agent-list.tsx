@@ -19,7 +19,7 @@ function Section(props: {
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex w-full min-w-0 items-center justify-start gap-1 px-2 py-1 text-left text-[11px] font-medium hover:text-muted-foreground",
+          "flex w-full min-w-0 items-center justify-start gap-1 px-2 py-1 text-left text-detail font-medium hover:text-muted-foreground",
           props.section.active ? "text-foreground/80" : "text-muted-foreground/60",
         )}
       >
@@ -57,10 +57,10 @@ export function GlassAgentList(props: {
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 py-3 [scrollbar-gutter:stable]">
         {Array.from({ length: 2 }, (_, i) => (
           <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-3 w-16 rounded-sm bg-muted/35" />
+            <Skeleton className="h-3 w-16 rounded-glass-control bg-muted/35" />
             <div className="flex flex-col gap-1">
               {Array.from({ length: 3 }, (_, j) => (
-                <Skeleton key={j} className="h-8 w-full rounded-lg bg-muted/28" />
+                <Skeleton key={j} className="h-8 w-full rounded-glass-control bg-muted/28" />
               ))}
             </div>
           </div>
@@ -71,7 +71,7 @@ export function GlassAgentList(props: {
 
   if (props.error) {
     return (
-      <p className="px-2 py-4 text-xs text-muted-foreground/60">
+      <p className="px-2 py-4 text-detail text-muted-foreground/60">
         Unable to load threads right now.
       </p>
     );
@@ -79,7 +79,7 @@ export function GlassAgentList(props: {
 
   if (props.sections.length === 0) {
     return (
-      <p className="px-2 py-4 text-xs text-muted-foreground/60">
+      <p className="px-2 py-4 text-detail text-muted-foreground/60">
         No threads yet. Create a new agent to begin.
       </p>
     );

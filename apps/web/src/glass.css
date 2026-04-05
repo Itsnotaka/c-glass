@@ -16,8 +16,17 @@
   --glass-workbench-toggle-right: var(--glass-workbench-toggle-right-user, 12px);
   /* Width of floating Changes chip (label + count + icon) in GlassAppShell; right panel header pads by this + toggle-right */
   --glass-workbench-changes-toggle-w: var(--glass-workbench-changes-toggle-w-user, 7rem);
-  --glass-radius-card: var(--glass-radius-card-user, 12px);
+  /* Typography scale — relative to user preference */
+  --glass-text-caption: calc(var(--glass-ui-font-size-user, 13px) - 3px);
+  --glass-text-detail: calc(var(--glass-ui-font-size-user, 13px) - 2px);
+  --glass-text-body: var(--glass-ui-font-size-user, 13px);
+  --glass-text-title: calc(var(--glass-ui-font-size-user, 13px) + 2px);
+  --glass-text-heading: calc(var(--glass-ui-font-size-user, 13px) + 5px);
+  /* Border radius */
+  --glass-radius-control: 6px;
+  --glass-radius-card: var(--glass-radius-card-user, 10px);
   --glass-radius-chip: var(--glass-radius-chip-user, 20px);
+  --glass-radius-pill: var(--glass-radius-chip-user, 20px);
   /* Composer toolbar icons (+, send, model row, quick actions); override via Appearance */
   --glass-composer-icon-size: var(--glass-composer-icon-size-user, 1rem);
   --glass-user-hue: 255;

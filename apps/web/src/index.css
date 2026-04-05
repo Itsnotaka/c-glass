@@ -49,8 +49,16 @@
   --font-glass-mono: var(--glass-font-mono);
   --shadow-glass-card: var(--glass-shadow-card);
   --shadow-glass-popup: var(--glass-shadow-popup);
+  --font-size-caption: var(--glass-text-caption);
+  --font-size-detail: var(--glass-text-detail);
+  --font-size-body: var(--glass-text-body);
+  --font-size-title: var(--glass-text-title);
+  --font-size-heading: var(--glass-text-heading);
   --radius-glass: var(--glass-radius-card);
   --radius-glass-chip: var(--glass-radius-chip);
+  --radius-glass-control: var(--glass-radius-control);
+  --radius-glass-card: var(--glass-radius-card);
+  --radius-glass-pill: var(--glass-radius-pill);
   --radius-xs: 2px;
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -320,12 +328,16 @@ label:has(> select#reasoning-effort) select {
 }
 
 .chat-markdown :not(pre) > code {
-  border: 1px solid var(--border);
   border-radius: 0.375rem;
-  background: var(--muted);
+  background: color-mix(in srgb, var(--foreground) 7%, var(--background));
   padding: 0.1rem 0.35rem;
   color: var(--foreground);
   font-size: 0.75rem;
+}
+
+.chat-markdown strong,
+.chat-markdown b {
+  font-weight: 600;
 }
 
 .chat-markdown pre {

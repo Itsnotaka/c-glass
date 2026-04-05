@@ -55,6 +55,7 @@ syncShellEnvironment();
 
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
+const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
@@ -1107,6 +1108,19 @@ function registerIpcHandlers(): void {
     nativeTheme.themeSource = theme;
   });
 
+  ipcMain.removeHandler(SET_VIBRANCY_CHANNEL);
+  ipcMain.handle(SET_VIBRANCY_CHANNEL, async (_event, enabled: unknown) => {
+    const useVibrancy = enabled === true;
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      if (process.platform === "darwin") {
+        window.setVibrancy(useVibrancy ? "sidebar" : null);
+      } else if (process.platform === "win32") {
+        window.setBackgroundMaterial(useVibrancy ? "acrylic" : "none");
+      }
+    }
+  });
+
   ipcMain.removeHandler(CONTEXT_MENU_CHANNEL);
   ipcMain.handle(
     CONTEXT_MENU_CHANNEL,
@@ -1574,6 +1588,9 @@ function createWindow(): BrowserWindow {
     minHeight: 620,
     show: false,
     autoHideMenuBar: true,
+    transparent: true,
+    backgroundColor: "#00000000",
+    vibrancy: "sidebar",
     ...getIconOption(),
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",

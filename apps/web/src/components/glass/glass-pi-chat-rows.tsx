@@ -71,8 +71,10 @@ function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "b
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 text-[12px] leading-tight",
-        s === "errored" ? "text-destructive/85" : "text-foreground/48",
+        "inline-flex shrink-0 items-center gap-1 text-body leading-tight",
+        s === "errored"
+          ? "rounded bg-destructive/10 px-1.5 py-0.5 text-destructive/90"
+          : "text-foreground/48",
       )}
     >
       {(s === "pending" || s === "running") && (
@@ -154,11 +156,11 @@ const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachm
           </div>
         )}
         <div className="flex flex-col gap-1 px-3 py-2">
-          <div className="truncate text-[12px]/[1.2] font-medium text-foreground/85">
+          <div className="truncate text-body/[1.2] font-medium text-foreground/85">
             {props.item.name}
           </div>
           {props.item.note ? (
-            <div className="line-clamp-2 text-[11px]/[1.35] text-muted-foreground/80">
+            <div className="line-clamp-2 text-detail/[1.35] text-muted-foreground/80">
               {props.item.note}
             </div>
           ) : null}
@@ -169,18 +171,18 @@ const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachm
 
   return (
     <div className="flex min-w-44 max-w-full items-start gap-2 rounded-2xl border border-glass-border/45 bg-glass-bubble/70 px-3 py-2 text-left shadow-glass-card backdrop-blur-sm sm:max-w-72">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-glass-hover/25 text-muted-foreground/75">
+      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/25 text-muted-foreground/75">
         <IconFileBend className="size-4.5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px]/[1.2] font-medium text-foreground/85">
+        <span className="block truncate text-body/[1.2] font-medium text-foreground/85">
           {props.item.name}
         </span>
-        <span className="block truncate text-[11px]/[1.2] text-muted-foreground/75">
+        <span className="block truncate text-detail/[1.2] text-muted-foreground/75">
           {props.item.path}
         </span>
         {props.item.note ? (
-          <span className="mt-1 line-clamp-2 block text-[11px]/[1.35] text-muted-foreground/75">
+          <span className="mt-1 line-clamp-2 block text-detail/[1.35] text-muted-foreground/75">
             {props.item.note}
           </span>
         ) : null}
@@ -207,7 +209,7 @@ const HumanBubble = memo(function HumanBubble(props: {
           </div>
         ) : null}
         {props.text ? (
-          <div className="max-w-[min(100%,36rem)] whitespace-pre-wrap break-words rounded-[20px] border border-glass-border/40 bg-glass-active px-3.5 py-2 text-[13px]/5 text-foreground shadow-glass-card backdrop-blur-sm">
+          <div className="max-w-[min(100%,36rem)] whitespace-pre-wrap break-words rounded-[20px] border border-glass-border/40 bg-glass-active px-3.5 py-2 text-body/5 text-foreground shadow-glass-card backdrop-blur-sm">
             {props.text}
           </div>
         ) : null}
@@ -222,7 +224,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
     <li className="min-w-0">
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
-          <span className="min-w-0 flex-1 truncate text-[13px] leading-none text-foreground/[0.7]">
+          <span className="min-w-0 flex-1 truncate text-body leading-none text-foreground/[0.7]">
             Thinking
           </span>
           <IconChevronBottom
@@ -233,7 +235,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="mt-1 border-l border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] pl-3 text-[13px]/[1.5] text-foreground/[0.7]">
+          <div className="mt-1 border-l border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] pl-3 text-body/[1.5] italic text-foreground/[0.7]">
             {props.text}
           </div>
         </Collapsible.Panel>
@@ -246,7 +248,7 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   return (
     <li className="min-w-0 py-1">
       <Streamdown
-        className="font-glass chat-markdown text-[13px]/5 text-foreground"
+        className="font-glass chat-markdown text-body/5 text-foreground"
         controls={controls}
         dir="auto"
         lineNumbers={false}
@@ -362,7 +364,7 @@ function BashOutputRich(props: { text: string; error: boolean }) {
     return (
       <ul className="flex flex-col gap-2">
         {links.map((l, i) => (
-          <li key={`${l.url}-${String(i)}`} className="text-[12px] leading-snug">
+          <li key={`${l.url}-${String(i)}`} className="text-body leading-snug">
             <a
               href={l.url}
               target="_blank"
@@ -383,7 +385,7 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   if (parsed !== null) {
     return (
       <div className="max-h-[min(24rem,50vh)] overflow-auto">
-        <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
+        <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
           {renderValue(parsed, 0)}
         </div>
       </div>
@@ -393,8 +395,9 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   return (
     <pre
       className={cn(
-        "max-h-[min(24rem,50vh)] overflow-auto whitespace-pre-wrap font-glass-mono text-[11px]/[1.45] text-foreground/75",
-        props.error && "rounded-sm bg-destructive/[0.06] text-destructive/90",
+        "max-h-[min(24rem,50vh)] overflow-auto whitespace-pre-wrap font-glass-mono text-detail/[1.45] text-foreground/75",
+        props.error &&
+          "rounded-glass-control bg-destructive/[0.08] px-2 py-1.5 text-destructive/90",
       )}
     >
       {props.text}
@@ -420,7 +423,7 @@ function JsonSection(props: { label: string; text: string }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span className="text-[11px]/[1.1] font-medium tracking-wide text-muted-foreground/55 uppercase">
+        <span className="text-detail/[1.1] font-medium tracking-wide text-muted-foreground/55 uppercase">
           {props.label}
         </span>
         <button
@@ -432,11 +435,11 @@ function JsonSection(props: { label: string; text: string }) {
         </button>
       </div>
       {parsed !== null ? (
-        <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
+        <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
           {renderValue(parsed, 0)}
         </div>
       ) : (
-        <pre className="whitespace-pre-wrap text-[11px]/[1.45] text-foreground/75">
+        <pre className="whitespace-pre-wrap text-detail/[1.45] text-foreground/75">
           {props.text}
         </pre>
       )}
@@ -453,18 +456,15 @@ function ToolRailCard(props: {
 }) {
   const [open, setOpen] = useSyncedExpand(props.expanded);
   return (
-    <li className="min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+    <li className="min-w-0 overflow-hidden rounded-glass-control border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 px-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
           <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
             {props.icon}
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-tight text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate text-body font-medium leading-tight text-foreground/[0.94]">
               {props.title}
-            </span>
-            <span className="shrink-0 select-none text-foreground/40" aria-hidden>
-              ·
             </span>
             <span className="shrink-0">{props.subtitle}</span>
           </div>
@@ -609,7 +609,7 @@ const ToolCard = memo(function ToolCard(props: {
         />
       ) : null}
       {file && props.row.error && props.row.result.trim() ? (
-        <div className="text-[11px]/[1.4] text-destructive/85">{props.row.result}</div>
+        <div className="text-detail/[1.4] text-destructive/85">{props.row.result}</div>
       ) : null}
     </ToolRailCard>
   );
@@ -678,7 +678,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
   if (!hasContent) {
     return (
       <div className="flex h-8 max-h-8 min-w-0 items-center">
-        <div className="min-w-0 truncate text-[13px] leading-none text-foreground/[0.94]">
+        <div className="min-w-0 truncate text-body leading-none text-foreground/[0.94]">
           {summary}
         </div>
       </div>
@@ -688,7 +688,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen}>
       <Collapsible.Trigger className="flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left">
-        <div className="min-w-0 flex-1 truncate text-[13px] leading-none text-foreground/[0.94]">
+        <div className="min-w-0 flex-1 truncate text-body leading-none text-foreground/[0.94]">
           {summary}
         </div>
         <IconChevronBottom
@@ -720,7 +720,7 @@ const ExploredCard = memo(function ExploredCard(props: {
     parts.push(`${props.row.searches} ${props.row.searches === 1 ? "search" : "searches"}`);
 
   return (
-    <li className="min-w-0 text-[13px] leading-none">
+    <li className="min-w-0 text-body leading-none">
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger className="flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left">
           <span className="shrink-0 text-foreground/[0.7]">Explored</span>
@@ -758,18 +758,15 @@ const BashCard = memo(function BashCard(props: {
   const [open, setOpen] = useSyncedExpand(props.expanded);
 
   return (
-    <li className="min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+    <li className="min-w-0 overflow-hidden rounded-glass-control border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 px-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
           <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
             <IconConsole className="size-3 shrink-0" />
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate font-glass-mono text-[12px] leading-tight text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate font-glass-mono text-body font-medium leading-tight text-foreground/[0.94]">
               {props.row.command}
-            </span>
-            <span className="shrink-0 select-none text-foreground/40" aria-hidden>
-              ·
             </span>
             <span className="shrink-0">
               <ToolSubtitle row={props.row} />
@@ -812,7 +809,7 @@ const TextCard = memo(function TextCard(props: {
           return (
             <ul className="flex flex-col gap-2">
               {links.map((l, i) => (
-                <li key={`${l.url}-${String(i)}`} className="text-[12px] leading-snug">
+                <li key={`${l.url}-${String(i)}`} className="text-body leading-snug">
                   <a
                     href={l.url}
                     target="_blank"
@@ -831,7 +828,7 @@ const TextCard = memo(function TextCard(props: {
         }
         return (
           <div className="max-h-[min(24rem,50vh)] overflow-auto">
-            <div className="font-glass-mono text-[11px]/[1.45] [&_span]:leading-[1.5]">
+            <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
               {renderValue(j, 0)}
             </div>
           </div>
@@ -839,7 +836,7 @@ const TextCard = memo(function TextCard(props: {
       } catch {
         return (
           <Streamdown
-            className="font-glass chat-markdown text-[13px]/5 text-foreground"
+            className="font-glass chat-markdown text-body/5 text-foreground"
             controls={controls}
             dir="auto"
             lineNumbers={false}
@@ -852,7 +849,7 @@ const TextCard = memo(function TextCard(props: {
     }
     return (
       <Streamdown
-        className="font-glass chat-markdown text-[13px]/5 text-foreground"
+        className="font-glass chat-markdown text-body/5 text-foreground"
         controls={controls}
         dir="auto"
         lineNumbers={false}
@@ -867,7 +864,7 @@ const TextCard = memo(function TextCard(props: {
     <ToolRailCard
       icon={<IconToolbox className="text-foreground/48" />}
       title={props.label}
-      subtitle={<span className="text-[12px] leading-none text-foreground/48">Completed</span>}
+      subtitle={<span className="text-body leading-none text-foreground/48">Completed</span>}
       expanded={props.expanded}
     >
       {body ? (

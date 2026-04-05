@@ -224,19 +224,19 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
       {preview ? (
         <img
           alt={props.item.name}
-          className="size-10 shrink-0 rounded-xl object-cover"
+          className="size-10 shrink-0 rounded-glass-card object-cover"
           src={preview}
         />
       ) : (
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-glass-hover/24 text-muted-foreground/75">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/24 text-muted-foreground/75">
           <Glyph className="size-4.5" />
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12px]/[1.2] font-medium text-foreground/86">
+        <span className="block truncate text-body/[1.2] font-medium text-foreground/86">
           {props.item.name}
         </span>
-        <span className="block truncate text-[11px]/[1.2] text-muted-foreground/72">
+        <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
           {size(props.item.size)}
         </span>
       </span>
@@ -736,7 +736,7 @@ export const GlassPiComposer = memo(
                 ) : null}
                 <div className="relative min-h-10">
                   <div
-                    className="glass-composer-mirror font-glass pointer-events-none absolute inset-0 z-0 px-3 pt-3 pb-1 text-[13px]/[1.45] whitespace-pre-wrap break-words"
+                    className="glass-composer-mirror font-glass pointer-events-none absolute inset-0 z-0 px-3 pt-3 pb-1 text-body/[1.45] whitespace-pre-wrap break-words"
                     aria-hidden
                   >
                     {composing ? (
@@ -785,7 +785,7 @@ export const GlassPiComposer = memo(
                     }}
                     placeholder="Message… use / for commands, @ for files"
                     rows={1}
-                    className="field-sizing-content font-glass relative z-10 block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-[13px]/[1.45] text-transparent caret-foreground outline-hidden placeholder:text-muted-foreground selection:bg-primary/25"
+                    className="field-sizing-content font-glass relative z-10 block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-body/[1.45] text-transparent caret-foreground outline-hidden placeholder:text-muted-foreground selection:bg-primary/25"
                     onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                       if (open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                         event.preventDefault();
@@ -826,7 +826,7 @@ export const GlassPiComposer = memo(
                       type="button"
                       disabled={props.busy}
                       onClick={pickFiles}
-                      className="flex size-8 items-center justify-center rounded-xl text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-35"
+                      className="flex size-8 items-center justify-center rounded-glass-card text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-35"
                       aria-label="Add files"
                     >
                       <IconPlusLarge className="glass-composer-icon" />
@@ -866,7 +866,7 @@ export const GlassPiComposer = memo(
                 </div>
                 {drag ? (
                   <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[14px] bg-glass-active/15 backdrop-blur-[2px]">
-                    <div className="rounded-full border border-glass-border/40 bg-glass-bubble px-3 py-1.5 text-[12px]/[1.2] font-medium text-foreground/84 shadow-glass-card">
+                    <div className="rounded-glass-pill border border-glass-border/40 bg-glass-bubble px-3 py-2 text-body/[1.2] font-medium text-foreground/84 shadow-glass-card">
                       Drop files to attach
                     </div>
                   </div>

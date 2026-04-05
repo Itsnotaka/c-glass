@@ -100,7 +100,7 @@ function NotFoundView() {
       </div>
 
       <section className="relative flex w-full max-w-sm flex-col items-center text-center">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
+        <p className="text-caption font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
           {APP_DISPLAY_NAME}
         </p>
         <p className="mt-8 font-mono text-[8rem] leading-none font-bold tracking-tighter text-foreground/[0.04] sm:text-[10rem] select-none">
@@ -108,7 +108,7 @@ function NotFoundView() {
         </p>
         <div className="-mt-16 sm:-mt-20">
           <h1 className="text-lg font-medium tracking-tight text-foreground/90">Page not found</h1>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/70">
+          <p className="mt-2 text-body leading-relaxed text-muted-foreground/70">
             This path doesn&rsquo;t exist. It may have been moved or removed.
           </p>
         </div>
@@ -146,17 +146,17 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
       <Toaster />
       <div className="min-h-screen bg-background px-4 py-12 text-foreground sm:px-8">
         <div className="mx-auto w-full max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-caption font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {APP_DISPLAY_NAME}
           </p>
 
           <h1 className="mt-6 text-lg font-medium tracking-tight text-foreground sm:text-xl">
             Something went wrong
           </h1>
-          <p className="mt-2 text-[13px] leading-relaxed text-foreground/90">{message}</p>
+          <p className="mt-2 text-body leading-relaxed text-foreground/90">{message}</p>
 
           {href ? (
-            <p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">{href}</p>
+            <p className="mt-3 break-all font-mono text-detail text-muted-foreground">{href}</p>
           ) : null}
 
           <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -166,7 +166,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
             <Button
               variant="link"
               size="sm"
-              className="h-auto min-h-0 px-0 py-0 text-[13px] font-normal text-muted-foreground"
+              className="h-auto min-h-0 px-0 py-0 text-body font-normal text-muted-foreground"
               onClick={() => void copy()}
               aria-label="Copy full error report to clipboard"
             >
@@ -175,7 +175,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
             <Button
               variant="link"
               size="sm"
-              className="h-auto min-h-0 px-0 py-0 text-[13px] font-normal text-muted-foreground"
+              className="h-auto min-h-0 px-0 py-0 text-body font-normal text-muted-foreground"
               onClick={() => window.location.reload()}
             >
               Reload
@@ -183,10 +183,10 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
           </div>
 
           <div className="mt-10 border-t border-border/60 pt-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            <p className="text-caption font-semibold uppercase tracking-[0.15em] text-muted-foreground">
               Stack trace
             </p>
-            <pre className="mt-3 max-h-[min(28rem,55vh)] overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+            <pre className="mt-3 max-h-[min(28rem,55vh)] overflow-auto font-mono text-detail leading-relaxed whitespace-pre-wrap text-muted-foreground">
               {details}
             </pre>
           </div>

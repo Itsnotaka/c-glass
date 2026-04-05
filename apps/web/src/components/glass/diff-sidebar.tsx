@@ -1,6 +1,8 @@
 import { IconArrowCornerDownRight, IconFileBend } from "central-icons";
 import { memo, useMemo, useState } from "react";
+import { Badge } from "~/components/ui/badge";
 import { Collapsible } from "~/components/ui/collapsible";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { cn } from "~/lib/utils";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
@@ -39,26 +41,20 @@ const _FileRow = memo(function _FileRow(props: FileRowProps) {
       type="button"
       onClick={props.onSelect}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
+        "flex w-full items-center gap-2 rounded-glass-control px-2 py-1.5 text-left transition-colors",
         props.selected
           ? "bg-glass-active/60 text-foreground"
           : "text-foreground/80 hover:bg-glass-hover/40",
       )}
     >
       <IconFileBend className="size-4 shrink-0 text-muted-foreground/70" />
-      <span className="min-w-0 flex-1 truncate text-[12px]/[1.3] font-medium">
-        {props.file.name}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-body/[1.3] font-medium">{props.file.name}</span>
       {props.file.type === "new" ? (
-        <span className="shrink-0 rounded border border-glass-diff-addition/40 bg-glass-diff-addition-bg px-1 py-0.5 text-[10px]/[1] font-medium text-glass-diff-addition">
-          new
-        </span>
+        <Badge variant="addition">new</Badge>
       ) : props.file.type === "deleted" ? (
-        <span className="shrink-0 rounded border border-glass-diff-deletion/40 bg-glass-diff-deletion-bg px-1 py-0.5 text-[10px]/[1] font-medium text-glass-diff-deletion">
-          deleted
-        </span>
+        <Badge variant="deletion">deleted</Badge>
       ) : (
-        <div className="flex shrink-0 items-center gap-1.5 text-[11px]/[1]">
+        <div className="flex shrink-0 items-center gap-1 text-detail/[1]">
           {props.file.stats.additions > 0 && (
             <span className="font-medium text-glass-diff-addition">
               +{props.file.stats.additions}
@@ -90,7 +86,7 @@ const CollapsibleFile = memo(function CollapsibleFile(props: CollapsibleFileProp
         <Collapsible.Trigger
           onClick={() => setOpen(!open)}
           className={cn(
-            "flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors",
+            "flex w-full cursor-pointer items-center gap-2 rounded-glass-control px-2 py-1.5 text-left transition-colors",
             props.selected
               ? "bg-glass-active/60 text-foreground"
               : "text-foreground/80 hover:bg-glass-hover/40",
@@ -105,19 +101,15 @@ const CollapsibleFile = memo(function CollapsibleFile(props: CollapsibleFileProp
             <IconArrowCornerDownRight className="size-3" />
           </span>
           <IconFileBend className="size-4 shrink-0 text-muted-foreground/70" />
-          <span className="min-w-0 flex-1 truncate text-[12px]/[1.3] font-medium">
+          <span className="min-w-0 flex-1 truncate text-body/[1.3] font-medium">
             {props.file.name}
           </span>
           {props.file.type === "new" ? (
-            <span className="shrink-0 rounded border border-glass-diff-addition/40 bg-glass-diff-addition-bg px-1 py-0.5 text-[10px]/[1] font-medium text-glass-diff-addition">
-              new
-            </span>
+            <Badge variant="addition">new</Badge>
           ) : props.file.type === "deleted" ? (
-            <span className="shrink-0 rounded border border-glass-diff-deletion/40 bg-glass-diff-deletion-bg px-1 py-0.5 text-[10px]/[1] font-medium text-glass-diff-deletion">
-              deleted
-            </span>
+            <Badge variant="deletion">deleted</Badge>
           ) : (
-            <div className="flex shrink-0 items-center gap-1.5 text-[11px]/[1]">
+            <div className="flex shrink-0 items-center gap-1 text-detail/[1]">
               {props.file.stats.additions > 0 && (
                 <span className="font-medium text-glass-diff-addition">
                   +{props.file.stats.additions}
@@ -133,7 +125,7 @@ const CollapsibleFile = memo(function CollapsibleFile(props: CollapsibleFileProp
         </Collapsible.Trigger>
         {open && (
           <Collapsible.Panel className="pl-6">
-            <div className="min-w-0 truncate text-[11px]/[1.3] text-muted-foreground/60">
+            <div className="min-w-0 truncate text-detail/[1.3] text-muted-foreground/60">
               {props.file.path}
             </div>
           </Collapsible.Panel>
@@ -159,37 +151,20 @@ export const GlassDiffSidebar = memo(function GlassDiffSidebar(props: Props) {
     <div className={cn("flex h-full min-w-0 flex-col", props.className)}>
       {/* Header with title and toggle */}
       <div className="flex shrink-0 items-center justify-between border-b border-glass-border/40 px-3 py-2">
-        <h2 className="text-[12px]/[1.2] font-semibold text-foreground/85">Changes</h2>
-        <div className="flex items-center rounded-lg border border-glass-border/40 bg-glass-hover/15 p-0.5">
-          <button
-            type="button"
-            onClick={() => props.onDiffStyleChange?.("unified")}
-            className={cn(
-              "rounded px-2 py-1 text-[10px]/[1] font-medium transition-colors",
-              props.diffStyle === "unified"
-                ? "bg-glass-active/80 text-foreground"
-                : "text-muted-foreground/70 hover:text-foreground",
-            )}
-          >
-            Unified
-          </button>
-          <button
-            type="button"
-            onClick={() => props.onDiffStyleChange?.("split")}
-            className={cn(
-              "rounded px-2 py-1 text-[10px]/[1] font-medium transition-colors",
-              props.diffStyle === "split"
-                ? "bg-glass-active/80 text-foreground"
-                : "text-muted-foreground/70 hover:text-foreground",
-            )}
-          >
-            Split
-          </button>
-        </div>
+        <h2 className="text-body/[1.2] font-semibold text-foreground/85">Changes</h2>
+        <SegmentedControl
+          value={props.diffStyle ?? "unified"}
+          onChange={(v) => props.onDiffStyleChange?.(v as "unified" | "split")}
+          options={[
+            { value: "unified", label: "Unified" },
+            { value: "split", label: "Split" },
+          ]}
+          size="sm"
+        />
       </div>
 
       {/* Stats summary */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-glass-border/30 px-3 py-1.5 text-[11px]/[1.2] text-muted-foreground/72">
+      <div className="flex shrink-0 items-center gap-3 border-b border-glass-border/30 px-3 py-2 text-detail/[1.2] text-muted-foreground/72">
         <span>
           {stats.files} file{stats.files !== 1 ? "s" : ""} changed
         </span>

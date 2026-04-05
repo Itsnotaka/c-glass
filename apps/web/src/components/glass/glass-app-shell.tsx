@@ -245,7 +245,7 @@ export function GlassAppShell(props: {
             <button
               type="button"
               onClick={() => props.onBack?.()}
-              className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
+              className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-glass-control bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
               aria-label="Back to chat"
             >
               <IconArrowLeft className="size-4" />
@@ -254,7 +254,7 @@ export function GlassAppShell(props: {
           <button
             type="button"
             onClick={() => p.toggleLeft()}
-            className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
+            className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-glass-control bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
             aria-label={p.leftOpen ? "Collapse threads" : "Expand threads"}
           >
             {p.leftOpen ? (
@@ -270,7 +270,7 @@ export function GlassAppShell(props: {
               type="button"
               onClick={() => p.toggleRight()}
               className={cn(
-                "pointer-events-auto no-drag font-glass glass-sidebar-label flex min-h-7 items-center gap-1 rounded-md px-2 transition-colors",
+                "pointer-events-auto no-drag font-glass glass-sidebar-label flex min-h-7 items-center gap-1 rounded-glass-control px-2 transition-colors",
                 p.rightOpen
                   ? "bg-glass-active/60 text-foreground"
                   : "text-muted-foreground/70 hover:bg-glass-hover hover:text-foreground",

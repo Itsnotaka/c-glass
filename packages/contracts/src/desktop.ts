@@ -56,6 +56,7 @@ export interface DesktopBridge {
   /** Desktop: runs in the renderer when Pi or workspace boot state changes. */
   onBootRefresh?: (cb: () => void) => () => void;
   setTheme: (theme: DesktopTheme) => Promise<void>;
+  setVibrancy: (enabled: boolean) => Promise<void>;
   showContextMenu: <T extends string>(
     items: readonly ContextMenuItem<T>[],
     position?: { x: number; y: number },

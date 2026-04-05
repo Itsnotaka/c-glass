@@ -7,6 +7,13 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { displayModelName, filterPiModels, type PiModelItem } from "../../lib/pi-models";
 import { cn } from "../../lib/utils";
 
+function wellFormed(s: string) {
+  const fn = Reflect.get(String.prototype, "toWellFormed") as
+    | undefined
+    | ((this: string) => string);
+  return typeof fn === "function" ? fn.call(s) : s;
+}
+
 function useGlassPretextFont(px: number) {
   const [font, setFont] = useState(`400 ${px}px ui-sans-serif, system-ui, sans-serif`);
 
@@ -31,11 +38,19 @@ function PretextOneLine(props: {
   const px = props.fontPx ?? 12;
   const line = props.lineHeightPx ?? Math.round(px * 1.3);
   const font = useGlassPretextFont(px);
+  const t = useMemo(() => {
+    if (!props.text) return "";
+    return wellFormed(props.text);
+  }, [props.text]);
 
   const prep = useMemo(() => {
-    if (!props.text) return null;
-    return prepareWithSegments(props.text, font);
-  }, [props.text, font]);
+    if (!t) return null;
+    try {
+      return prepareWithSegments(t, font);
+    } catch {
+      return null;
+    }
+  }, [t, font]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -48,19 +63,19 @@ function PretextOneLine(props: {
   }, []);
 
   const shown = useMemo(() => {
-    if (!props.text) return "";
-    if (!prep) return props.text;
-    if (w <= 0) return props.text;
+    if (!t) return "";
+    if (!prep) return t;
+    if (w <= 0) return t;
     const out = layoutWithLines(prep, w, line);
     const head = out.lines[0];
     if (!head) return "";
     if (out.lines.length === 1) return head.text;
     const first = head.text.replace(/\s+$/, "");
     return first ? `${first}…` : "…";
-  }, [prep, props.text, w, line]);
+  }, [prep, t, w, line]);
 
   return (
-    <span ref={ref} className={props.className}>
+    <span ref={ref} className={cn(props.className, !prep && t.length > 0 && "truncate")}>
       {shown}
     </span>
   );
@@ -163,7 +178,7 @@ export function PiModelPicker(props: {
         aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}`}
         disabled={!idle}
         className={cn(
-          "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-[12px] leading-none text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
+          "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body leading-none text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
           settings
             ? "h-auto min-h-6 flex-col items-start gap-0.5 py-1 pl-2 pr-1.5"
             : "h-6 items-center pl-2 pr-1.5",
@@ -172,9 +187,11 @@ export function PiModelPicker(props: {
       >
         {busy ? (
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Skeleton className={cn("h-3 rounded-sm bg-muted/45", settings ? "w-28" : "w-20")} />
+            <Skeleton
+              className={cn("h-3 rounded-glass-control bg-muted/45", settings ? "w-28" : "w-20")}
+            />
             {settings && props.onThinkingLevel ? (
-              <Skeleton className="h-2.5 w-20 rounded-sm bg-muted/35" />
+              <Skeleton className="h-2.5 w-20 rounded-glass-control bg-muted/35" />
             ) : null}
           </div>
         ) : (
@@ -192,12 +209,12 @@ export function PiModelPicker(props: {
               <span className="min-w-0 flex-1 overflow-hidden">
                 <PretextOneLine
                   text={triggerLabel}
-                  className="block w-full min-w-0 text-left text-[12px]/[1.2] text-muted-foreground"
+                  className="block w-full min-w-0 text-left text-body/[1.2] text-muted-foreground"
                 />
               </span>
             </div>
             {settings && props.onThinkingLevel ? (
-              <span className="w-full truncate text-left text-[10px] text-muted-foreground/80">
+              <span className="w-full truncate text-left text-caption text-muted-foreground/80">
                 Thinking: {thinkingDetailLabel(thinkingValue)}
               </span>
             ) : null}
@@ -222,11 +239,11 @@ export function PiModelPicker(props: {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search models"
-                className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-[12px]/[1.3] text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-body/[1.3] text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
             {list.length === 0 ? (
-              <div className="shrink-0 px-4 py-3 text-center text-[12px]/[1.3] text-muted-foreground/70">
+              <div className="shrink-0 px-4 py-3 text-center text-body/[1.3] text-muted-foreground/70">
                 {failed
                   ? "Unable to load Pi models."
                   : props.items.length === 0
@@ -254,7 +271,7 @@ export function PiModelPicker(props: {
                         props.onSelect(item);
                       }}
                       className={cn(
-                        "group flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-[12px]/[1.3] outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
+                        "group flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
                         selected && "bg-glass-active",
                       )}
                     >
@@ -262,7 +279,7 @@ export function PiModelPicker(props: {
                         <span className="min-w-0 flex-1 overflow-hidden">
                           <PretextOneLine
                             text={displayModelName(item.name || item.id)}
-                            className="block w-full min-w-0 text-left text-[12px]/[1.3] text-foreground"
+                            className="block w-full min-w-0 text-left text-body/[1.3] text-foreground"
                           />
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
@@ -290,7 +307,7 @@ export function PiModelPicker(props: {
                 <Menu.SubmenuRoot>
                   <Menu.SubmenuTrigger
                     disabled={locked}
-                    className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1.5 text-[12px]/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
+                    className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1.5 text-body/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
                     label="Thinking"
                   >
                     <span className="min-w-0 flex-1 text-left">Thinking</span>
@@ -312,7 +329,7 @@ export function PiModelPicker(props: {
                         )}
                       >
                         <Menu.Group>
-                          <Menu.GroupLabel className="px-4 pb-1 pt-2 text-[11px] text-muted-foreground/70">
+                          <Menu.GroupLabel className="px-4 pb-1 pt-2 text-detail text-muted-foreground/70">
                             Reasoning
                           </Menu.GroupLabel>
                           <Menu.RadioGroup
@@ -326,7 +343,7 @@ export function PiModelPicker(props: {
                                 key={opt.value}
                                 value={opt.value}
                                 closeOnClick={false}
-                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-[12px]/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
                               >
                                 <span className="min-w-0 flex-1">{opt.label}</span>
                                 <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">

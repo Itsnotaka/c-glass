@@ -1,10 +1,10 @@
-import type { PiConfig, ShellState } from "@glass/contracts";
+import type { PiConfig } from "@glass/contracts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconArrowRotateCounterClockwise } from "central-icons";
 
-import { resolveAndPersistPreferredEditor } from "../../editor-preferences";
 import { useGlassAppearance } from "../../hooks/use-glass-appearance";
 import { usePiDefaults } from "../../hooks/use-pi-models";
+import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
 import { getGlass } from "../../host";
 import {
@@ -32,6 +32,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { GlassSelect } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
+import { GlassOpenPicker } from "../glass/glass-open-picker";
 import { PiModelPicker } from "../glass/pi-model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
@@ -232,7 +233,7 @@ function AppearancePage() {
           description="Override the font for code and diffs."
           control={
             <FontInput
-              className="min-w-[12rem] font-mono text-sm"
+              className="min-w-[12rem] font-mono text-body"
               value={g.codeFont}
               placeholder='"Berkeley Mono", ui-monospace, monospace'
               onCommit={setCodeFontFamily}
@@ -245,29 +246,8 @@ function AppearancePage() {
 }
 
 function WorkspaceRows() {
-  const [state, setState] = useState<ShellState | null>(null);
+  const shell = useShellState();
   const reset = usePiStore((item) => item.resetForWorkspaceChange);
-
-  useEffect(() => {
-    let live = true;
-
-    const load = () => {
-      void getGlass()
-        .shell.getState()
-        .then((next) => {
-          if (!live) return;
-          setState(next);
-        })
-        .catch(() => {});
-    };
-
-    load();
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, load);
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, load);
-    };
-  }, []);
 
   return (
     <>
@@ -275,8 +255,8 @@ function WorkspaceRows() {
         label="Current folder"
         description="Workspace used for agents and tools."
         control={
-          <span className="max-w-xs truncate text-right text-sm" title={state?.cwd ?? ""}>
-            {state?.cwd ?? "Not available"}
+          <span className="max-w-xs truncate text-right text-body" title={shell.cwd ?? ""}>
+            {shell.cwd ?? "Not available"}
           </span>
         }
       />
@@ -292,10 +272,9 @@ function WorkspaceRows() {
               onClick={() => {
                 void getGlass()
                   .shell.pickWorkspace()
-                  .then((next) => {
-                    if (!next) return;
+                  .then((state) => {
+                    if (!state) return;
                     reset();
-                    setState(next);
                     window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
                   })
                   .catch(() => {
@@ -308,20 +287,7 @@ function WorkspaceRows() {
             >
               Choose workspace
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!state?.cwd}
-              onClick={() => {
-                if (!state?.cwd) return;
-                const editor = resolveAndPersistPreferredEditor(state.availableEditors);
-                if (!editor) return;
-                void getGlass().shell.openInEditor(state.cwd, editor);
-              }}
-            >
-              Open in editor
-            </Button>
+            <GlassOpenPicker variant="settings" />
           </div>
         }
       />
@@ -467,13 +433,15 @@ function KeysSection() {
         description="Providers with a stored API key or OAuth session in Pi."
         control={
           status === "loading" ? (
-            <p className="max-w-md text-right text-muted-foreground text-sm">Loading providers…</p>
+            <p className="max-w-md text-right text-muted-foreground text-body">
+              Loading providers…
+            </p>
           ) : status === "error" ? (
-            <p className="max-w-md text-right text-muted-foreground text-sm">
+            <p className="max-w-md text-right text-muted-foreground text-body">
               Unable to load providers.
             </p>
           ) : connected.length === 0 ? (
-            <p className="max-w-md text-right text-muted-foreground text-sm">
+            <p className="max-w-md text-right text-muted-foreground text-body">
               None yet. Add a provider below.
             </p>
           ) : (
@@ -485,14 +453,14 @@ function KeysSection() {
                     variant="ghost"
                     onClick={() => setActive(item.provider)}
                     className={cn(
-                      "flex h-auto w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm font-normal",
+                      "flex h-auto w-full items-center justify-between gap-2 rounded-glass-control border px-3 py-2 text-left text-body font-normal",
                       active === item.provider
                         ? "border-primary/40 bg-primary/5"
                         : "border-border/80 bg-background hover:bg-muted/40",
                     )}
                   >
                     <span className="min-w-0 truncate font-medium">{item.provider}</span>
-                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+                    <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
                       {item.credentialType === "oauth" ? "OAuth" : "API key"}
                     </span>
                   </Button>
@@ -508,7 +476,7 @@ function KeysSection() {
             label={`${active} · auth`}
             description="OAuth-managed in Pi."
             control={
-              <p className="max-w-sm text-right text-muted-foreground text-sm">
+              <p className="max-w-sm text-right text-muted-foreground text-body">
                 {cur.oauthSupported
                   ? `Uses OAuth${stored ? " and is signed in." : "."} You can re-authenticate from “Add a provider” if needed.`
                   : `Uses OAuth-style credentials from your local Pi config.`}
@@ -559,20 +527,20 @@ function KeysSection() {
               disabled={status !== "ready"}
             />
             {status === "loading" ? (
-              <p className="text-muted-foreground text-sm">Loading providers…</p>
+              <p className="text-muted-foreground text-body">Loading providers…</p>
             ) : status === "error" ? (
-              <p className="text-muted-foreground text-sm">Unable to load providers.</p>
+              <p className="text-muted-foreground text-body">Unable to load providers.</p>
             ) : (
               <ul className="max-h-60 space-y-1 overflow-y-auto pr-0.5">
                 {filteredDiscover.length === 0 ? (
-                  <li className="text-muted-foreground text-sm">No matching providers.</li>
+                  <li className="text-muted-foreground text-body">No matching providers.</li>
                 ) : (
                   filteredDiscover.map((item) => (
                     <li
                       key={item.provider}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2"
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-glass-control border border-border/70 bg-background px-3 py-2"
                     >
-                      <span className="min-w-0 truncate font-mono text-sm">{item.provider}</span>
+                      <span className="min-w-0 truncate font-mono text-body">{item.provider}</span>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         {item.oauthSupported ? (
                           <Button
@@ -653,7 +621,7 @@ export function ExtensionsSettingsPanel() {
           label="User extensions"
           description="Loaded from your Pi agent directory."
           control={
-            <span className="max-w-xs truncate text-right text-sm" title={user ?? ""}>
+            <span className="max-w-xs truncate text-right text-body" title={user ?? ""}>
               {user ?? (status === "loading" ? "Loading…" : "Not available")}
             </span>
           }
@@ -665,35 +633,35 @@ export function ExtensionsSettingsPanel() {
       </SettingsSection>
       <SettingsSection label="Loaded">
         {status === "loading" ? (
-          <div className="py-3 text-muted-foreground text-sm">Loading extensions…</div>
+          <div className="py-3 text-muted-foreground text-body">Loading extensions…</div>
         ) : status === "error" ? (
-          <div className="py-3 text-muted-foreground text-sm">Unable to load extensions.</div>
+          <div className="py-3 text-muted-foreground text-body">Unable to load extensions.</div>
         ) : exts.length === 0 ? (
-          <div className="py-3 text-muted-foreground text-sm">No Pi extensions found.</div>
+          <div className="py-3 text-muted-foreground text-body">No Pi extensions found.</div>
         ) : (
           <ul className="space-y-2 py-3">
             {exts.map((item) => (
               <li
                 key={item.resolvedPath}
-                className="rounded-lg border border-border/70 bg-background px-3 py-2"
+                className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-sm">{item.name}</div>
+                    <div className="truncate font-medium text-body">{item.name}</div>
                     <div
-                      className="mt-1 truncate font-mono text-xs text-muted-foreground"
+                      className="mt-1 truncate font-mono text-detail text-muted-foreground"
                       title={item.path}
                     >
                       {item.path}
                     </div>
                     <div
-                      className="mt-1 truncate text-muted-foreground/80 text-xs"
+                      className="mt-1 truncate text-muted-foreground/80 text-detail"
                       title={item.resolvedPath}
                     >
                       {item.resolvedPath}
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-muted-foreground text-xs">
+                  <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
                     {scopeLabel(item.scope)}
                   </span>
                 </div>
@@ -708,12 +676,12 @@ export function ExtensionsSettingsPanel() {
             {errs.map((item) => (
               <li
                 key={`${item.path}:${item.error}`}
-                className="rounded-lg border border-border/70 bg-background px-3 py-2"
+                className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
               >
-                <div className="truncate font-mono text-xs text-foreground" title={item.path}>
+                <div className="truncate font-mono text-detail text-foreground" title={item.path}>
                   {item.path}
                 </div>
-                <div className="mt-1 text-muted-foreground text-sm">{item.error}</div>
+                <div className="mt-1 text-muted-foreground text-body">{item.error}</div>
               </li>
             ))}
           </ul>

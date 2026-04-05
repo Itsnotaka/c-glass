@@ -39,7 +39,7 @@ export const GlassAgentRow = memo(
       >
         <StatusDot state={agent.state} />
         <span className="min-w-0 flex-1 truncate">{agent.title}</span>
-        <span className="shrink-0 text-[11px] text-muted-foreground/50">{agent.ago}</span>
+        <span className="shrink-0 text-detail text-muted-foreground/50">{agent.ago}</span>
       </GlassRowButton>
     );
   },

@@ -50,7 +50,7 @@ function GlassComboboxPopup({
       >
         <div
           className={cn(
-            "flex min-h-0 max-h-[min(var(--available-height),20rem)] min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) flex-col overflow-hidden rounded-xl border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl transition-[scale,opacity]",
+            "flex min-h-0 max-h-[min(var(--available-height),20rem)] min-w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) flex-col overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl transition-[scale,opacity]",
             className,
           )}
         >
@@ -92,7 +92,7 @@ function GlassComboboxSearchInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={cn(
-        "flex h-8 w-full rounded-md border-0 bg-glass-hover/50 px-2 py-1.5 text-[12px]/[1.3] text-foreground outline-none placeholder:text-muted-foreground/50",
+        "flex h-8 w-full rounded-glass-control border-0 bg-glass-hover/50 px-2 py-1.5 text-body/[1.3] text-foreground outline-none placeholder:text-muted-foreground/50",
         className,
       )}
     />
@@ -103,7 +103,7 @@ function GlassComboboxEmpty({ className, children, ...props }: ComboboxPrimitive
   return (
     <ComboboxPrimitive.Empty
       className={cn(
-        "empty:hidden py-3 text-center text-[12px]/[1.3] text-muted-foreground/70",
+        "empty:hidden py-3 text-center text-body/[1.3] text-muted-foreground/70",
         className,
       )}
       data-slot="combobox-empty"
@@ -125,7 +125,7 @@ function GlassComboboxItem({
   return (
     <ComboboxPrimitive.Item
       className={cn(
-        "group flex min-h-7 cursor-pointer items-center gap-2 rounded-md py-1 pe-2 ps-2 text-[12px]/[1.3] outline-none transition-colors hover:bg-glass-hover data-selected:bg-glass-active data-highlighted:bg-glass-hover data-disabled:pointer-events-none data-disabled:opacity-50",
+        "group flex min-h-7 cursor-pointer items-center gap-2 rounded-glass-control py-1 pe-2 ps-2 text-body/[1.3] outline-none transition-colors hover:bg-glass-hover data-selected:bg-glass-active data-highlighted:bg-glass-hover data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       data-slot="combobox-item"

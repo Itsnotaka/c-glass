@@ -9,7 +9,7 @@ export const GlassComposerFilePreview = memo(function GlassComposerFilePreview(p
 }) {
   if (!props.item || !props.preview) {
     return (
-      <div className="flex h-full min-h-56 items-center justify-center px-4 py-6 text-center text-[12px]/[1.45] text-muted-foreground/72">
+      <div className="flex h-full min-h-56 items-center justify-center px-4 py-6 text-center text-body/[1.45] text-muted-foreground/72">
         <div className="max-w-52">
           <div className="mb-2 flex justify-center text-muted-foreground/65">
             <IconSearchIntelligence className="size-5" />
@@ -23,7 +23,7 @@ export const GlassComposerFilePreview = memo(function GlassComposerFilePreview(p
   if (props.preview.kind === "image" && props.preview.data) {
     return (
       <div className="flex h-full min-h-56 flex-col gap-3 p-3">
-        <div className="truncate text-[12px]/[1.2] font-medium text-foreground/84">
+        <div className="truncate text-body/[1.2] font-medium text-foreground/84">
           {props.item.path}
         </div>
         <img
@@ -37,12 +37,12 @@ export const GlassComposerFilePreview = memo(function GlassComposerFilePreview(p
 
   return (
     <div className="flex h-full min-h-56 flex-col p-3">
-      <div className="mb-3 truncate text-[12px]/[1.2] font-medium text-foreground/84">
+      <div className="mb-3 truncate text-body/[1.2] font-medium text-foreground/84">
         {props.item.path}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-glass-border/40 bg-glass-hover/10">
         <ScrollArea className="h-full">
-          <pre className="font-glass-mono whitespace-pre-wrap p-3 text-[11px]/[1.45] text-foreground/78">
+          <pre className="font-glass-mono whitespace-pre-wrap p-3 text-detail/[1.45] text-foreground/78">
             {props.preview.text || "Binary file"}
             {props.preview.truncated ? "\n\n[truncated]" : ""}
           </pre>

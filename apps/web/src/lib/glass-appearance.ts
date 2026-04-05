@@ -1,3 +1,4 @@
+import { readGlass } from "../host";
 import { ALL_PRESET_VAR_KEYS, PIERRE_DARK_VARS, PIERRE_LIGHT_VARS } from "./pierre-color-presets";
 
 export const STORAGE_COLOR_PALETTE = "glass:color-preset";
@@ -82,12 +83,19 @@ export function applyColorPalette() {
   emit();
 }
 
+function syncVibrancy(reduce: boolean) {
+  const bridge = readGlass();
+  if (!bridge) return;
+  void bridge.desktop.setVibrancy(!reduce);
+}
+
 export function applyGlassAppearance() {
   const root = document.documentElement;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
   root.classList.toggle("glass-reduce-transparency", reduce);
   root.classList.remove("glass-hide-email");
+  syncVibrancy(reduce);
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);

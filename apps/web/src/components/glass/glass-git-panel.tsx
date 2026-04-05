@@ -5,7 +5,9 @@ import type { GlassGitPanelModel } from "../../hooks/use-glass-git";
 import { isElectron } from "../../env";
 import { readGlass } from "../../host";
 import { cn } from "../../lib/utils";
+import { Badge } from "~/components/ui/badge";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GlassDiffViewer } from "./diff-viewer";
 
 function displayName(path: string) {
@@ -15,54 +17,30 @@ function displayName(path: string) {
   return next || path;
 }
 
+const kindVariant: Record<string, "warning" | "addition" | "deletion" | "neutral" | "destructive"> =
+  {
+    untracked: "warning",
+    added: "addition",
+    deleted: "deletion",
+    renamed: "neutral",
+    conflicted: "destructive",
+    typechange: "neutral",
+  };
+
+const kindLabel: Record<string, string> = {
+  untracked: "untracked",
+  added: "new",
+  deleted: "deleted",
+  renamed: "renamed",
+  conflicted: "conflict",
+  typechange: "type",
+};
+
 function KindBadge(props: { state: GitFileState }) {
-  const s = props.state;
-  if (s === "untracked") {
-    return (
-      <span className="shrink-0 rounded border border-amber-500/35 bg-amber-500/10 px-1 py-0.5 text-[10px]/[1] font-medium text-amber-600 dark:text-amber-400">
-        untracked
-      </span>
-    );
-  }
-  if (s === "added") {
-    return (
-      <span className="shrink-0 rounded border border-[var(--glass-diff-addition)]/40 bg-[var(--glass-diff-addition-bg)] px-1 py-0.5 text-[10px]/[1] font-medium text-[var(--glass-diff-addition)]">
-        new
-      </span>
-    );
-  }
-  if (s === "deleted") {
-    return (
-      <span className="shrink-0 rounded border border-[var(--glass-diff-deletion)]/40 bg-[var(--glass-diff-deletion-bg)] px-1 py-0.5 text-[10px]/[1] font-medium text-[var(--glass-diff-deletion)]">
-        deleted
-      </span>
-    );
-  }
-  if (s === "renamed") {
-    return (
-      <span className="shrink-0 rounded border border-glass-border/50 bg-glass-hover/30 px-1 py-0.5 text-[10px]/[1] font-medium text-muted-foreground">
-        renamed
-      </span>
-    );
-  }
-  if (s === "conflicted") {
-    return (
-      <span className="shrink-0 rounded border border-destructive/35 bg-destructive/10 px-1 py-0.5 text-[10px]/[1] font-medium text-destructive">
-        conflict
-      </span>
-    );
-  }
-  if (s === "typechange") {
-    return (
-      <span className="shrink-0 rounded border border-glass-border/50 bg-glass-hover/30 px-1 py-0.5 text-[10px]/[1] font-medium text-muted-foreground">
-        type
-      </span>
-    );
-  }
   return (
-    <span className="shrink-0 rounded border border-glass-border/50 bg-glass-hover/30 px-1 py-0.5 text-[10px]/[1] font-medium text-muted-foreground">
-      modified
-    </span>
+    <Badge variant={kindVariant[props.state] ?? "neutral"}>
+      {kindLabel[props.state] ?? "modified"}
+    </Badge>
   );
 }
 
@@ -73,8 +51,8 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   if (!isElectron || !bridge) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-        <p className="text-[13px]/[1.4] font-medium text-foreground/85">Source control</p>
-        <p className="max-w-[18rem] text-[12px]/[1.45] text-muted-foreground/72">
+        <p className="text-body/[1.4] font-medium text-foreground/85">Source control</p>
+        <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
           Git status and diffs are available in the Glass desktop app.
         </p>
       </div>
@@ -96,8 +74,8 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   if (git.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-        <p className="text-[13px]/[1.4] font-medium text-destructive/90">Git error</p>
-        <p className="max-w-[20rem] text-[12px]/[1.45] text-muted-foreground/80">{git.error}</p>
+        <p className="text-body/[1.4] font-medium text-destructive/90">Git error</p>
+        <p className="max-w-[20rem] text-detail/[1.45] text-muted-foreground/80">{git.error}</p>
       </div>
     );
   }
@@ -105,16 +83,16 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   if (snap && !snap.repo) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-        <div className="rounded-xl border border-glass-border/50 bg-glass-hover/20 px-4 py-3">
-          <p className="text-[13px]/[1.4] font-medium text-foreground/85">No repository</p>
-          <p className="mt-1 max-w-[18rem] text-[12px]/[1.45] text-muted-foreground/72">
+        <div className="rounded-glass-card border border-glass-border/50 bg-glass-hover/20 px-4 py-3">
+          <p className="text-body/[1.4] font-medium text-foreground/85">No repository</p>
+          <p className="mt-1 max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
             Initialize Git in this workspace to track changes and review diffs.
           </p>
         </div>
         <button
           type="button"
           onClick={() => git.init()}
-          className="rounded-lg border border-glass-border/60 bg-glass-active/40 px-3 py-1.5 text-[12px]/[1.2] font-medium text-foreground transition-colors hover:bg-glass-hover"
+          className="rounded-glass-control border border-glass-border/60 bg-glass-active/40 px-3 py-2 text-body/[1.2] font-medium text-foreground transition-colors hover:bg-glass-hover"
         >
           Init Git
         </button>
@@ -125,8 +103,8 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   if (snap && snap.repo && snap.clean) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-        <p className="text-[13px]/[1.4] font-medium text-foreground/85">Working tree clean</p>
-        <p className="max-w-[18rem] text-[12px]/[1.45] text-muted-foreground/72">
+        <p className="text-body/[1.4] font-medium text-foreground/85">Working tree clean</p>
+        <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
           No staged or unstaged changes in this repository.
         </p>
       </div>
@@ -140,36 +118,18 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[var(--glass-header-height)] shrink-0 items-center justify-end border-b border-glass-border/40 pl-3 pr-[calc(var(--glass-workbench-toggle-right)+var(--glass-workbench-changes-toggle-w))]">
         <div className="flex shrink-0 items-center gap-2">
-          <div className="flex items-center gap-1 rounded-lg border border-glass-border/40 bg-glass-hover/15 p-0.5">
-            <button
-              type="button"
-              onClick={() => git.setDiffStyle("unified")}
-              className={cn(
-                "font-glass glass-sidebar-label rounded px-2 py-0.5 transition-colors",
-                git.diffStyle === "unified"
-                  ? "bg-glass-active/80 text-foreground"
-                  : "text-muted-foreground/70 hover:text-foreground",
-              )}
-            >
-              Unified
-            </button>
-            <button
-              type="button"
-              onClick={() => git.setDiffStyle("split")}
-              className={cn(
-                "font-glass glass-sidebar-label rounded px-2 py-0.5 transition-colors",
-                git.diffStyle === "split"
-                  ? "bg-glass-active/80 text-foreground"
-                  : "text-muted-foreground/70 hover:text-foreground",
-              )}
-            >
-              Split
-            </button>
-          </div>
+          <SegmentedControl
+            value={git.diffStyle}
+            onChange={(v) => git.setDiffStyle(v as "unified" | "split")}
+            options={[
+              { value: "unified", label: "Unified" },
+              { value: "split", label: "Split" },
+            ]}
+          />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3 border-b border-glass-border/30 px-3 py-1.5 text-[11px]/[1.2] text-muted-foreground/72">
+      <div className="flex shrink-0 items-center gap-3 border-b border-glass-border/30 px-3 py-2 text-detail/[1.2] text-muted-foreground/72">
         <span>
           {files.length} file{files.length === 1 ? "" : "s"}
         </span>
@@ -191,17 +151,17 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
                 type="button"
                 onClick={() => git.setSelected(file.id)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
+                  "flex w-full items-center gap-2 rounded-glass-control px-2 py-1.5 text-left transition-colors",
                   file.id === git.selected
                     ? "bg-glass-active/60 text-foreground"
                     : "text-foreground/80 hover:bg-glass-hover/40",
                 )}
               >
-                <span className="min-w-0 flex-1 truncate text-[12px]/[1.3] font-medium">
+                <span className="min-w-0 flex-1 truncate text-body/[1.3] font-medium">
                   {displayName(file.path)}
                 </span>
                 <KindBadge state={file.state} />
-                <div className="flex shrink-0 items-center gap-1.5 text-[11px]/[1]">
+                <div className="flex shrink-0 items-center gap-1 text-detail/[1]">
                   {st && st.add > 0 && (
                     <span className="font-medium text-[var(--glass-diff-addition)]">+{st.add}</span>
                   )}
@@ -218,19 +178,11 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
       {selected && (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-glass-border/40">
           <div className="flex h-7 shrink-0 items-center gap-2 border-b border-glass-border/30 px-3">
-            <span className="truncate text-[11px]/[1.2] font-medium text-foreground/85">
+            <span className="truncate text-detail/[1.2] font-medium text-foreground/85">
               {displayName(selected.path)}
             </span>
-            {selected.staged && (
-              <span className="rounded border border-glass-border/50 px-1 py-0.5 text-[10px] text-muted-foreground">
-                staged
-              </span>
-            )}
-            {selected.unstaged && (
-              <span className="rounded border border-glass-border/50 px-1 py-0.5 text-[10px] text-muted-foreground">
-                unstaged
-              </span>
-            )}
+            {selected.staged && <Badge>staged</Badge>}
+            {selected.unstaged && <Badge>unstaged</Badge>}
           </div>
           <GlassDiffViewer
             fileDiff={git.patch}

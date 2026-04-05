@@ -11,6 +11,7 @@ import type {
 
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
+const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
@@ -172,6 +173,7 @@ contextBridge.exposeInMainWorld("glass", {
     },
     confirm: (message) => ipcRenderer.invoke(CONFIRM_CHANNEL, message),
     setTheme: (theme) => ipcRenderer.invoke(SET_THEME_CHANNEL, theme),
+    setVibrancy: (enabled) => ipcRenderer.invoke(SET_VIBRANCY_CHANNEL, enabled),
     showContextMenu: (items, position) => ipcRenderer.invoke(CONTEXT_MENU_CHANNEL, items, position),
     onMenuAction: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, action: unknown) => {

@@ -1,7 +1,6 @@
 /**
- * Composer token launcher: Cursor upstream class names in `glass-slash-cursor-refs.ts`.
- * Uses Base UI Popover (see `Popover.Positioner` `anchor`) — not Menu/Combobox, because the query
- * lives in the multiline textarea (`docs/cursor-slash-menu-recreation-plan.md`).
+ * Shared slash and @mention launcher.
+ * Uses Base UI Popover because the textarea stays the real input owner.
  */
 import type { ShellFileHit, ShellFilePreview } from "@glass/contracts";
 import { Popover } from "@base-ui/react/popover";
@@ -79,7 +78,7 @@ export function GlassComposerTokenMenu(props: {
                       aria-busy={props.loading}
                     >
                       {props.loading ? (
-                        <div className="px-2.5 py-3 text-[12px] text-muted-foreground/72">
+                        <div className="px-2.5 py-3 text-body text-muted-foreground/72">
                           Loading…
                         </div>
                       ) : (
@@ -105,7 +104,7 @@ export function GlassComposerTokenMenu(props: {
                               }}
                               onMouseEnter={() => props.onFileHover(i)}
                             >
-                              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
+                              <span className="flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/18 text-muted-foreground/72">
                                 {item.kind === "dir" ? (
                                   <IconFolder1 className="size-4.5" />
                                 ) : item.kind === "image" ? (
@@ -115,10 +114,10 @@ export function GlassComposerTokenMenu(props: {
                                 )}
                               </span>
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[12px]/[1.2] font-medium">
+                                <span className="block truncate text-body/[1.2] font-medium">
                                   {item.name}
                                 </span>
-                                <span className="block truncate text-[11px]/[1.2] text-muted-foreground/72">
+                                <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
                                   {item.path}
                                 </span>
                               </span>
@@ -142,7 +141,7 @@ export function GlassComposerTokenMenu(props: {
                       return (
                         <div
                           key={row.key}
-                          className="px-2.5 pb-1 pt-2 text-[10px]/[1.2] font-medium tracking-wide text-muted-foreground/62 uppercase"
+                          className="px-2.5 pb-1 pt-2 text-caption/[1.2] font-medium tracking-wide text-muted-foreground/62 uppercase"
                           role="presentation"
                         >
                           {row.label}
@@ -171,18 +170,18 @@ export function GlassComposerTokenMenu(props: {
                         }}
                         onMouseEnter={() => props.onSlashHover(row.optionIndex)}
                       >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-glass-hover/18 text-muted-foreground/72">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/18 text-muted-foreground/72">
                           <Glyph className="size-4.5" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12px]/[1.2] font-medium">
+                          <span className="block truncate text-body/[1.2] font-medium">
                             /{row.item.name}
                           </span>
-                          <span className="block truncate text-[11px]/[1.2] text-muted-foreground/72">
+                          <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
                             {row.item.description || "Command"}
                           </span>
                         </span>
-                        <span className="shrink-0 rounded-full border border-glass-border/40 px-1.5 py-0.5 text-[10px]/[1] text-muted-foreground/68">
+                        <span className="shrink-0 rounded-glass-pill border border-glass-border/40 px-1.5 py-0.5 text-caption/[1] text-muted-foreground/68">
                           {row.item.pill}
                         </span>
                       </button>

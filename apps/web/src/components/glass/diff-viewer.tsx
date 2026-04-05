@@ -17,7 +17,7 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
   if (!props.fileDiff) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-[12px]/[1.4] text-muted-foreground/60">Select a file to view changes</p>
+        <p className="text-body/[1.4] text-muted-foreground/60">Select a file to view changes</p>
       </div>
     );
   }

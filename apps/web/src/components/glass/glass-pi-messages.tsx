@@ -62,7 +62,7 @@ export const GlassPiMessages = memo(function GlassPiMessages(props: {
         stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
       }}
     >
-      <ul ref={list} className="mx-auto flex max-w-[43.875rem] flex-col gap-2 px-4 py-4 md:px-8">
+      <ul ref={list} className="mx-auto flex max-w-[43.875rem] flex-col gap-3 px-4 py-4 md:px-8">
         <GlassPiTranscript items={props.messages} expanded={props.expanded} wide={wide} />
         <GlassPiLive item={props.live} expanded={props.expanded} wide={wide} />
       </ul>

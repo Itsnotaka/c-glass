@@ -51,7 +51,7 @@ export function GlassWorkspacePicker(props: { className?: string }) {
           });
       }}
       className={cn(
-        "font-glass glass-sidebar-label flex min-w-0 items-center justify-start gap-2 rounded-md px-2 py-1 text-left text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground",
+        "font-glass glass-sidebar-label flex min-w-0 items-center justify-start gap-2 rounded-glass-control px-2 py-1 text-left text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground",
         props.className,
       )}
       title={state?.cwd ?? "Choose workspace"}

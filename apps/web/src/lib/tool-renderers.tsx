@@ -260,11 +260,11 @@ const Code = memo(function Code(props: { text: string; lang?: string; error?: bo
     <div
       className={cn(
         "embed-code max-h-[min(24rem,50vh)] overflow-auto",
-        props.error && "rounded-sm bg-destructive/[0.06]",
+        props.error && "rounded-glass-control bg-destructive/[0.06]",
       )}
     >
       <Streamdown
-        className="font-glass-mono chat-markdown text-[11px]/[1.4] text-foreground"
+        className="font-glass-mono chat-markdown text-detail/[1.4] text-foreground"
         controls={controls}
         dir="auto"
         lineNumbers={false}
@@ -286,7 +286,7 @@ function Result(props: { text: string; error: boolean; lang?: string }) {
 function Truncation(props: { truncated: boolean; limit?: unknown; noun: string }) {
   if (!props.truncated && props.limit == null) return null;
   return (
-    <div className="text-[10px]/[1.2] text-muted-foreground/50">
+    <div className="text-caption/[1.2] text-muted-foreground/50">
       {typeof props.limit === "number" && `${props.limit} ${props.noun} limit reached. `}
       {props.truncated && "Output truncated."}
     </div>
@@ -372,7 +372,7 @@ function Diff(props: { entries: EditEntry[] }) {
   if (lines.length === 0) return null;
   return (
     <div className="overflow-hidden">
-      <div className="max-h-[min(24rem,50vh)] overflow-auto font-[family-name:var(--glass-font-mono)] text-[11px]/[1.4] whitespace-pre-wrap">
+      <div className="max-h-[min(24rem,50vh)] overflow-auto font-[family-name:var(--glass-font-mono)] text-detail/[1.4] whitespace-pre-wrap">
         {lines}
       </div>
     </div>
@@ -440,7 +440,7 @@ function bash(data: ToolData): React.ReactNode {
     <div className="flex flex-col gap-1">
       {cmd ? <Code text={cmd} lang="bash" /> : null}
       {args.timeout != null ? (
-        <div className="text-[10px] text-muted-foreground/50">{args.timeout}s timeout</div>
+        <div className="text-caption text-muted-foreground/50">{args.timeout}s timeout</div>
       ) : null}
       <Result text={data.result} error={data.error} lang="bash" />
     </div>

@@ -21,7 +21,7 @@ export function GlassSelect(props: {
     >
       <Select.Trigger
         className={cn(
-          "flex h-9 min-w-[10rem] cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-background px-2.5 text-left text-sm text-foreground shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-9 min-w-[10rem] cursor-pointer items-center justify-between gap-2 rounded-glass-control border border-input bg-background px-2.5 text-left text-body text-foreground shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
           props.className,
         )}
       >
@@ -32,13 +32,13 @@ export function GlassSelect(props: {
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner sideOffset={4} className="outline-none">
-          <Select.Popup className="max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-md outline-none">
+          <Select.Popup className="max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) rounded-glass-card border border-border bg-popover py-1 text-popover-foreground shadow-md outline-none">
             <Select.List className="outline-none">
               {props.options.map((opt) => (
                 <Select.Item
                   key={opt.value}
                   value={opt.value}
-                  className="flex cursor-pointer select-none items-center rounded-md px-2.5 py-1.5 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                  className="flex cursor-pointer select-none items-center rounded-glass-control px-2.5 py-1.5 text-body outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                 >
                   <Select.ItemText>{opt.label}</Select.ItemText>
                 </Select.Item>

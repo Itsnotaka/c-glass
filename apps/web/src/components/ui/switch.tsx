@@ -22,13 +22,13 @@ const Switch = React.forwardRef<HTMLElement, SwitchProps>(function Switch(props,
       disabled={props.disabled}
       onCheckedChange={props.onCheckedChange}
       className={cn(
-        "group relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border border-input transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:bg-primary data-[unchecked]:bg-muted",
+        "group relative inline-flex h-[1.625rem] w-11 shrink-0 cursor-pointer rounded-full border border-input bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:bg-primary",
         props.className,
       )}
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          "pointer-events-none block size-6 translate-x-0.5 translate-y-0.5 rounded-full bg-background shadow-sm ring-1 ring-border transition-transform group-data-[checked]:translate-x-5",
+          "pointer-events-none block size-5 rounded-full bg-background shadow-sm ring-1 ring-border transition-transform translate-x-[2px] translate-y-[2px] group-data-[checked]:translate-x-[22px]",
         )}
       />
     </SwitchPrimitive.Root>
