@@ -1,4 +1,10 @@
-import type { PiPromptInput, PiSessionItem, PiThinkingLevel } from "@glass/contracts";
+import type {
+  PiAskReply,
+  PiAskState,
+  PiPromptInput,
+  PiSessionItem,
+  PiThinkingLevel,
+} from "@glass/contracts";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { usePiDefaults } from "../../hooks/use-pi-models";
@@ -94,6 +100,7 @@ export function usePiSession(sessionId: string | null) {
     ),
   );
   const [tick, setTick] = useState(0);
+  const [ask, setAsk] = useState<PiAskState | null>(null);
   const pending = useRef<(() => Promise<void>) | null>(null);
   const queued = useRef<Parameters<typeof applyActs>[0]>([]);
   const frame = useRef<number | null>(null);
@@ -110,7 +117,10 @@ export function usePiSession(sessionId: string | null) {
   }, []);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      setAsk(null);
+      return;
+    }
 
     const glass = readGlass();
     if (!glass) return;
@@ -122,6 +132,14 @@ export function usePiSession(sessionId: string | null) {
       .then((snap) => {
         if (!live) return;
         putSnap(snap);
+      })
+      .catch(() => {});
+
+    void glass.session
+      .readAsk(sessionId)
+      .then((state) => {
+        if (!live) return;
+        setAsk(state);
       })
       .catch(() => {});
 
@@ -193,6 +211,22 @@ export function usePiSession(sessionId: string | null) {
       off();
     };
   }, [applyActs, bumpPaths, note, sessionId, tick]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const glass = readGlass();
+    if (!glass) return;
+
+    const off = glass.session.onAsk((event) => {
+      if (event.sessionId !== sessionId) return;
+      setAsk(event.state);
+    });
+
+    return () => {
+      off();
+    };
+  }, [sessionId]);
 
   const model = sessionId ? sessionModel : defs.model;
   const modelLoading = !sessionId && defs.status === "loading";
@@ -302,12 +336,19 @@ export function usePiSession(sessionId: string | null) {
     void task();
   };
 
+  const answerAsk = (reply: PiAskReply) => {
+    if (!sessionId) return;
+    void getGlass().session.answerAsk(sessionId, reply);
+  };
+
   return {
     messages,
     live,
+    ask,
     busy,
     model,
     modelLoading,
+    answerAsk,
     send,
     abort,
     setModel,

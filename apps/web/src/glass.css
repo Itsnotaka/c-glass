@@ -191,7 +191,10 @@ body {
   line-height: 1.45;
 }
 
-/* Pierre diffs CSS bridge - maps to glass design tokens */
+/* Pierre diffs CSS bridge - maps to glass design tokens.
+ * Pierre renders inside Shadow DOM; inherited CSS properties and CSS custom
+ * properties pass through, but normal selectors don't.  We must set the
+ * --diffs-* variables that the shadow root reads for font/color control. */
 [data-diffs-container] {
   --diffs-bg: var(--glass-color-surface);
   --diffs-fg: var(--foreground);
@@ -201,6 +204,15 @@ body {
   --diffs-dark-bg: var(--background);
   --diffs-light: var(--foreground);
   --diffs-dark: var(--foreground);
+  /* Font sizing — these custom properties inherit into Shadow DOM */
+  --diffs-font-family: var(--glass-font-mono);
+  --diffs-header-font-family: var(--glass-font-ui);
+  --diffs-font-size: var(--glass-code-font-size-user, 12px);
+  --diffs-line-height: calc(var(--glass-code-font-size-user, 12px) * 1.45);
+  --diffs-addition-color-override: var(--glass-diff-addition);
+  --diffs-deletion-color-override: var(--glass-diff-deletion);
+  --diffs-bg-addition-override: var(--glass-diff-addition-bg);
+  --diffs-bg-deletion-override: var(--glass-diff-deletion-bg);
   font-family: var(--glass-font-mono);
   font-size: var(--glass-code-font-size-user, 12px);
   line-height: calc(var(--glass-code-font-size-user, 12px) * 1.45);
@@ -258,18 +270,51 @@ body {
   color: oklch(0.55 0.14 85);
 }
 
-/* Diff sidebar tokens */
 :root {
   --glass-diff-addition: oklch(0.72 0.19 142);
   --glass-diff-deletion: oklch(0.63 0.24 18);
-  --glass-diff-addition-bg: color-mix(in srgb, oklch(0.72 0.19 142) 15%, transparent);
-  --glass-diff-deletion-bg: color-mix(in srgb, oklch(0.63 0.24 18) 15%, transparent);
+  --glass-diff-addition-bg: color-mix(in srgb, oklch(0.72 0.19 142) 10%, transparent);
+  --glass-diff-deletion-bg: color-mix(in srgb, oklch(0.63 0.24 18) 10%, transparent);
 }
 
-/* Dark mode diff tokens */
 .dark {
   --glass-diff-addition: oklch(0.65 0.17 142);
   --glass-diff-deletion: oklch(0.65 0.22 18);
-  --glass-diff-addition-bg: color-mix(in srgb, oklch(0.65 0.17 142) 18%, transparent);
-  --glass-diff-deletion-bg: color-mix(in srgb, oklch(0.65 0.22 18) 18%, transparent);
+  --glass-diff-addition-bg: color-mix(in srgb, oklch(0.65 0.17 142) 12%, transparent);
+  --glass-diff-deletion-bg: color-mix(in srgb, oklch(0.65 0.22 18) 12%, transparent);
+}
+
+.glass-diff-deletion-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255, 255, 255, 0.03) 4px,
+    rgba(255, 255, 255, 0.03) 8px
+  );
+}
+
+.dark .glass-diff-deletion-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(255, 255, 255, 0.04) 4px,
+    rgba(255, 255, 255, 0.04) 8px
+  );
+}
+
+.diff-file-selected {
+  position: relative;
+}
+
+.diff-file-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
 }

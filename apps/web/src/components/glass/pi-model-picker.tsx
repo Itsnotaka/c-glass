@@ -1,7 +1,7 @@
 import type { PiModelRef, PiThinkingLevel } from "@glass/contracts";
 import { Menu } from "@base-ui/react/menu";
 import { IconBrain, IconCheckmark1Small, IconChevronRight } from "central-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { usePretextOneLine } from "../../hooks/use-glass-pretext-one-line";
 import { displayModelName, filterPiModels, type PiModelItem } from "../../lib/pi-models";
@@ -62,6 +62,7 @@ export function PiModelPicker(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const list = useMemo(() => filterPiModels(props.items, query), [props.items, query]);
   const cur = useMemo(
     () =>
@@ -81,6 +82,13 @@ export function PiModelPicker(props: {
   useEffect(() => {
     if (open) return;
     setQuery("");
+  }, [open]);
+
+  // Focus search input when menu opens
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
   }, [open]);
 
   const thinkingValue = clamp(props.selection.thinkingLevel ?? "off", xhigh);
@@ -105,6 +113,11 @@ export function PiModelPicker(props: {
   const align = props.variant === "settings" ? "start" : "end";
   const settings = props.variant === "settings";
 
+  // Prevent menu typeahead from intercepting search input
+  function handleInputKeyDown(e: React.KeyboardEvent) {
+    e.stopPropagation();
+  }
+
   return (
     <Menu.Root
       open={open}
@@ -124,18 +137,16 @@ export function PiModelPicker(props: {
         className={cn(
           "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body leading-none text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
           settings
-            ? "h-auto min-h-6 flex-col items-start gap-0.5 py-1 pl-2 pr-1.5"
-            : "h-6 items-center pl-2 pr-1.5",
+            ? "h-auto min-h-6 flex-col items-start gap-0.5 py-1 pl-2 pr-1"
+            : "h-6 items-center pl-2 pr-1",
           !idle && "opacity-50",
         )}
       >
         {busy ? (
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Skeleton
-              className={cn("h-3 rounded-glass-control bg-muted/45", settings ? "w-28" : "w-20")}
-            />
+            <Skeleton className={cn("h-3 rounded bg-muted/45", settings ? "w-28" : "w-20")} />
             {settings && props.onThinkingLevel ? (
-              <Skeleton className="h-2.5 w-20 rounded-glass-control bg-muted/35" />
+              <Skeleton className="h-2 w-20 rounded bg-muted/35" />
             ) : null}
           </div>
         ) : (
@@ -153,7 +164,7 @@ export function PiModelPicker(props: {
               <span className="min-w-0 flex-1 overflow-hidden">
                 <PretextOneLine
                   text={triggerLabel}
-                  className="block w-full min-w-0 text-left text-body/[1.2] text-muted-foreground"
+                  className="block w-full min-w-0 text-left text-body text-muted-foreground"
                 />
               </span>
             </div>
@@ -174,20 +185,22 @@ export function PiModelPicker(props: {
         >
           <Menu.Popup
             className={cn(
-              "flex max-h-[min(var(--available-height),20rem)] w-[min(16rem,var(--available-width))] min-w-[12rem] max-w-[16rem] flex-col overflow-hidden rounded border border-glass-stroke bg-glass-bubble text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-xl focus:outline-none focus-visible:outline-none",
+              "flex max-h-[min(var(--available-height),20rem)] w-[min(16rem,var(--available-width))] min-w-[12rem] max-w-[16rem] flex-col overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-xl focus:outline-none focus-visible:outline-none",
             )}
           >
             <div className="shrink-0 border-b border-glass-stroke/50 px-4 pt-2 pb-2">
               <input
+                ref={inputRef}
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleInputKeyDown}
                 placeholder="Search models"
-                className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-body/[1.3] text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-body text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
             {list.length === 0 ? (
-              <div className="shrink-0 px-4 py-3 text-center text-body/[1.3] text-muted-foreground/70">
+              <div className="shrink-0 px-4 py-3 text-center text-body text-muted-foreground/70">
                 {failed
                   ? "Unable to load Pi models."
                   : props.items.length === 0
@@ -213,9 +226,11 @@ export function PiModelPicker(props: {
                       closeOnClick={false}
                       onClick={() => {
                         props.onSelect(item);
+                        setOpen(false);
+                        setQuery("");
                       }}
                       className={cn(
-                        "group flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
+                        "group flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
                         selected && "bg-glass-active",
                       )}
                     >
@@ -223,7 +238,7 @@ export function PiModelPicker(props: {
                         <span className="min-w-0 flex-1 overflow-hidden">
                           <PretextOneLine
                             text={displayModelName(item.name || item.id)}
-                            className="block w-full min-w-0 text-left text-body/[1.3] text-foreground"
+                            className="block w-full min-w-0 text-left text-body text-foreground"
                           />
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
@@ -251,7 +266,7 @@ export function PiModelPicker(props: {
                 <Menu.SubmenuRoot>
                   <Menu.SubmenuTrigger
                     disabled={locked}
-                    className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1.5 text-body/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
+                    className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
                     label="Thinking"
                   >
                     <span className="min-w-0 flex-1 text-left">Thinking</span>
@@ -269,7 +284,7 @@ export function PiModelPicker(props: {
                     >
                       <Menu.Popup
                         className={cn(
-                          "w-[min(14rem,var(--available-width))] min-w-[10rem] max-w-[14rem] overflow-hidden rounded border border-glass-stroke bg-glass-bubble py-1 text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.04),0_4px_16px_-4px_rgb(0_0_0/0.07)] outline-none ring-0 backdrop-blur-md focus:outline-none focus-visible:outline-none",
+                          "w-[min(14rem,var(--available-width))] min-w-[10rem] max-w-[14rem] overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble py-1 text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-md focus:outline-none focus-visible:outline-none",
                         )}
                       >
                         <Menu.Group>
@@ -287,7 +302,7 @@ export function PiModelPicker(props: {
                                 key={opt.value}
                                 value={opt.value}
                                 closeOnClick={false}
-                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
                               >
                                 <span className="min-w-0 flex-1">{opt.label}</span>
                                 <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">

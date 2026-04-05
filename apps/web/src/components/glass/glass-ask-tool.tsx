@@ -1,0 +1,384 @@
+import type { PiAskReply, PiAskState } from "@glass/contracts";
+import {
+  IconCheckmark1Small,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCrossSmall,
+} from "central-icons";
+import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ScrollArea } from "~/components/ui/scroll-area";
+import { cn } from "~/lib/utils";
+
+interface Props {
+  state: PiAskState;
+  onReply: (reply: PiAskReply) => void;
+}
+
+const MotionCard = motion.create("div");
+
+function ShortcutBadge(props: { char: string }) {
+  return (
+    <kbd className="flex size-6 shrink-0 items-center justify-center rounded-sm border border-glass-border/60 bg-glass-hover/40 text-detail/[1] font-medium text-muted-foreground shadow-xs">
+      {props.char.toUpperCase()}
+    </kbd>
+  );
+}
+
+function PickBadge(props: { text: string }) {
+  return (
+    <span className="rounded-glass-pill border border-primary/30 bg-primary/[0.08] px-1.5 py-0.5 text-detail/[1] font-medium text-primary/88">
+      {props.text}
+    </span>
+  );
+}
+
+function OptRow(props: {
+  label: string;
+  shortcut?: string;
+  checked: boolean;
+  recommended?: boolean;
+  multi?: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={props.onChange}
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-glass-card border px-3 py-2.5 text-left transition-all",
+        props.checked
+          ? "border-primary/60 bg-primary/[0.06]"
+          : "border-glass-border/50 bg-transparent hover:border-glass-border/80 hover:bg-glass-hover/30",
+      )}
+    >
+      {props.shortcut ? <ShortcutBadge char={props.shortcut} /> : null}
+      <span
+        className={cn(
+          "flex-1 text-body/[1.35]",
+          props.checked ? "text-foreground" : "text-foreground/80",
+        )}
+      >
+        {props.label}
+      </span>
+      {props.recommended ? <PickBadge text="Recommended" /> : null}
+      <span
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center border transition-all",
+          props.multi ? "rounded-sm" : "rounded-full",
+          props.checked
+            ? "border-primary bg-primary"
+            : "border-muted-foreground/40 group-hover:border-muted-foreground/60",
+        )}
+      >
+        {props.checked ? (
+          props.multi ? (
+            <IconCheckmark1Small className="size-3 text-primary-foreground" />
+          ) : (
+            <span className="size-1.5 rounded-full bg-primary-foreground" />
+          )
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function Pagination(props: {
+  current: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-detail/[1] text-muted-foreground">
+      <button
+        type="button"
+        onClick={props.onPrev}
+        disabled={props.current <= 1}
+        className="flex size-6 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+        aria-label="Previous question"
+      >
+        <IconChevronLeft className="size-4" />
+      </button>
+      <span className="tabular-nums">
+        {props.current} of {props.total}
+      </span>
+      <button
+        type="button"
+        onClick={props.onNext}
+        disabled={props.current >= props.total}
+        className="flex size-6 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+        aria-label="Next question"
+      >
+        <IconChevronRight className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+export function GlassAskTool(props: Props) {
+  const q = props.state.questions[props.state.current - 1];
+  const baseVals = q ? (props.state.values[q.id] ?? []) : [];
+  const baseCustom = q ? (props.state.custom[q.id] ?? "") : "";
+  const other = q?.options.find((item) => item.other) ?? null;
+  const picks = q?.options.filter((item) => !item.other) ?? [];
+  const [vals, setVals] = useState(baseVals);
+  const [custom, setCustom] = useState(baseCustom);
+  const [mode, setMode] = useState<"options" | "custom">(baseCustom ? "custom" : "options");
+  const valsRef = useRef(vals);
+  const customRef = useRef(custom);
+  valsRef.current = vals;
+  customRef.current = custom;
+
+  useEffect(() => {
+    setVals(baseVals);
+    setCustom(baseCustom);
+    setMode(baseCustom ? "custom" : "options");
+  }, [baseCustom, baseVals, q?.id]);
+
+  const canGo = vals.length > 0 || custom.trim().length > 0;
+  const canBack = props.state.current > 1;
+  const canNext = props.state.current < props.state.questions.length;
+
+  const toggle = useCallback(
+    (id: string) => {
+      if (!q) return;
+      if (!q.multi) {
+        setVals([id]);
+        setMode("options");
+        return;
+      }
+      setVals((cur) => {
+        const next = new Set(cur);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return [...next];
+      });
+      setMode("options");
+    },
+    [q],
+  );
+
+  const reply = useCallback(
+    (type: PiAskReply["type"]) => {
+      if (!q) return;
+      if (type === "abort") {
+        props.onReply({ type });
+        return;
+      }
+      if (type === "skip") {
+        props.onReply({ type, questionId: q.id });
+        return;
+      }
+      props.onReply({
+        type,
+        questionId: q.id,
+        values: valsRef.current,
+        ...(mode === "custom" && customRef.current.trim() ? { custom: customRef.current } : {}),
+      });
+    },
+    [mode, props, q],
+  );
+
+  useEffect(() => {
+    if (!q) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLTextAreaElement) {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canGo) {
+          event.preventDefault();
+          reply("next");
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          reply("abort");
+        }
+        return;
+      }
+      if (event.target instanceof HTMLInputElement) return;
+
+      const key = event.key.toLowerCase();
+      const hit = picks.find((item, i) => (item.shortcut ?? String.fromCharCode(97 + i)) === key);
+      if (hit) {
+        event.preventDefault();
+        toggle(hit.id);
+        return;
+      }
+
+      if (other && (other.shortcut ?? "i") === key) {
+        event.preventDefault();
+        setMode("custom");
+        return;
+      }
+
+      if (event.key === "Enter" && canGo) {
+        event.preventDefault();
+        reply("next");
+        return;
+      }
+      if (event.key === "Backspace" && canBack && !canGo) {
+        event.preventDefault();
+        reply("back");
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        reply("abort");
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canBack, canGo, other, picks, q, reply, toggle]);
+
+  const count = useMemo(() => vals.length + (custom.trim() ? 1 : 0), [custom, vals.length]);
+
+  if (!q) return null;
+
+  return (
+    <div className="pointer-events-auto absolute inset-x-0 bottom-full z-50 mb-3 px-4 md:px-6">
+      <MotionCard
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="mx-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-glass-stroke-tertiary bg-glass-bubble/98 shadow-glass-card backdrop-blur-[12px]"
+      >
+        <div className="flex items-center justify-between border-b border-glass-border/30 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-body/[1] font-semibold text-foreground">Questions</h3>
+            {count > 0 ? <PickBadge text={`${count} selected`} /> : null}
+          </div>
+          <Pagination
+            current={props.state.current}
+            total={props.state.questions.length}
+            onPrev={() => reply("back")}
+            onNext={() => {
+              if (canGo) reply("next");
+            }}
+          />
+        </div>
+
+        <ScrollArea scrollFade className="max-h-[min(60vh,480px)]">
+          <div className="p-4">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={q.id}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.15 }}
+                className="flex flex-col gap-4"
+              >
+                <p className="text-body/[1.4] font-medium text-foreground">{q.text}</p>
+                <div className="flex flex-col gap-2">
+                  {picks.map((item) => (
+                    <OptRow
+                      key={item.id}
+                      label={item.label}
+                      {...(item.shortcut ? { shortcut: item.shortcut } : {})}
+                      checked={vals.includes(item.id)}
+                      {...(item.recommended ? { recommended: true } : {})}
+                      {...(q.multi ? { multi: true } : {})}
+                      onChange={() => toggle(item.id)}
+                    />
+                  ))}
+                  {other ? (
+                    <button
+                      type="button"
+                      onClick={() => setMode((cur) => (cur === "custom" ? "options" : "custom"))}
+                      className={cn(
+                        "flex items-center gap-3 rounded-glass-card border px-3 py-2.5 text-left transition-all",
+                        mode === "custom"
+                          ? "border-primary/60 bg-primary/[0.06]"
+                          : "border-dashed border-glass-border/50 bg-transparent hover:border-glass-border/80 hover:bg-glass-hover/30",
+                      )}
+                    >
+                      {other.shortcut ? <ShortcutBadge char={other.shortcut} /> : null}
+                      <span className="flex-1 text-body/[1.35] text-foreground/82">
+                        {other.label}
+                      </span>
+                      {custom.trim() ? <PickBadge text="Custom" /> : null}
+                    </button>
+                  ) : null}
+                </div>
+                {mode === "custom" ? (
+                  <div className="rounded-glass-card border border-glass-border/50 bg-glass-hover/18 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-body/[1.15] font-medium text-foreground/86">
+                        Custom answer
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustom("");
+                          setMode("options");
+                        }}
+                        className="flex size-7 items-center justify-center rounded-full text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground"
+                        aria-label="Close custom answer"
+                      >
+                        <IconCrossSmall className="size-3.5" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={custom}
+                      onChange={(event) => setCustom(event.target.value)}
+                      placeholder="Type your answer…"
+                      rows={4}
+                      className="w-full resize-none rounded-xl border border-glass-border/50 bg-transparent px-3 py-2 text-body/[1.45] text-foreground outline-hidden placeholder:text-muted-foreground/60"
+                    />
+                    <p className="mt-2 text-detail/[1.3] text-muted-foreground/68">
+                      Press{" "}
+                      <kbd className="rounded-sm bg-glass-hover/60 px-1 py-0.5">Ctrl+Enter</kbd> to
+                      continue.
+                    </p>
+                  </div>
+                ) : null}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </ScrollArea>
+
+        <div className="flex items-center justify-between border-t border-glass-border/30 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => reply("abort")}
+              className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => reply("skip")}
+              className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+            >
+              Skip
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {canBack ? (
+              <button
+                type="button"
+                onClick={() => reply("back")}
+                className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+              >
+                Back
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={!canGo}
+              onClick={() => reply("next")}
+              className="flex items-center gap-2 rounded-glass-card bg-primary px-4 py-2 text-body/[1] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {canNext ? "Next" : "Done"}
+              <kbd className="hidden rounded-sm bg-primary-foreground/20 px-1.5 py-0.5 text-detail/[1] font-medium text-primary-foreground/90 md:inline">
+                ↵
+              </kbd>
+            </button>
+          </div>
+        </div>
+      </MotionCard>
+    </div>
+  );
+}

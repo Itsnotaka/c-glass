@@ -45,4 +45,24 @@ describe("buildPiRows", () => {
       ],
     });
   });
+
+  it("emits assistantError for assistant errorMessage instead of merging into markdown", () => {
+    const rows = buildPiRows([
+      {
+        id: "a1",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Partial reply." }],
+          errorMessage: "Rate limit exceeded",
+        },
+      },
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ kind: "assistant", text: "Partial reply." });
+    expect(rows[1]).toMatchObject({
+      kind: "assistantError",
+      text: "Rate limit exceeded",
+    });
+  });
 });

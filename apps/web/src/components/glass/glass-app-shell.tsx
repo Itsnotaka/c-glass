@@ -199,8 +199,17 @@ export function GlassAppShell(props: {
       {/* Center + right */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="relative flex min-h-0 flex-1 flex-row">
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-glass-chat">
-            {props.center}
+          <main
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-glass-chat outline-hidden"
+            data-component="agent-panel"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none h-[var(--glass-header-height)] shrink-0 select-none"
+            />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">
+              {props.center}
+            </div>
           </main>
           {showRight ? (
             <aside

@@ -1,8 +1,12 @@
 import type { PiToolCallBlock } from "@glass/contracts";
 import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
-import { code } from "@streamdown/code";
 import { memo } from "react";
 import { Streamdown } from "streamdown";
+import {
+  chatStreamdownControls,
+  chatStreamdownPlugins,
+  chatStreamdownShikiTheme,
+} from "./chat-streamdown";
 import { cn } from "./utils";
 
 interface ToolData {
@@ -13,6 +17,7 @@ interface ToolData {
   error: boolean;
   details: Record<string, unknown> | null;
   expanded: boolean;
+  embedded?: boolean;
 }
 
 type Render = (data: ToolData) => React.ReactNode;
@@ -46,6 +51,18 @@ export function toolBody(data: ToolData): React.ReactNode {
   return fallback(data);
 }
 
+export function toolBodyEmbedded(data: Omit<ToolData, "embedded">): React.ReactNode {
+  const d = { ...data, embedded: true };
+  const r = resolvedToolName(d.name);
+
+  if (r === "edit") return editEmbedded(d);
+  if (r === "write") return writeEmbedded(d);
+  if (r === "read") return readEmbedded(d);
+  if (r === "bash") return bashEmbedded(d);
+
+  return fallbackEmbedded(d);
+}
+
 export { type FileDiffMetadata };
 
 export function toolFileDiff(name: string, call: PiToolCallBlock | null): FileDiffMetadata | null {
@@ -70,6 +87,25 @@ export function toolFileDiff(name: string, call: PiToolCallBlock | null): FileDi
   }
 
   return null;
+}
+
+/** Line additions / deletions for tool-call diff header (+n / -m), same rules as git diff stats. */
+export function toolDiffStat(diff: FileDiffMetadata | null): { add: number; del: number } {
+  if (!diff) return { add: 0, del: 0 };
+  return diff.hunks.reduce(
+    (sum, hunk) =>
+      hunk.hunkContent.reduce(
+        (cur, row) => {
+          if (row.type !== "change") return cur;
+          return {
+            add: cur.add + row.additions,
+            del: cur.del + row.deletions,
+          };
+        },
+        { add: sum.add, del: sum.del },
+      ),
+    { add: 0, del: 0 },
+  );
 }
 
 export function isFileTool(name: string) {
@@ -198,13 +234,6 @@ export function toolStats(
   return { add, del };
 }
 
-const plugins = { code };
-const controls = {
-  code: { copy: true, download: false },
-  mermaid: false,
-  table: false,
-} as const;
-
 const exts: Record<string, string> = {
   bash: "bash",
   c: "c",
@@ -254,32 +283,78 @@ function basename(path: string) {
   return pos < 0 ? path : path.slice(pos + 1);
 }
 
+/** Plain tool output: no Streamdown code-block chrome (avoids white cards + horizontal-only scroll). */
+const ToolTerminal = memo(function ToolTerminal(props: { text: string; error?: boolean }) {
+  if (!props.text.trim()) return null;
+  return (
+    <pre
+      className={cn(
+        "tool-terminal max-h-[min(24rem,50vh)] w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail leading-relaxed",
+        props.error ? "text-destructive/90" : "text-foreground/85",
+      )}
+    >
+      {props.text}
+    </pre>
+  );
+});
+
+function isPlainToolLang(lang: string | undefined) {
+  const l = (lang ?? "").toLowerCase();
+  return l === "" || l === "text" || l === "bash" || l === "sh" || l === "zsh" || l === "shell";
+}
+
+const CodeRaw = memo(function CodeRaw(props: { text: string; lang?: string }) {
+  if (!props.text.trim()) return null;
+  return (
+    <Streamdown
+      className="font-glass-mono chat-markdown text-detail/[1.4] text-foreground"
+      controls={chatStreamdownControls}
+      dir="auto"
+      lineNumbers={false}
+      plugins={chatStreamdownPlugins}
+      shikiTheme={chatStreamdownShikiTheme}
+    >
+      {fenced(props.text, props.lang ?? "")}
+    </Streamdown>
+  );
+});
+
 const Code = memo(function Code(props: { text: string; lang?: string; error?: boolean }) {
   if (!props.text.trim()) return null;
+  if (isPlainToolLang(props.lang)) {
+    return (
+      <ToolTerminal
+        text={props.text}
+        {...(props.error !== undefined ? { error: props.error } : {})}
+      />
+    );
+  }
   return (
     <div
       className={cn(
         "embed-code max-h-[min(24rem,50vh)] overflow-auto",
-        props.error && "rounded-glass-control bg-destructive/[0.06]",
+        props.error ? "rounded-sm bg-destructive/[0.08] px-2 py-1.5" : "tool-output-surface",
       )}
     >
-      <Streamdown
-        className="font-glass-mono chat-markdown text-detail/[1.4] text-foreground"
-        controls={controls}
-        dir="auto"
-        lineNumbers={false}
-        plugins={plugins}
-      >
-        {fenced(props.text, props.lang ?? "")}
-      </Streamdown>
+      <CodeRaw text={props.text} {...(props.lang ? { lang: props.lang } : {})} />
     </div>
   );
 });
 
 function Result(props: { text: string; error: boolean; lang?: string }) {
   if (!props.text.trim()) return null;
+  if (isPlainToolLang(props.lang)) {
+    return <ToolTerminal text={props.text} error={props.error} />;
+  }
   return (
-    <Code text={props.text} error={props.error} {...(props.lang ? { lang: props.lang } : {})} />
+    <div
+      className={cn(
+        "embed-code max-h-[min(24rem,50vh)] overflow-auto",
+        props.error ? "rounded-sm bg-destructive/[0.08] px-2 py-1.5" : "tool-output-surface",
+      )}
+    >
+      <CodeRaw text={props.text} {...(props.lang ? { lang: props.lang } : {})} />
+    </div>
   );
 }
 
@@ -367,6 +442,16 @@ function unified(entry: EditEntry): React.ReactNode[] {
   return lines;
 }
 
+function DiffRaw(props: { entries: EditEntry[] }) {
+  const lines = props.entries.flatMap(unified);
+  if (lines.length === 0) return null;
+  return (
+    <div className="font-[family-name:var(--glass-font-mono)] text-detail/[1.4] whitespace-pre-wrap">
+      {lines}
+    </div>
+  );
+}
+
 function Diff(props: { entries: EditEntry[] }) {
   const lines = props.entries.flatMap(unified);
   if (lines.length === 0) return null;
@@ -436,13 +521,15 @@ function bash(data: ToolData): React.ReactNode {
     return <Code text={text} lang="bash" error={data.error} />;
   }
 
+  const out = data.result.trim();
+  const combined = [cmd.trim() ? `$ ${cmd}` : "", out].filter(Boolean).join("\n\n");
+
   return (
     <div className="flex flex-col gap-1">
-      {cmd ? <Code text={cmd} lang="bash" /> : null}
       {args.timeout != null ? (
         <div className="text-caption text-muted-foreground/50">{args.timeout}s timeout</div>
       ) : null}
-      <Result text={data.result} error={data.error} lang="bash" />
+      {combined.trim() ? <ToolTerminal text={combined} error={data.error} /> : null}
     </div>
   );
 }
@@ -485,6 +572,11 @@ function find(data: ToolData): React.ReactNode {
   );
 }
 
+function ask(data: ToolData): React.ReactNode {
+  if (!data.result.trim()) return null;
+  return <Result text={data.result} error={data.error} lang="text" />;
+}
+
 function ls(data: ToolData): React.ReactNode {
   if (!data.expanded) {
     const text = data.result || data.args;
@@ -512,14 +604,25 @@ function fallback(data: ToolData): React.ReactNode {
     return <Code text={text} lang={lang} error={data.error} />;
   }
 
+  const argsT = data.args.trim();
+  const resT = data.result.trim();
+  const argsJson = argsT && looksJson(data.args);
+  const resJson = resT && looksJson(data.result);
+  if (argsT && resT && !argsJson && !resJson) {
+    return (
+      <ToolTerminal
+        text={`${data.args.trim()}\n\n---\n\n${data.result.trim()}`}
+        error={data.error}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1">
-      {data.args.trim() && <Code text={data.args} lang={looksJson(data.args) ? "json" : "text"} />}
-      <Result
-        text={data.result}
-        error={data.error}
-        lang={looksJson(data.result) ? "json" : "text"}
-      />
+      {argsT ? <Code text={data.args} lang={argsJson ? "json" : "text"} /> : null}
+      {resT ? (
+        <Result text={data.result} error={data.error} lang={resJson ? "json" : "text"} />
+      ) : null}
     </div>
   );
 }
@@ -535,4 +638,61 @@ register("write", write);
 register("bash", bash);
 register("grep", grep);
 register("find", find);
+register("ask", ask);
 register("ls", ls);
+
+// Embedded renderers: same logic but without outer wrapper containers
+// for use inside collapsible panels that already provide structure
+
+function readEmbedded(data: ToolData): React.ReactNode {
+  const args = (data.call?.arguments ?? {}) as ReadArgs;
+  const path = args.path ?? "";
+  const lang = langFor(path);
+  const text = data.result || data.args;
+  if (!text.trim()) return null;
+  return <CodeRaw text={text} lang={lang || "text"} />;
+}
+
+function editEmbedded(data: ToolData): React.ReactNode {
+  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, unknown>;
+  const args = raw as EditArgs;
+  const entries = edits(args);
+
+  if (data.error && data.result.trim()) {
+    return <CodeRaw text={data.result} lang="text" />;
+  }
+  if (entries.length > 0) {
+    return <DiffRaw entries={entries} />;
+  }
+  if (args.patch) {
+    return <CodeRaw text={args.patch} lang="diff" />;
+  }
+  return null;
+}
+
+function writeEmbedded(data: ToolData): React.ReactNode {
+  const args = (data.call?.arguments ?? {}) as WriteArgs;
+  const body = args.content ?? "";
+
+  if (data.error && data.result.trim()) {
+    return <CodeRaw text={data.result} lang="text" />;
+  }
+  if (body) {
+    return <DiffRaw entries={[{ newText: body }]} />;
+  }
+  return null;
+}
+
+function bashEmbedded(data: ToolData): React.ReactNode {
+  const args = (data.call?.arguments ?? {}) as BashArgs;
+  const text = data.result || args.command || "";
+  if (!text.trim()) return null;
+  return <CodeRaw text={text} lang="bash" />;
+}
+
+function fallbackEmbedded(data: ToolData): React.ReactNode {
+  const text = data.result || data.args;
+  if (!text.trim()) return null;
+  const lang = looksJson(text) ? "json" : "text";
+  return <CodeRaw text={text} lang={lang} />;
+}

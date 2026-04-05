@@ -30,6 +30,14 @@ import type {
 import { autoUpdater } from "electron-updater";
 import { RotatingFileSink } from "@glass/shared/logging";
 import { showDesktopConfirmDialog } from "./confirmDialog";
+import {
+  EXT_UI_COMPOSER_DRAFT_CHANNEL,
+  EXT_UI_REPLY_CHANNEL,
+  ExtUiBridge,
+  type ExtUiReply,
+} from "./ext-ui-bridge";
+import { AskHub } from "./glass-ext/ask";
+import { registerPaperMcpBootRefresh } from "./glass-ext/paper-mcp-status";
 import { GitService } from "./git-service";
 import { PiConfigService } from "./pi-config-service";
 import { PiSessionService } from "./pi-session-service";
@@ -76,6 +84,9 @@ const SESSION_ABORT_CHANNEL = "glass:session.abort";
 const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
 const SESSION_SET_THINKING_LEVEL_CHANNEL = "glass:session.set-thinking-level";
 const SESSION_COMMANDS_CHANNEL = "glass:session.commands";
+const SESSION_READ_ASK_CHANNEL = "glass:session.read-ask";
+const SESSION_ANSWER_ASK_CHANNEL = "glass:session.answer-ask";
+const SESSION_ASK_CHANNEL = "glass:session.ask";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
@@ -85,6 +96,7 @@ const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
 const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
+const PI_SET_NATIVE_GLASS_EXT_CHANNEL = "glass:pi.set-native-glass-extensions";
 const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
 const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
 const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
@@ -97,9 +109,11 @@ const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
 const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
 const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
 const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
+const SHELL_GET_EDITOR_ICONS_CHANNEL = "glass:shell.get-editor-icons";
 const GIT_GET_STATE_CHANNEL = "glass:git.get-state";
 const GIT_REFRESH_CHANNEL = "glass:git.refresh";
 const GIT_INIT_CHANNEL = "glass:git.init";
+const GIT_DISCARD_CHANNEL = "glass:git.discard";
 const GIT_STATE_CHANNEL = "glass:git.state";
 const GLASS_BOOT_REFRESH_CHANNEL = "glass:boot.refresh";
 const BASE_DIR = process.env.GLASS_HOME?.trim() || Path.join(OS.homedir(), ".glass");
@@ -132,6 +146,7 @@ let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
 let removeSessionEvents: (() => void) | null = null;
+let removeAskEvents: (() => void) | null = null;
 let removeGitEvents: (() => void) | null = null;
 let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -141,6 +156,8 @@ const watchedSessions = new Map<number, string>();
 const watchedSenders = new Set<number>();
 
 const pi = new PiConfigService();
+const extUi = new ExtUiBridge();
+const ask = new AskHub();
 
 let oauthPromptResolve: ((value: string) => void) | null = null;
 
@@ -150,7 +167,7 @@ function oauthPromptReplyHandler(_event: Electron.IpcMainEvent, value: unknown) 
   oauthPromptResolve = null;
 }
 const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
-const sessionService = new PiSessionService(pi, shellService);
+const sessionService = new PiSessionService(pi, shellService, extUi, ask);
 const gitService = new GitService();
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
@@ -1077,9 +1094,17 @@ function emitGlassBootRefresh() {
 }
 
 function registerIpcHandlers(): void {
+  registerPaperMcpBootRefresh(emitGlassBootRefresh);
   removeSessionEvents?.();
   removeSessionEvents = sessionService.listen((event) => {
     emitSessionEvent(event);
+  });
+  removeAskEvents?.();
+  removeAskEvents = ask.listen((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(SESSION_ASK_CHANNEL, event);
+    }
   });
   removeGitEvents?.();
   removeGitEvents = gitService.listen((state) => {
@@ -1269,6 +1294,25 @@ function registerIpcHandlers(): void {
     return Effect.runPromise(sessionService.commands(sessionId));
   });
 
+  ipcMain.removeHandler(SESSION_READ_ASK_CHANNEL);
+  ipcMain.handle(SESSION_READ_ASK_CHANNEL, async (_event, sessionId: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    return ask.read(sessionId);
+  });
+
+  ipcMain.removeHandler(SESSION_ANSWER_ASK_CHANNEL);
+  ipcMain.handle(SESSION_ANSWER_ASK_CHANNEL, async (_event, sessionId: unknown, reply: unknown) => {
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new Error("Missing session id");
+    }
+    if (!reply || typeof reply !== "object") {
+      throw new Error("Missing ask reply");
+    }
+    ask.answer(sessionId, reply as Parameters<typeof ask.answer>[1]);
+  });
+
   ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
   ipcMain.handle(SESSION_ABORT_CHANNEL, async (_event, sessionId: unknown) => {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
@@ -1319,6 +1363,7 @@ function registerIpcHandlers(): void {
   ipcMain.removeAllListeners(PI_GET_BOOT_CONFIG_CHANNEL);
   ipcMain.on(PI_GET_BOOT_CONFIG_CHANNEL, (event) => {
     try {
+      void Effect.runPromise(pi.prepare(shellService.cwd));
       event.returnValue = Effect.runSync(pi.getConfig(shellService.cwd));
     } catch {
       event.returnValue = null;
@@ -1326,9 +1371,10 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.removeHandler(PI_GET_CONFIG_CHANNEL);
-  ipcMain.handle(PI_GET_CONFIG_CHANNEL, async () =>
-    Effect.runPromise(pi.getConfig(shellService.cwd)),
-  );
+  ipcMain.handle(PI_GET_CONFIG_CHANNEL, async () => {
+    await Effect.runPromise(pi.prepare(shellService.cwd));
+    return Effect.runSync(pi.getConfig(shellService.cwd));
+  });
 
   ipcMain.removeHandler(PI_SET_DEFAULT_MODEL_CHANNEL);
   ipcMain.handle(
@@ -1380,8 +1426,28 @@ function registerIpcHandlers(): void {
     emitGlassBootRefresh();
   });
 
+  ipcMain.removeHandler(PI_SET_NATIVE_GLASS_EXT_CHANNEL);
+  ipcMain.handle(PI_SET_NATIVE_GLASS_EXT_CHANNEL, async (_event, enabled: unknown) => {
+    if (typeof enabled !== "boolean") throw new Error("Invalid native extensions flag");
+    await Effect.runPromise(pi.setNativeGlassExtensionsEnabled(enabled));
+    emitGlassBootRefresh();
+  });
+
   ipcMain.removeListener(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
   ipcMain.on(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
+
+  ipcMain.removeAllListeners(EXT_UI_REPLY_CHANNEL);
+  ipcMain.on(EXT_UI_REPLY_CHANNEL, (_event, data: ExtUiReply) => {
+    if (!data || typeof data !== "object") return;
+    if (typeof data.id !== "string" || !data.id) return;
+    extUi.reply(data);
+  });
+
+  ipcMain.removeAllListeners(EXT_UI_COMPOSER_DRAFT_CHANNEL);
+  ipcMain.on(EXT_UI_COMPOSER_DRAFT_CHANNEL, (_event, text: unknown) => {
+    if (typeof text !== "string") return;
+    extUi.setComposerDraft(text);
+  });
 
   ipcMain.removeHandler(PI_START_OAUTH_LOGIN_CHANNEL);
   ipcMain.handle(PI_START_OAUTH_LOGIN_CHANNEL, async (_event, provider: unknown) => {
@@ -1429,6 +1495,11 @@ function registerIpcHandlers(): void {
 
   ipcMain.removeHandler(SHELL_GET_STATE_CHANNEL);
   ipcMain.handle(SHELL_GET_STATE_CHANNEL, async () => Effect.runPromise(shellService.getState()));
+
+  ipcMain.removeHandler(SHELL_GET_EDITOR_ICONS_CHANNEL);
+  ipcMain.handle(SHELL_GET_EDITOR_ICONS_CHANNEL, async () =>
+    Effect.runPromise(shellService.getEditorIcons()),
+  );
 
   ipcMain.removeHandler(SHELL_PICK_WORKSPACE_CHANNEL);
   ipcMain.handle(SHELL_PICK_WORKSPACE_CHANNEL, async () => {
@@ -1538,6 +1609,19 @@ function registerIpcHandlers(): void {
     return state;
   });
 
+  ipcMain.removeHandler(GIT_DISCARD_CHANNEL);
+  ipcMain.handle(GIT_DISCARD_CHANNEL, async (_event, cwd: unknown, paths: unknown) => {
+    if (typeof cwd !== "string" || !cwd.trim()) {
+      throw new Error("Missing cwd");
+    }
+    if (!Array.isArray(paths) || !paths.every((p) => typeof p === "string")) {
+      throw new Error("Missing paths");
+    }
+    const state = await Effect.runPromise(gitService.discard(cwd, paths as string[]));
+    restartGitWatch(state.gitRoot);
+    return state;
+  });
+
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
   ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () => updateState);
 
@@ -1593,10 +1677,10 @@ function getIconOption(): { icon: string } | Record<string, never> {
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1100,
-    height: 780,
-    minWidth: 840,
-    minHeight: 620,
+    width: 1400,
+    height: 880,
+    minWidth: 1000,
+    minHeight: 680,
     show: false,
     autoHideMenuBar: true,
     transparent: true,

@@ -28,8 +28,11 @@ import {
   SessionManager,
   createAgentSession,
 } from "@mariozechner/pi-coding-agent";
-import { cursorExtension } from "./cursor-provider";
+import { clearCursorSessionCwd, cursorExtension, setCursorSessionCwd } from "./cursor-provider";
+import { ExtUiBridge } from "./ext-ui-bridge";
 import { image, resolveFile, text as textFile } from "./files";
+import { AskHub } from "./glass-ext/ask";
+import { extFactories, extTools } from "./glass-ext";
 import { PiConfigService } from "./pi-config-service";
 import { ShellService } from "./shell-service";
 
@@ -746,6 +749,8 @@ function commands(session: Session) {
 export class PiSessionService {
   private cfg: PiConfigService;
   private shell: ShellService;
+  private extUi: ExtUiBridge;
+  private ask: AskHub;
   private items = new Map<string, { session: Session }>();
   private listeners = new Set<(event: PiSessionBridgeEvent) => void>();
   private refs = new Map<string, number>();
@@ -755,9 +760,16 @@ export class PiSessionService {
   private cwd: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(cfg: PiConfigService, shell: ShellService) {
+  constructor(
+    cfg: PiConfigService,
+    shell: ShellService,
+    extUi: ExtUiBridge = new ExtUiBridge(),
+    ask: AskHub = new AskHub(),
+  ) {
     this.cfg = cfg;
     this.shell = shell;
+    this.extUi = extUi;
+    this.ask = ask;
   }
 
   listen(fn: (event: PiSessionBridgeEvent) => void) {
@@ -1036,11 +1048,14 @@ export class PiSessionService {
         this.ensure();
         this.cfg.sync();
         const settings = this.cfg.settings(this.shell.cwd);
+        const native = this.cfg.nativeGlassExtensionsEnabled();
+        const glassFacts = native ? extFactories() : [];
         const loader = new DefaultResourceLoader({
           cwd: this.shell.cwd,
           agentDir: this.cfg.paths(this.shell.cwd).agent,
           settingsManager: settings,
-          extensionFactories: [cursorExtension],
+          extensionFactories: [cursorExtension, ...glassFacts],
+          noExtensions: true,
         });
         await loader.reload();
         const result = await createAgentSession({
@@ -1050,8 +1065,40 @@ export class PiSessionService {
           resourceLoader: loader,
           sessionManager: mgr,
           settingsManager: settings,
+          customTools: native ? extTools(this.ask) : [],
         });
         const session = result.session;
+        setCursorSessionCwd(session.sessionId, session.sessionManager.getCwd());
+        await session.bindExtensions({
+          uiContext: this.extUi.context(),
+          commandContextActions: {
+            waitForIdle: () => session.agent.waitForIdle(),
+            newSession: async (options) => ({ cancelled: !(await session.newSession(options)) }),
+            fork: async (entryId) => {
+              const out = await session.fork(entryId);
+              return { cancelled: out.cancelled };
+            },
+            navigateTree: async (targetId, options) => {
+              const out = await session.navigateTree(targetId, {
+                ...(options?.summarize !== undefined ? { summarize: options.summarize } : {}),
+                ...(options?.customInstructions
+                  ? { customInstructions: options.customInstructions }
+                  : {}),
+                ...(options?.replaceInstructions !== undefined
+                  ? { replaceInstructions: options.replaceInstructions }
+                  : {}),
+                ...(options?.label ? { label: options.label } : {}),
+              });
+              return { cancelled: out.cancelled };
+            },
+            switchSession: async (sessionPath) => ({
+              cancelled: !(await session.switchSession(sessionPath)),
+            }),
+            reload: async () => {
+              await session.reload();
+            },
+          },
+        });
         this.items.set(session.sessionId, { session });
         session.subscribe((event) => {
           this.push(session, event as Event);
@@ -1094,7 +1141,9 @@ export class PiSessionService {
   }
 
   peek() {
-    return [...this.sums.values()].toSorted((left, right) =>
+    if (this.sums.size === 0) return [];
+    const list = [...this.sums.values()];
+    return list.toSorted((left, right) =>
       left.modifiedAt < right.modifiedAt ? 1 : left.modifiedAt > right.modifiedAt ? -1 : 0,
     );
   }
@@ -1151,8 +1200,9 @@ export class PiSessionService {
   }
 
   watch(sessionId: string): Effect.Effect<PiSessionSnapshot, Error> {
+    const count = (this.refs.get(sessionId) ?? 0) + 1;
     return Effect.sync(() => {
-      this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
+      this.refs.set(sessionId, count);
     }).pipe(Effect.flatMap(() => this.get(sessionId)));
   }
 
@@ -1255,6 +1305,7 @@ export class PiSessionService {
     }
     this.close();
     for (const item of this.items.values()) {
+      clearCursorSessionCwd(item.session.sessionId);
       item.session.dispose();
     }
     this.items.clear();

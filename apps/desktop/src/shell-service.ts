@@ -4,6 +4,7 @@ import {
   constants,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -12,7 +13,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import * as OS from "node:os";
 import * as Path from "node:path";
 
-import type { ShellFileHit, ShellPickedFile, ShellFilePreview } from "@glass/contracts";
+import type { EditorIcon, ShellFileHit, ShellPickedFile, ShellFilePreview } from "@glass/contracts";
 import { EDITORS } from "@glass/contracts";
 import { dialog, nativeImage, shell } from "electron";
 import * as Effect from "effect/Effect";
@@ -102,6 +103,39 @@ function bundle(editor: (typeof EDITORS)[number]) {
       Path.join(OS.homedir(), "Applications", `${editor.app}.app`),
     ].find((item) => existsSync(item)) ?? null
   );
+}
+
+function iconPath(appPath: string): string | null {
+  const resources = Path.join(appPath, "Contents/Resources");
+  if (!existsSync(resources)) return null;
+
+  const files = readdirResources(resources);
+
+  const patterns = [
+    /^AppIcon.*\.icns$/i,
+    /^app.*\.icns$/i,
+    /Icon.*\.icns$/i,
+    /Logo.*\.icns$/i,
+    /^.*\.icns$/i,
+    /^AppIcon.*\.png$/i,
+    /^app.*\.png$/i,
+    /^.*\.png$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = files.find((f) => pattern.test(f));
+    if (match) return Path.join(resources, match);
+  }
+
+  return null;
+}
+
+function readdirResources(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 function bin(editor: (typeof EDITORS)[number]) {
@@ -546,4 +580,25 @@ export class ShellService {
       catch: () => false,
     });
   }
+
+  getEditorIcons(): Effect.Effect<EditorIcon[], Error> {
+    return Effect.sync(() => {
+      const available = EDITORS.filter((item) => runner(item));
+      return available.map(
+        (editor): EditorIcon => ({
+          id: editor.id,
+          icon: editorSvgPaths[editor.id] ?? null,
+        }),
+      );
+    });
+  }
 }
+
+// SVG icon paths for editors - using official brand assets
+const editorSvgPaths: Record<string, string> = {
+  cursor: "/icons/cursor/cursor.svg",
+  vscode: "/icons/vscode/vscode.svg",
+  "vscode-insiders": "/icons/vscode/vscode.svg",
+  vscodium: "/icons/vscode/vscode.svg",
+  zed: "/icons/zed/zed.svg",
+};

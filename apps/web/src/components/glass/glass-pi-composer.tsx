@@ -15,7 +15,7 @@ import {
   IconFileBend,
   IconImages1,
   IconPlusLarge,
-  IconSquareX,
+  IconStop,
 } from "central-icons";
 import {
   memo,
@@ -33,6 +33,8 @@ import { usePiModels } from "../../hooks/use-pi-models";
 import { usePiStore } from "../../lib/pi-session-store";
 import { cn } from "../../lib/utils";
 import { useGlassSettings } from "./glass-settings-context";
+import { PI_GLASS_EDITOR_SET_EVENT } from "../../lib/pi-glass-constants";
+import { pushComposerDraft } from "../../lib/pi-composer-draft-mirror";
 import {
   applyFile,
   applySlash,
@@ -220,23 +222,23 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
         : null;
 
   return (
-    <div className="group relative flex min-w-0 items-center gap-2 rounded-2xl border border-glass-border/40 bg-glass-hover/18 px-2.5 py-2 shadow-glass-card">
+    <div className="group relative flex min-w-0 items-center gap-2 rounded border border-glass-border/40 bg-glass-hover/18 px-2 py-2 shadow-glass-card">
       {preview ? (
         <img
           alt={props.item.name}
-          className="size-10 shrink-0 rounded-glass-card object-cover"
+          className="size-10 shrink-0 rounded object-cover"
           src={preview}
         />
       ) : (
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/24 text-muted-foreground/75">
-          <Glyph className="size-4.5" />
+        <span className="flex size-10 shrink-0 items-center justify-center rounded bg-glass-hover/24 text-muted-foreground/75">
+          <Glyph className="size-4" />
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-body/[1.2] font-medium text-foreground/86">
+        <span className="block truncate text-body font-medium text-foreground/86">
           {props.item.name}
         </span>
-        <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
+        <span className="block truncate text-detail text-muted-foreground/72">
           {size(props.item.size)}
         </span>
       </span>
@@ -385,6 +387,24 @@ export const GlassPiComposer = memo(
       key !== closed &&
       (at ? rankedHits.length > 0 || loading : Boolean(slash && options.length > 0));
     const [index, setIndex] = useState(0);
+
+    useEffect(() => {
+      const set = (event: Event) => {
+        const next = (event as CustomEvent<string>).detail;
+        if (typeof next !== "string") return;
+        props.onDraft(next);
+        nextCursor.current = next.length;
+      };
+      window.addEventListener(PI_GLASS_EDITOR_SET_EVENT, set as EventListener);
+      return () => {
+        window.removeEventListener(PI_GLASS_EDITOR_SET_EVENT, set as EventListener);
+      };
+    }, [props.onDraft]);
+
+    useEffect(() => {
+      pushComposerDraft(props.draft);
+      readGlass()?.desktop.setComposerDraft?.(props.draft);
+    }, [props.draft]);
 
     useEffect(() => {
       setIndex(0);
@@ -689,7 +709,7 @@ export const GlassPiComposer = memo(
         className={cn(
           props.variant === "hero"
             ? "w-full"
-            : "relative isolate pb-2.5 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:top-[-96px] before:bg-glass-chat before:mask-[linear-gradient(0deg,#000_0,rgba(0,0,0,0.86)_28%,rgba(0,0,0,0.56)_62%,rgba(0,0,0,0.22)_84%,transparent)]",
+            : "relative isolate pb-2 before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:top-[-96px] before:bg-glass-chat before:mask-[linear-gradient(0deg,#000_0,rgba(0,0,0,0.86)_28%,rgba(0,0,0,0.56)_62%,rgba(0,0,0,0.22)_84%,transparent)]",
         )}
       >
         <div
@@ -701,7 +721,7 @@ export const GlassPiComposer = memo(
               <div
                 ref={shellRef}
                 className={cn(
-                  "overflow-hidden rounded-2xl border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
+                  "overflow-hidden rounded-glass-card border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
                   drag && "border-glass-stroke-strong bg-glass-active/18",
                 )}
                 onDragLeave={(event) => {
@@ -736,7 +756,7 @@ export const GlassPiComposer = memo(
                 ) : null}
                 <div className="relative min-h-10">
                   <div
-                    className="glass-composer-mirror font-glass pointer-events-none absolute inset-0 z-0 px-3 pt-3 pb-1 text-body/[1.45] whitespace-pre-wrap break-words"
+                    className="glass-composer-mirror font-glass pointer-events-none absolute inset-0 z-0 px-3 pt-3 pb-1 text-body whitespace-pre-wrap break-words"
                     aria-hidden
                   >
                     {composing ? (
@@ -785,7 +805,7 @@ export const GlassPiComposer = memo(
                     }}
                     placeholder="Message… use / for commands, @ for files"
                     rows={1}
-                    className="field-sizing-content font-glass relative z-10 block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-body/[1.45] text-transparent caret-foreground outline-hidden placeholder:text-muted-foreground selection:bg-primary/25"
+                    className="field-sizing-content font-glass relative z-10 block min-h-10 max-h-56 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-body text-transparent caret-foreground outline-hidden placeholder:text-muted-foreground selection:bg-primary/25"
                     onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                       if (open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                         event.preventDefault();
@@ -820,7 +840,7 @@ export const GlassPiComposer = memo(
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between gap-2 px-1.5 pt-0 pb-1.5">
+                <div className="flex items-center justify-between gap-2 px-2 pt-0 pb-1">
                   <div className="flex min-w-0 items-center gap-1">
                     <button
                       type="button"
@@ -858,15 +878,15 @@ export const GlassPiComposer = memo(
                     aria-label={props.busy ? "Stop" : "Send"}
                   >
                     {props.busy ? (
-                      <IconSquareX className="glass-composer-icon" />
+                      <IconStop className="glass-composer-icon" />
                     ) : (
                       <IconArrowUp className="glass-composer-icon" />
                     )}
                   </button>
                 </div>
                 {drag ? (
-                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[14px] bg-glass-active/15 backdrop-blur-[2px]">
-                    <div className="rounded-glass-pill border border-glass-border/40 bg-glass-bubble px-3 py-2 text-body/[1.2] font-medium text-foreground/84 shadow-glass-card">
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-glass-card bg-glass-active/15 backdrop-blur-[2px]">
+                    <div className="rounded-glass-pill border border-glass-border/40 bg-glass-bubble px-3 py-2 text-body font-medium text-foreground/84 shadow-glass-card">
                       Drop files to attach
                     </div>
                   </div>

@@ -1,18 +1,18 @@
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { cn } from "~/lib/utils";
+import { useTheme } from "../../hooks/use-theme";
 
 interface Props {
   fileDiff: FileDiffMetadata | null;
   diffStyle?: "unified" | "split";
   className?: string;
+  collapsed?: boolean;
 }
 
 export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
-  const isDark = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return document.documentElement.classList.contains("dark");
-  }, []);
+  const { resolvedTheme } = useTheme();
+  const theme = resolvedTheme === "dark" ? "pierre-dark" : "pierre-light";
 
   if (!props.fileDiff) {
     return (
@@ -30,10 +30,12 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
       <FileDiff
         fileDiff={props.fileDiff}
         options={{
-          theme: isDark ? "pierre-dark" : "pierre-light",
-          diffStyle: props.diffStyle ?? "split",
+          theme,
+          diffStyle: props.diffStyle ?? "unified",
           hunkSeparators: "line-info",
           overflow: "scroll",
+          disableFileHeader: true,
+          ...(props.collapsed !== undefined ? { collapsed: props.collapsed } : {}),
         }}
       />
     </div>

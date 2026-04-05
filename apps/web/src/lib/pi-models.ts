@@ -13,7 +13,7 @@ const PREFERRED = [
   ["google-vertex", "gemini-3-pro-preview"],
   ["github-copilot", "gpt-4o"],
   ["openrouter", "openai/gpt-5.1-codex"],
-  ["cursor", "gpt-5.1-codex"],
+  ["cursor", "composer-2-fast"],
   ["vercel-ai-gateway", "anthropic/claude-opus-4-6"],
   ["xai", "grok-4-fast-non-reasoning"],
   ["groq", "openai/gpt-oss-120b"],

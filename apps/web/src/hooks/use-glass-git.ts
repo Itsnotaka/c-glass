@@ -1,12 +1,32 @@
 import type { GitFileSummary, GitState } from "@glass/contracts";
 import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import * as Schema from "effect/Schema";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { readGlass } from "../host";
 import { useGlassShellStore } from "../lib/glass-shell-store";
+import { useLocalStorage } from "./use-local-storage";
 import { useShellState } from "./use-shell-cwd";
 
-interface DiffRow extends GitFileSummary {
+const DiffStyle = Schema.Literals(["unified", "split"]);
+
+/** Same storage as Changes panel (`glass-git-panel`) — unified vs split diff. */
+export function useGlassDiffStylePreference() {
+  return useLocalStorage<"unified" | "split", "unified" | "split">(
+    "glass:git-diff-style",
+    "unified",
+    DiffStyle,
+  );
+}
+
+export interface DiffRow extends GitFileSummary {
   diff: FileDiffMetadata | null;
   add: number;
   del: number;
@@ -24,10 +44,12 @@ export interface GlassGitPanelModel {
   totalAdd: number;
   totalDel: number;
   statsById: Map<string, { add: number; del: number }>;
+  rows: DiffRow[];
   setSelected: (id: string) => void;
-  setDiffStyle: (style: "unified" | "split") => void;
+  setDiffStyle: Dispatch<SetStateAction<"unified" | "split">>;
   refresh: () => Promise<GitState | null>;
   init: () => Promise<GitState | null>;
+  discard: (paths: string[]) => Promise<GitState | null>;
 }
 
 function clean(path: string) {
@@ -136,7 +158,7 @@ export function useGlassGitPanel(): GlassGitPanelModel {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [diffStyle, setDiffStyle] = useState<"unified" | "split">("split");
+  const [diffStyle, setDiffStyle] = useGlassDiffStylePreference();
 
   const load = useCallback(
     (kind: "getState" | "refresh") => {
@@ -264,6 +286,24 @@ export function useGlassGitPanel(): GlassGitPanelModel {
       });
   }, [cwd, glass]);
 
+  const discard = useCallback(
+    (paths: string[]) => {
+      if (!glass?.git || !cwd) return Promise.resolve(null);
+      return glass.git
+        .discard(cwd, paths)
+        .then((next) => {
+          setSnap(next);
+          setErr(null);
+          return next;
+        })
+        .catch((err: unknown) => {
+          setErr(err instanceof Error ? err.message : String(err));
+          return null;
+        });
+    },
+    [cwd, glass],
+  );
+
   return {
     snap,
     loading,
@@ -276,9 +316,11 @@ export function useGlassGitPanel(): GlassGitPanelModel {
     totalAdd,
     totalDel,
     statsById,
+    rows: files,
     setSelected,
     setDiffStyle,
     refresh: () => load("refresh"),
     init,
+    discard,
   };
 }

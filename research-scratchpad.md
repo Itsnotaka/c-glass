@@ -167,6 +167,360 @@ Exact default values can differ by platform and settings; **read computed styles
 
 ---
 
+---
+
+## Changes Panel CSS (from `workbench.desktop.main.css`)
+
+### File List Structure
+
+Cursor uses two layers: `.review-changes-*` (individual file cells) inside `.changes-list` (container).
+
+#### Container
+
+```css
+.changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.changes-container {
+  margin-top: 8px;
+}
+```
+
+#### File Row
+
+```css
+.review-changes-selectable-cell {
+  align-items: center;
+  border-radius: 4px;
+  color: var(--cursor-text-primary);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+  line-height: 16px;
+  min-width: 0;
+  padding: 4px;
+  transition: background-color 0.1s ease;
+}
+
+.review-changes-selectable-cell:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+```
+
+#### File Name + Path
+
+```css
+.review-changes-file-name {
+  color: var(--cursor-text-primary);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+/* RTL trick to show end of long paths */
+.review-changes-path-prefix {
+  color: var(--cursor-text-secondary);
+  direction: rtl;
+  flex-shrink: 1;
+  font-size: 11px;
+  min-width: 0;
+  opacity: 0.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+```
+
+#### Directory Groups (Tree View)
+
+```css
+.review-changes-group {
+  isolation: isolate;
+}
+
+.review-changes-group__header {
+  align-items: center;
+  background: var(--vscode-editor-background);
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  padding-bottom: 4px;
+  padding-top: 4px;
+  position: sticky;
+  text-align: left;
+  width: 100%;
+  z-index: 13;
+}
+
+.review-changes-group__chevron {
+  align-items: center;
+  color: var(--cursor-text-secondary);
+  display: inline-flex;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.review-changes-group__title {
+  color: var(--cursor-text-primary);
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-changes-group__body {
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  padding: 0 0 0 18px; /* Tree indent */
+}
+```
+
+### Smart Review Panel Header
+
+```css
+.smart-review-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0 32px;
+  flex: 1;
+  overflow: auto;
+}
+
+.smart-review-panel__header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 6px 0;
+}
+
+.smart-review-panel__title {
+  color: var(--cursor-text-primary);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smart-review-panel__changes-label {
+  color: var(--cursor-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+}
+
+.smart-review-panel__lines-changed {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+}
+
+.smart-review-panel__lines-changed.added {
+  color: var(--vscode-gitDecoration-addedResourceForeground, var(--cursor-text-green-primary));
+}
+
+.smart-review-panel__lines-changed.removed {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, var(--cursor-text-red-primary));
+}
+
+.smart-review-panel__divider {
+  background: var(--cursor-stroke-tertiary, hsla(0, 0%, 8%, 0.07));
+  height: 1px;
+  margin: 0;
+}
+
+/* Tabs (Changes / Split toggle equivalent) */
+.smart-review-panel__header-tab {
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  padding: 2px 6px;
+}
+
+.smart-review-panel__header-tab.active {
+  background: var(--cursor-bg-secondary);
+  color: var(--cursor-text-primary);
+}
+
+.smart-review-panel__header-tab.inactive {
+  color: var(--cursor-text-secondary);
+}
+```
+
+### Commit Area
+
+```css
+.commit-message-textarea {
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  min-height: 60px;
+  padding: 6px 8px;
+  resize: none;
+  width: 100%;
+}
+```
+
+### SCM View (Source Control Panel)
+
+```css
+.scm-view {
+  container-type: inline-size;
+  height: 100%;
+}
+
+.scm-view .monaco-list-row {
+  line-height: 22px; /* Key: 22px row height */
+}
+
+.scm-view .scm-input {
+  padding-left: 12px;
+}
+
+.scm-view .scm-editor {
+  border-radius: 4px;
+  border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.scm-review-status-header {
+  color: var(--vscode-sideBar-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  padding: 2px 12px;
+}
+
+.scm-review-file-header {
+  align-items: center;
+  color: var(--vscode-sideBar-foreground);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 12px 2px 10px;
+  width: 100%;
+}
+
+.scm-review-file-header:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.scm-review-file-name {
+  color: var(--vscode-sideBar-foreground);
+  direction: rtl;
+  flex: 1;
+  font-size: 13px;
+  line-height: 18px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+```
+
+---
+
+## Command Palette CSS (Quick Input)
+
+```css
+.quick-input-widget {
+  left: 50%;
+  position: absolute;
+  width: 600px;
+  z-index: 2550;
+  -webkit-app-region: no-drag;
+  border-radius: 6px;
+}
+
+.quick-input-header {
+  cursor: grab;
+  display: flex;
+  padding: 8px 6px 2px;
+}
+
+.quick-input-titlebar {
+  align-items: center;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
+  cursor: grab;
+  display: flex;
+}
+
+.quick-input-list {
+  line-height: 22px;
+  max-height: 440px;
+}
+
+.quick-input-list .monaco-list-row {
+  border-radius: 3px;
+}
+
+.quick-input-list .quick-input-list-entry {
+  display: flex;
+  overflow: hidden;
+  padding: 0 6px;
+}
+
+.quick-input-list .quick-input-list-icon {
+  width: 16px;
+  height: 22px;
+  padding-right: 6px;
+}
+
+.quick-input-list .quick-input-list-rows {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin-left: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-input-action .monaco-text-button {
+  font-size: 11px;
+  height: 25px;
+  padding: 0 6px;
+}
+```
+
+### Key Dimensions Summary
+
+| Element                         | Cursor Value                         | Glass Equivalent               |
+| ------------------------------- | ------------------------------------ | ------------------------------ |
+| Command palette width           | `600px`                              | Use `max-w-[600px]` or similar |
+| Command palette radius          | `6px`                                | `rounded-glass-control` (6px)  |
+| Command palette max list height | `440px`                              | `max-h-[440px]`                |
+| Command palette z-index         | `2550`                               | `z-[2550]` or `z-50`           |
+| File row height (SCM)           | `22px` (line-height)                 | ~`py-1` + text = 22px          |
+| File row padding (changes)      | `4px`                                | `p-1` (4px)                    |
+| File row gap                    | `6px` (changes) / `4px` (SCM)        | `gap-1` (4px) or custom        |
+| File font size                  | `12px` (detail) / `13px` (name)      | `text-detail` / `text-body`    |
+| Path prefix font size           | `11px`                               | `text-detail`                  |
+| Group title font size           | `13px` / `font-weight: 500`          | `text-body font-medium`        |
+| Tree indent                     | `18px` left padding                  | `pl-[18px]`                    |
+| Group header padding            | `4px` top/bottom                     | `py-1`                         |
+| Status header font size         | `13px` / `font-weight: 500`          | `text-body font-medium`        |
+| Hover background                | `var(--vscode-list-hoverBackground)` | `hover:bg-glass-hover/40`      |
+
+---
+
 ## Removed from this scratchpad
 
 Older content about generic Cursor infra (`product.json` update URLs, full extension matrix, Composer service string dumps) was **dropped** to keep this document **Glass-only**. Reintroduce those sections from git history or regenerate if you need the full-app atlas again.

@@ -589,6 +589,7 @@ function scopeLabel(scope: PiConfig["extensions"][number]["scope"]) {
 export function ExtensionsSettingsPanel() {
   const cfg = usePiCfg();
   const status = usePiCfgStatus();
+  const refreshCfg = usePiStore((state) => state.refreshCfg);
   const exts = useMemo(
     () =>
       cfg?.extensions.toSorted(
@@ -606,7 +607,6 @@ export function ExtensionsSettingsPanel() {
       ) ?? [],
     [cfg],
   );
-  const user = cfg ? `${cfg.agentDir}/extensions` : null;
 
   return (
     <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
@@ -614,21 +614,28 @@ export function ExtensionsSettingsPanel() {
         Extensions
       </h1>
       <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
-        Extensions Glass sees through your Pi setup.
+        Built-in global extensions Glass loads natively.
       </p>
       <SettingsSection label="Discovery">
         <SettingsRow
-          label="User extensions"
-          description="Loaded from your Pi agent directory."
+          label="Pi Glass native extensions"
+          description="When on, new chat sessions load built-in Glass tools and lifecycle hooks (Paper MCP, Ask, web search, and others). Cursor integration stays available when this is off."
           control={
-            <span className="max-w-xs truncate text-right text-body" title={user ?? ""}>
-              {user ?? (status === "loading" ? "Loading…" : "Not available")}
-            </span>
+            <Switch
+              checked={cfg?.nativeGlassExtensions ?? true}
+              disabled={status === "loading"}
+              onCheckedChange={(next) => {
+                void getGlass()
+                  .pi.setNativeGlassExtensions(next)
+                  .then(() => refreshCfg())
+                  .catch(() => {});
+              }}
+            />
           }
         />
         <SettingsRow
-          label="Workspace extensions"
-          description="Pi also checks `.pi/agent/extensions` inside the active workspace."
+          label="Future layer"
+          description="Workspace `.pi/extensions` and user `~/.pi/agent/extensions` folders remain visible for reference, but Glass does not execute them yet."
         />
       </SettingsSection>
       <SettingsSection label="Loaded">
@@ -637,36 +644,64 @@ export function ExtensionsSettingsPanel() {
         ) : status === "error" ? (
           <div className="py-3 text-muted-foreground text-body">Unable to load extensions.</div>
         ) : exts.length === 0 ? (
-          <div className="py-3 text-muted-foreground text-body">No Pi extensions found.</div>
+          <div className="py-3 text-muted-foreground text-body">
+            No native Glass extensions registered.
+          </div>
         ) : (
           <ul className="space-y-2 py-3">
-            {exts.map((item) => (
-              <li
-                key={item.resolvedPath}
-                className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
-              >
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-body">{item.name}</div>
-                    <div
-                      className="mt-1 truncate font-mono text-detail text-muted-foreground"
-                      title={item.path}
-                    >
-                      {item.path}
+            {exts.map((item) => {
+              const isPaper = item.path === "glass://paper-mcp";
+              const nativeOn = cfg?.nativeGlassExtensions ?? true;
+              const pm = cfg?.paperMcp;
+              const paperLine = isPaper
+                ? !nativeOn
+                  ? "Native extensions are off — enable Pi Glass native extensions to use Paper MCP."
+                  : pm == null
+                    ? "Start a chat session to check Paper Desktop."
+                    : pm.ok
+                      ? "Connected to Paper Desktop."
+                      : (pm.detail ?? "Paper MCP unavailable.")
+                : null;
+              return (
+                <li
+                  key={item.resolvedPath}
+                  className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-body">{item.name}</div>
+                      {paperLine ? (
+                        <div
+                          className={cn(
+                            "mt-1 text-detail break-words",
+                            isPaper && nativeOn && pm != null && !pm.ok
+                              ? "text-destructive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {paperLine}
+                        </div>
+                      ) : null}
+                      <div
+                        className="mt-1 truncate font-mono text-detail text-muted-foreground"
+                        title={item.path}
+                      >
+                        {item.path}
+                      </div>
+                      <div
+                        className="mt-1 truncate text-muted-foreground/80 text-detail"
+                        title={item.resolvedPath}
+                      >
+                        {item.resolvedPath}
+                      </div>
                     </div>
-                    <div
-                      className="mt-1 truncate text-muted-foreground/80 text-detail"
-                      title={item.resolvedPath}
-                    >
-                      {item.resolvedPath}
-                    </div>
+                    <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
+                      {scopeLabel(item.scope)}
+                    </span>
                   </div>
-                  <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
-                    {scopeLabel(item.scope)}
-                  </span>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </SettingsSection>

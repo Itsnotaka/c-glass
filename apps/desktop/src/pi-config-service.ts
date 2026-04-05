@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import * as OS from "node:os";
 import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
@@ -15,6 +16,8 @@ import {
   getAgentDir,
 } from "@mariozechner/pi-coding-agent";
 import { cursorExtension, registerCursorProvider, syncCursorProvider } from "./cursor-provider";
+import { extDtos, extFactories } from "./glass-ext";
+import { getPaperMcpStatus } from "./glass-ext/paper-mcp-status";
 
 function trim(value: unknown) {
   if (typeof value !== "string") return null;
@@ -46,22 +49,24 @@ function key(provider: string, model: string) {
   return `${provider}/${model}`;
 }
 
-function scope(cwd: string, file: string) {
-  const full = Path.resolve(file);
-  const proj = Path.resolve(cwd, ".pi", "agent", "extensions") + Path.sep;
-  if (full.startsWith(proj)) return "project" as const;
-  const user = Path.resolve(getAgentDir(), "extensions") + Path.sep;
-  if (full.startsWith(user)) return "user" as const;
-  return "other" as const;
+const GLASS_PREFS = Path.join(OS.homedir(), ".glass", "userdata", "glass-prefs.json");
+
+type GlassPrefs = { nativeGlassExtensions?: boolean };
+
+function readGlassPrefs(): GlassPrefs {
+  if (!existsSync(GLASS_PREFS)) return {};
+  try {
+    const t = readFileSync(GLASS_PREFS, "utf8").trim();
+    if (!t) return {};
+    return JSON.parse(t) as GlassPrefs;
+  } catch {
+    return {};
+  }
 }
 
-function extDto(cwd: string, item: { path: string; resolvedPath: string }) {
-  return {
-    name: Path.basename(item.path, Path.extname(item.path)) || item.path,
-    path: item.path,
-    resolvedPath: item.resolvedPath,
-    scope: scope(cwd, item.resolvedPath),
-  };
+function writeGlassPrefs(data: GlassPrefs) {
+  mkdirSync(Path.dirname(GLASS_PREFS), { recursive: true });
+  writeFileSync(GLASS_PREFS, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
 function errDto(item: { path: string; error: string }) {
@@ -159,6 +164,8 @@ export class PiConfigService {
   auth = AuthStorage.create(Path.join(getAgentDir(), "auth.json"));
   reg = ModelRegistry.create(this.auth, Path.join(getAgentDir(), "models.json"));
   runtime = new Set<string>();
+  cursor = "";
+  cursorp: Promise<void> | null = null;
   initp: Promise<void> | null = null;
   initcwd: string | null = null;
   exts: PiConfig["extensions"] = [];
@@ -176,11 +183,13 @@ export class PiConfigService {
       this.exts = [];
       this.xerrs = [];
 
+      const glassFacts = this.nativeGlassExtensionsEnabled() ? extFactories() : [];
       const loader = new DefaultResourceLoader({
         cwd,
         agentDir: getAgentDir(),
         settingsManager: this.settings(cwd),
-        extensionFactories: [cursorExtension],
+        extensionFactories: [cursorExtension, ...glassFacts],
+        noExtensions: true,
         noSkills: true,
         noPromptTemplates: true,
         noThemes: true,
@@ -189,7 +198,7 @@ export class PiConfigService {
       try {
         await loader.reload();
         const exts = loader.getExtensions();
-        this.exts = exts.extensions.map((item) => extDto(cwd, item));
+        this.exts = extDtos();
         this.xerrs = exts.errors.map((item) => errDto(item));
 
         const runner = new ExtensionRunner(
@@ -236,6 +245,49 @@ export class PiConfigService {
     return SettingsManager.create(cwd, agent);
   }
 
+  cursorKey() {
+    if (!this.auth.hasAuth("cursor")) return "";
+    const cred = this.auth.get("cursor");
+    if (!cred) return "env";
+    if (cred.type === "oauth") return "oauth";
+    return `key:${cred.key.trim()}`;
+  }
+
+  cursorSync() {
+    const next = this.cursorKey();
+    if (!next) {
+      if (this.cursor) registerCursorProvider(this.reg);
+      this.cursor = "";
+      return this.cursorp ?? Promise.resolve();
+    }
+    if (this.cursor === next && this.cursorp) return this.cursorp;
+    if (this.cursor === next && !this.cursorp) return Promise.resolve();
+
+    this.cursor = next;
+    const cred = this.auth.get("cursor");
+    const key =
+      cred?.type === "api_key" ? cred.key.trim() : (process.env["CURSOR_API_KEY"] ?? null);
+    const job = syncCursorProvider(this.reg, key).catch(() => {
+      registerCursorProvider(this.reg);
+    });
+    this.cursorp = job.finally(() => {
+      if (this.cursorp === job) this.cursorp = null;
+    });
+    return this.cursorp;
+  }
+
+  prepare(cwd: string) {
+    return Effect.tryPromise({
+      try: async () => {
+        await this.init(cwd);
+        this.sync();
+        await this.cursorSync();
+        this.sync();
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   paths(cwd: string) {
     const agent = getAgentDir();
     return {
@@ -266,6 +318,18 @@ export class PiConfigService {
         if (err) throw err.error;
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
+  nativeGlassExtensionsEnabled(): boolean {
+    const p = readGlassPrefs();
+    return p.nativeGlassExtensions !== false;
+  }
+
+  setNativeGlassExtensionsEnabled(enabled: boolean): Effect.Effect<void> {
+    return Effect.sync(() => {
+      const cur = readGlassPrefs();
+      writeGlassPrefs({ ...cur, nativeGlassExtensions: enabled });
     });
   }
 
@@ -304,6 +368,8 @@ export class PiConfigService {
         models: all.map((model) => modelDto(model)),
         extensions: this.exts,
         extensionErrors: this.xerrs,
+        nativeGlassExtensions: this.nativeGlassExtensionsEnabled(),
+        paperMcp: getPaperMcpStatus(),
         available: available.map((model) => key(model.provider, model.id)),
         error: this.errs(cwd),
       };
@@ -364,7 +430,7 @@ export class PiConfigService {
         await this.auth.login(provider, callbacks);
         this.reg.refresh();
         if (provider === "cursor") {
-          await syncCursorProvider(this.reg, await this.auth.getApiKey(provider));
+          await this.cursorSync();
         }
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),

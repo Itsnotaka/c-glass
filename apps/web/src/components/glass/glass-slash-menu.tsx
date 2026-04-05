@@ -63,7 +63,7 @@ export function GlassComposerTokenMenu(props: {
             className={cn(
               "glass-slash-menu-popup glass-composer-token-menu",
               "origin-[var(--transform-origin)]",
-              "overflow-hidden rounded-[18px] border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl",
+              "overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble shadow-glass-popup backdrop-blur-xl",
               "w-[min(28rem,calc(100vw-2rem))] max-w-[min(28rem,calc(100vw-2rem))]",
             )}
           >
@@ -78,9 +78,7 @@ export function GlassComposerTokenMenu(props: {
                       aria-busy={props.loading}
                     >
                       {props.loading ? (
-                        <div className="px-2.5 py-3 text-body text-muted-foreground/72">
-                          Loading…
-                        </div>
+                        <div className="px-2 py-3 text-body text-muted-foreground/72">Loading…</div>
                       ) : (
                         props.hits.map((item, i) => {
                           const active = i === props.fileActive;
@@ -92,7 +90,7 @@ export function GlassComposerTokenMenu(props: {
                               aria-selected={active}
                               data-highlighted={active ? "" : undefined}
                               className={cn(
-                                "flex w-full items-center gap-2 rounded-2xl px-2.5 py-2 text-left transition-colors motion-reduce:transition-none",
+                                "flex w-full items-center gap-2 rounded px-2 py-2 text-left transition-colors motion-reduce:transition-none",
                                 active
                                   ? "bg-glass-active text-foreground"
                                   : "text-foreground/82 hover:bg-glass-hover/40",
@@ -104,20 +102,20 @@ export function GlassComposerTokenMenu(props: {
                               }}
                               onMouseEnter={() => props.onFileHover(i)}
                             >
-                              <span className="flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/18 text-muted-foreground/72">
+                              <span className="flex size-8 shrink-0 items-center justify-center rounded bg-glass-hover/18 text-muted-foreground/72">
                                 {item.kind === "dir" ? (
-                                  <IconFolder1 className="size-4.5" />
+                                  <IconFolder1 className="size-4" />
                                 ) : item.kind === "image" ? (
-                                  <IconImages1 className="size-4.5" />
+                                  <IconImages1 className="size-4" />
                                 ) : (
-                                  <IconFileBend className="size-4.5" />
+                                  <IconFileBend className="size-4" />
                                 )}
                               </span>
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-body/[1.2] font-medium">
+                                <span className="block truncate text-body font-medium">
                                   {item.name}
                                 </span>
-                                <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
+                                <span className="block truncate text-detail text-muted-foreground/72">
                                   {item.path}
                                 </span>
                               </span>
@@ -141,7 +139,7 @@ export function GlassComposerTokenMenu(props: {
                       return (
                         <div
                           key={row.key}
-                          className="px-2.5 pb-1 pt-2 text-caption/[1.2] font-medium tracking-wide text-muted-foreground/62 uppercase"
+                          className="px-2 pb-1 pt-2 text-caption font-medium tracking-wide text-muted-foreground/62 uppercase"
                           role="presentation"
                         >
                           {row.label}
@@ -158,7 +156,7 @@ export function GlassComposerTokenMenu(props: {
                         aria-selected={active}
                         data-highlighted={active ? "" : undefined}
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition-colors motion-reduce:transition-none",
+                          "flex w-full items-center gap-3 rounded px-2 py-2 text-left transition-colors motion-reduce:transition-none",
                           active
                             ? "bg-glass-active text-foreground"
                             : "text-foreground/82 hover:bg-glass-hover/40",
@@ -170,18 +168,18 @@ export function GlassComposerTokenMenu(props: {
                         }}
                         onMouseEnter={() => props.onSlashHover(row.optionIndex)}
                       >
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/18 text-muted-foreground/72">
-                          <Glyph className="size-4.5" />
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded bg-glass-hover/18 text-muted-foreground/72">
+                          <Glyph className="size-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-body/[1.2] font-medium">
+                          <span className="block truncate text-body font-medium">
                             /{row.item.name}
                           </span>
-                          <span className="block truncate text-detail/[1.2] text-muted-foreground/72">
+                          <span className="block truncate text-detail text-muted-foreground/72">
                             {row.item.description || "Command"}
                           </span>
                         </span>
-                        <span className="shrink-0 rounded-glass-pill border border-glass-border/40 px-1.5 py-0.5 text-caption/[1] text-muted-foreground/68">
+                        <span className="shrink-0 rounded border border-glass-border/40 px-1 py-0.5 text-caption text-muted-foreground/68">
                           {row.item.pill}
                         </span>
                       </button>

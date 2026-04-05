@@ -1,11 +1,12 @@
 import type { PiSessionItem } from "@glass/contracts";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { Collapsible } from "~/components/ui/collapsible";
-import { code } from "@streamdown/code";
 import {
   IconChevronBottom,
   IconClipboard,
   IconConsole,
+  IconCrossSmall,
   IconFileBend,
   IconImages1,
   IconLoader,
@@ -14,24 +15,33 @@ import {
 import React from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
+import {
+  chatStreamdownControls,
+  chatStreamdownPlugins,
+  chatStreamdownShikiTheme,
+} from "../../lib/chat-streamdown";
+import { useGlassDiffStylePreference } from "../../hooks/use-glass-git";
+import { useTheme } from "../../hooks/use-theme";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
 import { VsFileIcon } from "../../lib/vscode-file-icon";
 import {
   isFileTool,
   isShellTool,
   toolBody,
+  toolBodyEmbedded,
+  toolDiffStat,
   toolFileDiff,
   toolPathFromCall,
 } from "../../lib/tool-renderers";
 import { cn } from "../../lib/utils";
 
-const plugins = { code };
+/** Tool / bash cards: full border + soft fill (Cursor-like), no left accent rail. */
+const toolPanelShell =
+  "min-w-0 rounded-glass-card border border-glass-border/45 bg-glass-bubble/55 px-2 py-0 shadow-glass-card";
 
-const controls = {
-  code: { copy: true, download: false },
-  mermaid: false,
-  table: false,
-} as const;
+/** Base UI trigger: no browser / focus-visible ring (reads as ugly “outline on select”). */
+const collapsibleTriggerFocus =
+  "outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0";
 
 function useSyncedExpand(expanded: boolean) {
   const [open, setOpen] = useState(expanded);
@@ -71,7 +81,7 @@ function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "b
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 text-body leading-tight",
+        "inline-flex shrink-0 items-center gap-1 text-body leading-snug",
         s === "errored"
           ? "rounded bg-destructive/10 px-1.5 py-0.5 text-destructive/90"
           : "text-foreground/48",
@@ -96,6 +106,10 @@ function draw(row: PiRow, expanded: boolean) {
 
   if (row.kind === "assistant") {
     return <AssistantBlock key={row.id} text={row.text} />;
+  }
+
+  if (row.kind === "assistantError") {
+    return <AssistantErrorBlock key={row.id} text={row.text} expanded={expanded} />;
   }
 
   if (row.kind === "tool") {
@@ -223,8 +237,13 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
   return (
     <li className="min-w-0">
       <Collapsible.Root open={open} onOpenChange={setOpen}>
-        <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
-          <span className="min-w-0 flex-1 truncate text-body leading-none text-foreground/[0.7]">
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8",
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate text-body leading-snug text-foreground/[0.7]">
             Thinking
           </span>
           <IconChevronBottom
@@ -235,7 +254,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="mt-1 border-l border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] pl-3 text-body/[1.5] italic text-foreground/[0.7]">
+          <div className="mt-1 rounded-glass-control border border-glass-border/35 bg-muted/20 px-3 py-2 text-body leading-relaxed whitespace-pre-wrap break-words italic text-foreground/[0.7]">
             {props.text}
           </div>
         </Collapsible.Panel>
@@ -249,10 +268,11 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
     <li className="min-w-0 py-1">
       <Streamdown
         className="font-glass chat-markdown text-body/5 text-foreground"
-        controls={controls}
+        controls={chatStreamdownControls}
         dir="auto"
         lineNumbers={false}
-        plugins={plugins}
+        plugins={chatStreamdownPlugins}
+        shikiTheme={chatStreamdownShikiTheme}
       >
         {props.text}
       </Streamdown>
@@ -281,7 +301,7 @@ function renderValue(value: unknown, depth: number): React.ReactNode {
     return (
       <span>
         <span className="text-muted-foreground/50">[</span>
-        <div className="pl-4" style={{ borderLeft: "1px solid hsl(var(--glass-border) / 0.25)" }}>
+        <div className="pl-4">
           {value.map((item, i) => (
             <div key={i}>
               {renderValue(item, depth + 1)}
@@ -299,10 +319,7 @@ function renderValue(value: unknown, depth: number): React.ReactNode {
     return (
       <span>
         <span className="text-muted-foreground/50">{"{"}</span>
-        <div
-          className="grid grid-cols-[auto_1fr] gap-x-3 pl-4"
-          style={{ borderLeft: "1px solid hsl(var(--glass-border) / 0.25)" }}
-        >
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 pl-4">
           {entries.map(([key, val], i) => (
             <React.Fragment key={key}>
               <span className="text-primary/80 font-medium">{key}</span>
@@ -384,8 +401,8 @@ function BashOutputRich(props: { text: string; error: boolean }) {
 
   if (parsed !== null) {
     return (
-      <div className="max-h-[min(24rem,50vh)] overflow-auto">
-        <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
+      <div className="max-h-[min(24rem,50vh)] overflow-auto px-0.5 py-1">
+        <div className="font-glass-mono text-detail leading-relaxed [&_span]:leading-[inherit]">
           {renderValue(parsed, 0)}
         </div>
       </div>
@@ -395,9 +412,8 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   return (
     <pre
       className={cn(
-        "max-h-[min(24rem,50vh)] overflow-auto whitespace-pre-wrap font-glass-mono text-detail/[1.45] text-foreground/75",
-        props.error &&
-          "rounded-glass-control bg-destructive/[0.08] px-2 py-1.5 text-destructive/90",
+        "tool-terminal max-h-[min(24rem,50vh)] overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail leading-relaxed",
+        props.error ? "text-destructive/90" : "text-foreground/80",
       )}
     >
       {props.text}
@@ -422,24 +438,24 @@ function JsonSection(props: { label: string; text: string }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <span className="text-detail/[1.1] font-medium tracking-wide text-muted-foreground/55 uppercase">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-detail/[1.1] font-medium tracking-wide text-muted-foreground/45 uppercase">
           {props.label}
         </span>
         <button
           onClick={copy}
-          className="flex items-center gap-1 rounded p-1 text-muted-foreground/40 transition-colors hover:bg-glass-hover/20 hover:text-muted-foreground/70"
+          className="flex shrink-0 items-center gap-1 rounded px-1 py-0.5 text-muted-foreground/40 transition-colors hover:bg-glass-hover/20 hover:text-muted-foreground/70"
         >
           <IconClipboard className="size-3" />
           <span>copy</span>
         </button>
       </div>
       {parsed !== null ? (
-        <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
+        <div className="tool-output-surface font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
           {renderValue(parsed, 0)}
         </div>
       ) : (
-        <pre className="whitespace-pre-wrap text-detail/[1.45] text-foreground/75">
+        <pre className="tool-terminal whitespace-pre-wrap text-detail/[1.45] text-foreground/75">
           {props.text}
         </pre>
       )}
@@ -456,14 +472,19 @@ function ToolRailCard(props: {
 }) {
   const [open, setOpen] = useSyncedExpand(props.expanded);
   return (
-    <li className="min-w-0 overflow-hidden rounded-glass-control border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+    <li className={cn(toolPanelShell, "overflow-hidden")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
-        <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 px-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-1.5 py-0 pr-0.5 text-left transition-colors hover:bg-glass-hover/6",
+          )}
+        >
           <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
             {props.icon}
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate text-body font-medium leading-tight text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate text-body font-medium leading-snug text-foreground/[0.94]">
               {props.title}
             </span>
             <span className="shrink-0">{props.subtitle}</span>
@@ -476,7 +497,7 @@ function ToolRailCard(props: {
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] px-2 py-2">
+          <div className="flex flex-col gap-1.5 border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
             {props.children}
           </div>
         </Collapsible.Panel>
@@ -485,8 +506,57 @@ function ToolRailCard(props: {
   );
 }
 
-const isDark = () =>
-  typeof window !== "undefined" && document.documentElement.classList.contains("dark");
+function assistantErrorTitle(text: string): string {
+  const line = text.trim().split(/\r?\n/u, 1)[0] ?? "";
+  if (!line) return "Error";
+  if (line.length <= 52) return line;
+  return `${line.slice(0, 49)}…`;
+}
+
+const AssistantErrorBlock = memo(function AssistantErrorBlock(props: {
+  text: string;
+  expanded: boolean;
+}) {
+  const title = useMemo(() => assistantErrorTitle(props.text), [props.text]);
+  return (
+    <ToolRailCard
+      icon={<IconCrossSmall className="size-3 shrink-0 text-destructive/80" />}
+      title={title}
+      subtitle={
+        <span className="inline-flex shrink-0 items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-body leading-snug text-destructive/90">
+          Error
+        </span>
+      }
+      expanded={props.expanded}
+    >
+      <div className="min-w-0 pt-1.5 pb-2">
+        <pre className="tool-terminal max-h-[min(40vh,20rem)] overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail/[1.45] text-foreground/80">
+          {props.text}
+        </pre>
+      </div>
+    </ToolRailCard>
+  );
+});
+
+/** Embedded file tool diff: same unified/split + theme as Changes panel (`GlassDiffViewer`); compact chrome. */
+function embedToolDiffOptions(opts: {
+  diffStyle: "unified" | "split";
+  theme: "pierre-dark" | "pierre-light";
+}) {
+  return {
+    theme: opts.theme,
+    diffStyle: opts.diffStyle,
+    overflow: "wrap" as const,
+    disableFileHeader: true,
+    disableBackground: false,
+    disableLineNumbers: true,
+    diffIndicators: "none" as const,
+    lineDiffType: "none" as const,
+    expandUnchanged: false,
+    hunkSeparators: "simple" as const,
+    unsafeCSS: "[data-separator] { display: none !important; }",
+  };
+}
 
 function toolArgs(row: Extract<PiRow, { kind: "tool" }>): Record<string, unknown> | null {
   const fromCall = row.call?.arguments;
@@ -510,13 +580,125 @@ function toolTitle(row: Extract<PiRow, { kind: "tool" }>): string {
   if (typeof args.pattern === "string" && args.pattern.trim()) return args.pattern;
   if (typeof args.query === "string" && args.query.trim()) return args.query;
   if (typeof args.command === "string" && args.command.trim()) return args.command;
+  if (row.name === "ask" && Array.isArray(args.questions) && args.questions[0]) {
+    const text = (args.questions[0] as { question?: unknown }).question;
+    if (typeof text === "string" && text.trim()) return text.trim();
+    return "Questions";
+  }
   return row.name;
 }
+
+const FileEditToolCard = memo(function FileEditToolCard(props: {
+  row: Extract<PiRow, { kind: "tool" }>;
+  diff: FileDiffMetadata;
+  path: string;
+  expanded: boolean;
+  toolState: ToolState;
+}) {
+  const [diffStyle] = useGlassDiffStylePreference();
+  const { resolvedTheme } = useTheme();
+  const pierreTheme =
+    resolvedTheme === "dark" ? ("pierre-dark" as const) : ("pierre-light" as const);
+  const [open, setOpen] = useSyncedExpand(props.expanded);
+  const [full, setFull] = useState(false);
+  const stat = useMemo(() => toolDiffStat(props.diff), [props.diff]);
+  const base = useMemo(() => {
+    const p = props.path;
+    const pos = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+    return pos < 0 ? p : p.slice(pos + 1);
+  }, [props.path]);
+
+  return (
+    <li className={cn(toolPanelShell, "overflow-hidden")}>
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "group flex w-full cursor-pointer items-center gap-2 py-1.5 pr-0.5 text-left transition-colors hover:bg-glass-hover/6",
+          )}
+          title={props.path}
+          type="button"
+        >
+          <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
+            <VsFileIcon path={props.path} errored={props.toolState === "errored"} />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-glass text-body font-medium leading-snug text-foreground/[0.94]">
+            {base}
+          </span>
+          <span className="flex shrink-0 items-baseline gap-2 font-glass-mono text-detail tabular-nums">
+            {stat.add > 0 ? (
+              <span className="text-emerald-600 dark:text-emerald-400">+{stat.add}</span>
+            ) : null}
+            {stat.del > 0 ? (
+              <span className="text-red-600 dark:text-red-400/95">-{stat.del}</span>
+            ) : null}
+            {stat.add === 0 && stat.del === 0 ? (
+              <span className="text-muted-foreground/45">—</span>
+            ) : null}
+          </span>
+          <span className="shrink-0">
+            <ToolSubtitle row={props.row} />
+          </span>
+          <IconChevronBottom
+            className={cn(
+              "size-3 shrink-0 text-foreground/48 transition-transform duration-200",
+              !open && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          <div className="flex flex-col border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
+            <div
+              className={cn(
+                "relative min-h-0 overflow-x-auto",
+                full ? "max-h-[min(56vh,28rem)] overflow-y-auto" : "max-h-[80px] overflow-y-hidden",
+              )}
+            >
+              <div className="embed-diff min-h-[72px] bg-transparent">
+                <FileDiff
+                  fileDiff={props.diff}
+                  options={embedToolDiffOptions({ diffStyle, theme: pierreTheme })}
+                />
+              </div>
+              {!full ? (
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[color-mix(in_srgb,var(--color-glass-bubble)_96%,var(--background))] to-transparent dark:from-[color-mix(in_srgb,var(--color-glass-bubble)_90%,var(--background))]"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className={cn(
+                collapsibleTriggerFocus,
+                "flex w-full cursor-pointer items-center justify-center gap-1.5 border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)] py-1.5 text-detail text-muted-foreground transition-colors hover:bg-glass-hover/8 hover:text-foreground/85",
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setFull((v) => !v);
+              }}
+            >
+              <IconChevronBottom
+                className={cn("size-3 shrink-0 transition-transform", full && "rotate-180")}
+              />
+              <span>{full ? "Show less" : "Show more"}</span>
+            </button>
+          </div>
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+});
 
 const ToolCard = memo(function ToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;
   expanded: boolean;
 }) {
+  const [diffStyle] = useGlassDiffStylePreference();
+  const { resolvedTheme } = useTheme();
+  const pierreTheme =
+    resolvedTheme === "dark" ? ("pierre-dark" as const) : ("pierre-light" as const);
   const s = state(props.row);
   const file = isFileTool(props.row.name);
   const title = useMemo(() => toolTitle(props.row), [props.row]);
@@ -556,6 +738,18 @@ const ToolCard = memo(function ToolCard(props: {
 
   const hasPayload = Boolean(props.row.args.trim() || props.row.result.trim());
 
+  if (file && diff && path) {
+    return (
+      <FileEditToolCard
+        row={props.row}
+        diff={diff}
+        path={path}
+        expanded={props.expanded}
+        toolState={s}
+      />
+    );
+  }
+
   return (
     <ToolRailCard
       icon={
@@ -584,23 +778,15 @@ const ToolCard = memo(function ToolCard(props: {
       expanded={props.expanded}
     >
       {file && diff ? (
-        <div className="embed-diff max-h-[min(56vh,28rem)] overflow-auto">
+        <div className="embed-diff tool-output-surface max-h-[min(56vh,28rem)] overflow-auto">
           <FileDiff
             fileDiff={diff}
-            options={{
-              theme: isDark() ? "pierre-dark" : "pierre-light",
-              diffStyle: "unified",
-              overflow: "scroll",
-              disableFileHeader: true,
-              disableBackground: true,
-              expandUnchanged: false,
-              unsafeCSS: "[data-separator] { display: none !important; }",
-            }}
+            options={embedToolDiffOptions({ diffStyle, theme: pierreTheme })}
           />
         </div>
       ) : null}
       {!file && hasPayload && detail ? (
-        <div className="max-h-[min(56vh,28rem)] overflow-auto">{detail}</div>
+        <div className="max-h-[min(56vh,28rem)] min-h-0 overflow-auto">{detail}</div>
       ) : null}
       {!file && hasPayload && !detail ? (
         <JsonSection
@@ -662,7 +848,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
   const body = useMemo(
     () =>
       hasContent
-        ? toolBody({
+        ? toolBodyEmbedded({
             name: props.tool.name,
             call: props.tool.call,
             args: props.tool.args,
@@ -678,7 +864,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
   if (!hasContent) {
     return (
       <div className="flex h-8 max-h-8 min-w-0 items-center">
-        <div className="min-w-0 truncate text-body leading-none text-foreground/[0.94]">
+        <div className="min-w-0 truncate text-body leading-snug text-foreground/[0.94]">
           {summary}
         </div>
       </div>
@@ -687,8 +873,13 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
 
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen}>
-      <Collapsible.Trigger className="flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left">
-        <div className="min-w-0 flex-1 truncate text-body leading-none text-foreground/[0.94]">
+      <Collapsible.Trigger
+        className={cn(
+          collapsibleTriggerFocus,
+          "flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left",
+        )}
+      >
+        <div className="min-w-0 flex-1 truncate text-body leading-snug text-foreground/[0.94]">
           {summary}
         </div>
         <IconChevronBottom
@@ -699,7 +890,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
         />
       </Collapsible.Trigger>
       <Collapsible.Panel>
-        <div className="max-h-60 overflow-auto border-t border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] pt-1.5">
+        <div className="max-h-60 min-h-0 overflow-auto border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
           {body}
         </div>
       </Collapsible.Panel>
@@ -720,9 +911,14 @@ const ExploredCard = memo(function ExploredCard(props: {
     parts.push(`${props.row.searches} ${props.row.searches === 1 ? "search" : "searches"}`);
 
   return (
-    <li className="min-w-0 text-body leading-none">
+    <li className={cn(toolPanelShell, "text-body leading-normal")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
-        <Collapsible.Trigger className="flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left">
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 px-0.5 text-left transition-colors hover:bg-glass-hover/6",
+          )}
+        >
           <span className="shrink-0 text-foreground/[0.7]">Explored</span>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-0">
             {parts.map((p) => (
@@ -739,7 +935,7 @@ const ExploredCard = memo(function ExploredCard(props: {
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="mt-1 flex flex-col gap-2">
+          <div className="mt-1 flex flex-col gap-1 rounded-glass-control border border-glass-border/35 bg-muted/15 p-2">
             {props.row.tools.map((tool) => (
               <ExploredToolItem key={tool.id} tool={tool} />
             ))}
@@ -758,14 +954,19 @@ const BashCard = memo(function BashCard(props: {
   const [open, setOpen] = useSyncedExpand(props.expanded);
 
   return (
-    <li className="min-w-0 overflow-hidden rounded-glass-control border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)]">
+    <li className={cn(toolPanelShell, "overflow-hidden")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
-        <Collapsible.Trigger className="group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 px-2 py-0 text-left transition-colors hover:bg-glass-hover/8">
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-1.5 py-0 pr-0.5 text-left transition-colors hover:bg-glass-hover/6",
+          )}
+        >
           <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
             <IconConsole className="size-3 shrink-0" />
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate font-glass-mono text-body font-medium leading-tight text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate font-glass-mono text-body font-medium leading-snug text-foreground/[0.94]">
               {props.row.command}
             </span>
             <span className="shrink-0">
@@ -780,7 +981,7 @@ const BashCard = memo(function BashCard(props: {
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] px-2 py-2">
+          <div className="flex flex-col gap-1.5 border-t border-[color-mix(in_srgb,var(--foreground)_6%,transparent)] pt-1.5 pb-2">
             <BashOutputRich
               text={`${props.row.output}${props.row.truncated ? "\n\n[truncated]" : ""}`}
               error={err}
@@ -837,10 +1038,11 @@ const TextCard = memo(function TextCard(props: {
         return (
           <Streamdown
             className="font-glass chat-markdown text-body/5 text-foreground"
-            controls={controls}
+            controls={chatStreamdownControls}
             dir="auto"
             lineNumbers={false}
-            plugins={plugins}
+            plugins={chatStreamdownPlugins}
+            shikiTheme={chatStreamdownShikiTheme}
           >
             {props.text}
           </Streamdown>
@@ -850,10 +1052,11 @@ const TextCard = memo(function TextCard(props: {
     return (
       <Streamdown
         className="font-glass chat-markdown text-body/5 text-foreground"
-        controls={controls}
+        controls={chatStreamdownControls}
         dir="auto"
         lineNumbers={false}
-        plugins={plugins}
+        plugins={chatStreamdownPlugins}
+        shikiTheme={chatStreamdownShikiTheme}
       >
         {props.text}
       </Streamdown>
@@ -864,13 +1067,13 @@ const TextCard = memo(function TextCard(props: {
     <ToolRailCard
       icon={<IconToolbox className="text-foreground/48" />}
       title={props.label}
-      subtitle={<span className="text-body leading-none text-foreground/48">Completed</span>}
+      subtitle={<span className="text-body leading-snug text-foreground/48">Completed</span>}
       expanded={props.expanded}
     >
       {body ? (
         <div
           className={cn(
-            "max-h-[min(56vh,28rem)] overflow-auto",
+            "max-h-[min(56vh,28rem)] min-h-0 overflow-auto",
             props.error && "text-destructive/90",
           )}
         >

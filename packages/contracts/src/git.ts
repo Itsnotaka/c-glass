@@ -30,5 +30,6 @@ export interface GitBridge {
   getState: (cwd: string) => Promise<GitState>;
   refresh: (cwd: string) => Promise<GitState>;
   init: (cwd: string) => Promise<GitState>;
+  discard: (cwd: string, paths: string[]) => Promise<GitState>;
   onState: (listener: (state: GitState) => void) => () => void;
 }

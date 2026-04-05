@@ -227,6 +227,33 @@ export class GitService {
     });
   }
 
+  discard(cwd: string, paths: string[]): Effect.Effect<GitState, Error> {
+    return Effect.tryPromise({
+      try: async () => {
+        const gitRoot = await root(cwd);
+        if (!gitRoot) throw new Error("Not a git repository");
+        const files = await list(gitRoot);
+        for (const p of paths) {
+          const file = files.find((f) => f.path === p);
+          if (!file) continue;
+          if (file.state === "untracked") {
+            const rm = await run(gitRoot, ["clean", "-f", "--", p]);
+            if (rm.code !== 0) throw fail(["clean", "-f", "--", p], rm);
+          } else {
+            const co = await run(gitRoot, ["checkout", "--", p]);
+            if (co.code !== 0) throw fail(["checkout", "--", p], co);
+          }
+        }
+        const next = await snap(cwd);
+        const cur = this.vals.get(cwd);
+        this.vals.set(cwd, next);
+        if (!same(cur, next)) this.emit(next);
+        return next;
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   init(cwd: string): Effect.Effect<GitState, Error> {
     return Effect.tryPromise({
       try: async () => {

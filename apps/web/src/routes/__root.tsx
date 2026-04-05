@@ -10,7 +10,8 @@ import { toast } from "sonner";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { readGlass } from "../host";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { PI_GLASS_EDITOR_SET_EVENT, PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { peekComposerDraft } from "../lib/pi-composer-draft-mirror";
 import { usePiStore } from "../lib/pi-session-store";
 import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
 import { Button, buttonVariants } from "~/components/ui/button";
@@ -31,12 +32,91 @@ function RootRouteView() {
   return (
     <>
       <PiBootBridge />
+      <DesktopExtUiBridge />
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>
       <Toaster />
     </>
   );
+}
+
+function DesktopExtUiBridge() {
+  useEffect(() => {
+    const glass = readGlass();
+    if (!glass) return;
+
+    const offReq = glass.desktop.onExtensionUiRequest?.((req) => {
+      const reply = async (value: { cancelled?: boolean; value?: string | boolean }) => {
+        await glass.desktop.replyExtensionUi?.({ id: req.id, ...value });
+      };
+
+      if (req.type === "confirm") {
+        void reply({ value: window.confirm(`${req.title}\n\n${req.message}`) });
+        return;
+      }
+
+      if (req.type === "input") {
+        const val = window.prompt(req.title, req.placeholder ?? "");
+        void reply(val === null ? { cancelled: true } : { value: val });
+        return;
+      }
+
+      if (req.type === "editor") {
+        const val = window.prompt(req.title, req.prefill ?? "");
+        void reply(val === null ? { cancelled: true } : { value: val });
+        return;
+      }
+
+      if (req.type === "select") {
+        const lines = req.options.map((item, i) => `${i + 1}. ${item}`).join("\n");
+        const val = window.prompt(`${req.title}\n\n${lines}`, req.options[0] ?? "");
+        if (val === null) {
+          void reply({ cancelled: true });
+          return;
+        }
+        const num = Number(val);
+        if (Number.isInteger(num) && num >= 1 && num <= req.options.length) {
+          const pick = req.options[num - 1];
+          if (!pick) {
+            void reply({ cancelled: true });
+            return;
+          }
+          void reply({ value: pick });
+          return;
+        }
+        const hit = req.options.find((item) => item === val);
+        if (!hit) {
+          void reply({ cancelled: true });
+          return;
+        }
+        void reply({ value: hit });
+        return;
+      }
+
+      if (req.type === "get-editor") {
+        void reply({ value: peekComposerDraft() });
+      }
+    });
+
+    const offNotify = glass.desktop.onExtensionUiNotify?.((item) => {
+      const type =
+        item.type === "error" ? toast.error : item.type === "warning" ? toast.warning : toast;
+      type(item.message);
+    });
+
+    const offSet = glass.desktop.onExtensionSetEditor?.((item) => {
+      window.dispatchEvent(new CustomEvent(PI_GLASS_EDITOR_SET_EVENT, { detail: item.text }));
+    });
+
+    return () => {
+      offReq?.();
+      offNotify?.();
+      offSet?.();
+    };
+  }, []);
+
+  return null;
 }
 
 function PiBootBridge() {

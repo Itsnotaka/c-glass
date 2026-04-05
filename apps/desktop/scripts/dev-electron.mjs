@@ -35,6 +35,7 @@ let shuttingDown = false;
 let restartTimer = null;
 let currentApp = null;
 let restartQueue = Promise.resolve();
+let muteUntil = 0;
 const expectedExits = new WeakSet();
 const watchers = [];
 
@@ -239,6 +240,9 @@ function startWatchers() {
       { persistent: true },
       (_eventType, filename) => {
         if (typeof filename !== "string" || !files.has(filename)) {
+          return;
+        }
+        if (Date.now() < muteUntil) {
           return;
         }
 

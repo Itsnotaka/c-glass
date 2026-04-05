@@ -51,6 +51,46 @@ export interface DesktopUpdateCheckResult {
   state: DesktopUpdateState;
 }
 
+export type DesktopExtUiReq =
+  | {
+      id: string;
+      type: "select";
+      title: string;
+      options: string[];
+      timeout?: number;
+    }
+  | {
+      id: string;
+      type: "confirm";
+      title: string;
+      message: string;
+      timeout?: number;
+    }
+  | {
+      id: string;
+      type: "input";
+      title: string;
+      placeholder?: string;
+      timeout?: number;
+    }
+  | {
+      id: string;
+      type: "editor";
+      title: string;
+      prefill?: string;
+      timeout?: number;
+    }
+  | {
+      id: string;
+      type: "get-editor";
+    };
+
+export interface DesktopExtUiReply {
+  id: string;
+  cancelled?: boolean;
+  value?: string | boolean;
+}
+
 export interface DesktopBridge {
   confirm: (message: string) => Promise<boolean>;
   /** Desktop: runs in the renderer when Pi or workspace boot state changes. */
@@ -62,6 +102,18 @@ export interface DesktopBridge {
     position?: { x: number; y: number },
   ) => Promise<T | null>;
   onMenuAction: (listener: (action: string) => void) => () => void;
+  /** Internal renderer bridge for built-in global extension UI prompts. */
+  onExtensionUiRequest?: (listener: (req: DesktopExtUiReq) => void) => () => void;
+  /** Internal renderer bridge for built-in global extension notifications. */
+  onExtensionUiNotify?: (
+    listener: (payload: { message: string; type: "info" | "warning" | "error" }) => void,
+  ) => () => void;
+  /** Internal renderer bridge for built-in global extension editor seeding. */
+  onExtensionSetEditor?: (listener: (payload: { text: string }) => void) => () => void;
+  /** Internal renderer bridge reply path for extension UI prompts. */
+  replyExtensionUi?: (reply: DesktopExtUiReply) => Promise<void>;
+  /** Sync composer draft to main so extension `getEditorText()` matches the Glass UI. */
+  setComposerDraft?: (text: string) => void;
   getUpdateState: () => Promise<DesktopUpdateState>;
   checkForUpdate: () => Promise<DesktopUpdateCheckResult>;
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;

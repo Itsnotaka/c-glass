@@ -8,6 +8,11 @@ export interface ShellState {
   availableEditors: EditorId[];
 }
 
+export interface EditorIcon {
+  id: EditorId;
+  icon: string | null;
+}
+
 export type ShellFileKind = "file" | "dir" | "image";
 
 export interface ShellFileHit {
@@ -35,6 +40,7 @@ export interface ShellFilePreview {
 
 export interface ShellBridge {
   getState: () => Promise<ShellState>;
+  getEditorIcons: () => Promise<EditorIcon[]>;
   pickWorkspace: () => Promise<ShellState | null>;
   setWorkspace: (cwd: string) => Promise<ShellState>;
   openInEditor: (path: string, editor: EditorId) => Promise<void>;

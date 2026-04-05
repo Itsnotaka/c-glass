@@ -33,6 +33,11 @@ export type PiRow =
     }
   | {
       id: string;
+      kind: "assistantError";
+      text: string;
+    }
+  | {
+      id: string;
       kind: "thinking";
       text: string;
     }
@@ -324,16 +329,7 @@ export function buildPiRows(items: PiSessionItem[]) {
       flush();
 
       if (errText) {
-        const last = rows.length - 1;
-        const lastRow = rows[last];
-        if (lastRow?.kind === "assistant") {
-          rows[last] = {
-            ...lastRow,
-            text: `${lastRow.text}${lastRow.text ? "\n\n" : ""}${errText}`,
-          };
-        } else {
-          rows.push({ id: `${entry.id}:a:err`, kind: "assistant", text: errText });
-        }
+        rows.push({ id: `${entry.id}:a:err`, kind: "assistantError", text: errText });
       }
 
       const hadContent = items.some(

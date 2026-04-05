@@ -11,15 +11,15 @@ import { usePreferredEditor } from "../../editor-preferences";
 import { getGlass } from "../../host";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { cn } from "../../lib/utils";
-import {
-  IconAntigravityEditor,
-  IconCursorEditor,
-  IconGenericEditor,
-  IconVSCodeEditor,
-  IconVSCodeInsidersEditor,
-  IconVSCodiumEditor,
-  IconZedEditor,
-} from "~/components/icons/editor-icons";
+
+// SVG icon paths for editors - using official brand assets
+const editorSvgPaths: Record<string, string> = {
+  cursor: "/icons/cursor/cursor.svg",
+  vscode: "/icons/vscode/vscode.svg",
+  "vscode-insiders": "/icons/vscode/vscode.svg",
+  vscodium: "/icons/vscode/vscode.svg",
+  zed: "/icons/zed/zed.svg",
+};
 
 function manager() {
   if (typeof navigator === "undefined") return "File Manager";
@@ -34,37 +34,40 @@ function label(id: EditorId) {
   return EDITORS.find((item) => item.id === id)?.label ?? id;
 }
 
-function icon(id: EditorId) {
-  if (id === "file-manager") return IconFolderOpen;
-  if (id === "cursor") return IconCursorEditor;
-  if (id === "vscode") return IconVSCodeEditor;
-  if (id === "vscode-insiders") return IconVSCodeInsidersEditor;
-  if (id === "vscodium") return IconVSCodiumEditor;
-  if (id === "zed") return IconZedEditor;
-  if (id === "antigravity") return IconAntigravityEditor;
-  return IconGenericEditor;
+function getEditorIcon(id: EditorId): string | null {
+  return editorSvgPaths[id] ?? null;
 }
 
 export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
   const shell = useShellState();
-  const [editor, save] = usePreferredEditor(shell.availableEditors);
+  const [editor, setEditor] = usePreferredEditor(shell.availableEditors);
+
   const items = EDITORS.filter((item) => shell.availableEditors.includes(item.id)).map((item) => ({
     id: item.id,
     label: label(item.id),
-    Icon: icon(item.id),
+    icon: getEditorIcon(item.id),
   }));
   const active = items.find((item) => item.id === editor) ?? null;
-  const Icon = active?.Icon ?? IconArrowOutOfBox;
   const text = active ? `Open in ${active.label}` : "Open in editor";
   const disabled = !shell.cwd || !editor;
   const locked = !shell.cwd || items.length === 0;
   const hero = props.variant !== "settings";
 
-  function open(id: EditorId | null) {
-    if (!shell.cwd || !id) return;
-    save(id);
-    void getGlass().shell.openInEditor(shell.cwd, id);
-  }
+  const ActiveIcon = active?.icon ? (
+    <img
+      src={active.icon}
+      alt=""
+      className={cn(hero ? "glass-composer-icon opacity-80" : "size-3.5 opacity-70")}
+    />
+  ) : active?.id === "file-manager" ? (
+    <IconFolderOpen
+      className={cn(hero ? "glass-composer-icon opacity-60" : "size-3.5 opacity-70")}
+    />
+  ) : (
+    <IconArrowOutOfBox
+      className={cn(hero ? "glass-composer-icon opacity-60" : "size-3.5 opacity-70")}
+    />
+  );
 
   return (
     <Menu.Root>
@@ -72,7 +75,10 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
         <button
           type="button"
           disabled={disabled}
-          onClick={() => open(editor)}
+          onClick={() => {
+            if (!shell.cwd || !editor) return;
+            void getGlass().shell.openInEditor(shell.cwd, editor);
+          }}
           className={cn(
             "relative inline-flex items-center gap-1.5 border outline-none transition-colors pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50",
             hero
@@ -82,7 +88,7 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
           aria-label={text}
           title={text}
         >
-          <Icon className={cn(hero ? "glass-composer-icon opacity-60" : "size-3.5 opacity-70")} />
+          {ActiveIcon}
           <span className="max-w-[16rem] truncate">{text}</span>
         </button>
         <Menu.Trigger
@@ -114,25 +120,34 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
                 No installed editors found.
               </div>
             ) : (
-              items.map((item) => {
-                const Mark = item.Icon;
-                return (
-                  <Menu.Item
-                    key={item.id}
-                    onClick={() => open(item.id)}
-                    className={cn(
-                      "flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
-                      editor === item.id && "bg-glass-active",
-                    )}
-                  >
-                    <Mark className="size-3.5 shrink-0 text-muted-foreground/75" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {editor === item.id ? (
-                      <IconCheckmark1Small className="size-3.5 shrink-0 text-muted-foreground/70" />
-                    ) : null}
-                  </Menu.Item>
-                );
-              })
+              items.map((item) => (
+                <Menu.Item
+                  key={item.id}
+                  onClick={() => setEditor(item.id)}
+                  className={cn(
+                    "flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body/[1.3] outline-none ring-0 transition-colors hover:bg-glass-hover data-highlighted:bg-glass-hover focus-visible:outline-none focus-visible:ring-0",
+                    editor === item.id && "bg-glass-active",
+                  )}
+                >
+                  {item.icon ? (
+                    <img src={item.icon} alt="" className="size-3.5 shrink-0" />
+                  ) : item.id === "file-manager" ? (
+                    <IconFolderOpen
+                      className="size-3.5 shrink-0 text-muted-foreground/75"
+                      aria-hidden
+                    />
+                  ) : (
+                    <IconArrowOutOfBox
+                      className="size-3.5 shrink-0 text-muted-foreground/75"
+                      aria-hidden
+                    />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {editor === item.id ? (
+                    <IconCheckmark1Small className="size-3.5 shrink-0 text-muted-foreground/70" />
+                  ) : null}
+                </Menu.Item>
+              ))
             )}
           </Menu.Popup>
         </Menu.Positioner>

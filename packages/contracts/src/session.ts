@@ -346,6 +346,59 @@ export interface PiSessionActiveEvent {
   event: PiSessionEvent;
 }
 
+export interface PiAskOption {
+  id: string;
+  label: string;
+  shortcut?: string;
+  recommended?: boolean;
+  other?: boolean;
+}
+
+export interface PiAskQuestion {
+  id: string;
+  text: string;
+  options: PiAskOption[];
+  multi?: boolean;
+  optional?: boolean;
+}
+
+export interface PiAskState {
+  sessionId: string;
+  toolCallId: string;
+  questions: PiAskQuestion[];
+  current: number;
+  values: Record<string, string[]>;
+  custom: Record<string, string>;
+}
+
+export type PiAskReply =
+  | {
+      type: "next";
+      questionId: string;
+      values: string[];
+      custom?: string;
+    }
+  | {
+      type: "back";
+      questionId: string;
+      values: string[];
+      custom?: string;
+    }
+  | {
+      type: "skip";
+      questionId: string;
+      values?: string[];
+      custom?: string;
+    }
+  | {
+      type: "abort";
+    };
+
+export interface PiAskEvent {
+  sessionId: string;
+  state: PiAskState | null;
+}
+
 export type PiSessionBridgeEvent = PiSessionSummaryEvent | PiSessionActiveEvent;
 
 export interface SessionBridge {
@@ -363,6 +416,9 @@ export interface SessionBridge {
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
   setThinkingLevel: (sessionId: string, thinkingLevel: PiThinkingLevel) => Promise<void>;
   commands: (sessionId: string) => Promise<PiSlashCommand[]>;
+  readAsk: (sessionId: string) => Promise<PiAskState | null>;
+  answerAsk: (sessionId: string, reply: PiAskReply) => Promise<void>;
+  onAsk: (listener: (event: PiAskEvent) => void) => () => void;
   onSummary: (listener: (event: PiSessionSummaryEvent) => void) => () => void;
   onActive: (listener: (event: PiSessionActiveEvent) => void) => () => void;
 }

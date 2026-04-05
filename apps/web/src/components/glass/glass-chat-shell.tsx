@@ -15,6 +15,7 @@ import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore, usePiSumsStatus } from "../../lib/pi-session-store";
 import { GlassAppShell } from "./glass-app-shell";
 import { GlassWorkspacePicker } from "./glass-workspace-picker";
+import { GlassCommandPalette } from "./glass-command-palette";
 import { GlassGitPanel } from "./glass-git-panel";
 import { GlassSidebarFooter } from "./glass-sidebar-footer";
 import { GlassThreadRail } from "./glass-thread-rail";
@@ -113,47 +114,50 @@ export function GlassChatShell() {
   );
 
   return (
-    <GlassAppShell
-      title={title}
-      changesCount={git.count}
-      panels={{
-        ...p,
-        setRightOpen: (open) => {
-          if (cwd) {
-            if (open) unmute(cwd);
-            if (!open) mute(cwd);
-          }
-          p.setRightOpen(open);
-        },
-        toggleRight: () => {
-          const next = !p.rightOpen;
-          if (cwd) {
-            if (next) unmute(cwd);
-            if (!next) mute(cwd);
-          }
-          p.setRightOpen(next);
-        },
-      }}
-      left={
-        <div className="glass-thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
-          {isElectron ? (
-            <div className="no-drag shrink-0 px-2 py-1.5">
-              <GlassWorkspacePicker className="w-full justify-start" />
-            </div>
-          ) : null}
-          <GlassThreadRail
-            loading={loading}
-            error={error}
-            sections={sections}
-            selectedId={routeThreadId}
-            onSelectAgent={select}
-            onNewAgent={create}
-          />
-          <GlassSidebarFooter />
-        </div>
-      }
-      center={<Outlet />}
-      right={<GlassGitPanel git={git} />}
-    />
+    <>
+      <GlassCommandPalette panels={p} onNewChat={create} />
+      <GlassAppShell
+        title={title}
+        changesCount={git.count}
+        panels={{
+          ...p,
+          setRightOpen: (open) => {
+            if (cwd) {
+              if (open) unmute(cwd);
+              if (!open) mute(cwd);
+            }
+            p.setRightOpen(open);
+          },
+          toggleRight: () => {
+            const next = !p.rightOpen;
+            if (cwd) {
+              if (next) unmute(cwd);
+              if (!next) mute(cwd);
+            }
+            p.setRightOpen(next);
+          },
+        }}
+        left={
+          <div className="glass-thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
+            {isElectron ? (
+              <div className="no-drag shrink-0 px-2 py-1.5">
+                <GlassWorkspacePicker className="w-full justify-start" />
+              </div>
+            ) : null}
+            <GlassThreadRail
+              loading={loading}
+              error={error}
+              sections={sections}
+              selectedId={routeThreadId}
+              onSelectAgent={select}
+              onNewAgent={create}
+            />
+            <GlassSidebarFooter />
+          </div>
+        }
+        center={<Outlet />}
+        right={<GlassGitPanel git={git} />}
+      />
+    </>
   );
 }
