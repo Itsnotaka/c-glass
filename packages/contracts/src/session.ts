@@ -355,6 +355,8 @@ export interface SessionBridge {
   readBootSummaries?: () => PiSessionSummary[] | null;
   create: () => Promise<PiSessionSnapshot>;
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
+  /** Read-only snapshot without loading the full session runtime. */
+  peek: (sessionId: string) => Promise<PiSessionSnapshot>;
   watch: (sessionId: string) => Promise<PiSessionSnapshot>;
   unwatch: () => Promise<void>;
   prompt: (sessionId: string, input: string | PiPromptInput) => Promise<void>;

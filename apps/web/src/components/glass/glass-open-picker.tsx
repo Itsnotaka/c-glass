@@ -4,7 +4,6 @@ import {
   IconArrowOutOfBox,
   IconCheckmark1Small,
   IconChevronDownSmall,
-  IconCode,
   IconFolderOpen,
 } from "central-icons";
 
@@ -12,6 +11,15 @@ import { usePreferredEditor } from "../../editor-preferences";
 import { getGlass } from "../../host";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { cn } from "../../lib/utils";
+import {
+  IconAntigravityEditor,
+  IconCursorEditor,
+  IconGenericEditor,
+  IconVSCodeEditor,
+  IconVSCodeInsidersEditor,
+  IconVSCodiumEditor,
+  IconZedEditor,
+} from "~/components/icons/editor-icons";
 
 function manager() {
   if (typeof navigator === "undefined") return "File Manager";
@@ -27,7 +35,14 @@ function label(id: EditorId) {
 }
 
 function icon(id: EditorId) {
-  return id === "file-manager" ? IconFolderOpen : IconCode;
+  if (id === "file-manager") return IconFolderOpen;
+  if (id === "cursor") return IconCursorEditor;
+  if (id === "vscode") return IconVSCodeEditor;
+  if (id === "vscode-insiders") return IconVSCodeInsidersEditor;
+  if (id === "vscodium") return IconVSCodiumEditor;
+  if (id === "zed") return IconZedEditor;
+  if (id === "antigravity") return IconAntigravityEditor;
+  return IconGenericEditor;
 }
 
 export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {

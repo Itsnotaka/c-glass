@@ -116,11 +116,39 @@ export function usePiSession(sessionId: string | null) {
     if (!glass) return;
 
     let live = true;
+    const start = performance.now();
+
+    void glass.session
+      .peek(sessionId)
+      .then((next) => {
+        if (!live) return;
+        putSnap(next);
+        const dur = Math.round(performance.now() - start);
+        console.log(`[timing] usePiSession peek ${dur}ms`);
+      })
+      .catch(() => {});
+
+    return () => {
+      live = false;
+    };
+  }, [putSnap, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const glass = readGlass();
+    if (!glass) return;
+
+    let live = true;
+    const start = performance.now();
+
     void glass.session
       .watch(sessionId)
       .then((next) => {
         if (!live) return;
         putSnap(next);
+        const dur = Math.round(performance.now() - start);
+        console.log(`[timing] usePiSession watch ${dur}ms`);
       })
       .catch(() => {});
 

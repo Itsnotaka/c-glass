@@ -743,6 +743,8 @@ function commands(session: Session) {
   return [...map.values()].toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
+type TimingMark = { name: string; at: number; dur?: number };
+
 export class PiSessionService {
   private cfg: PiConfigService;
   private shell: ShellService;
@@ -754,10 +756,38 @@ export class PiSessionService {
   private dir: FSWatcher | null = null;
   private cwd: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private timings = new Map<string, TimingMark[]>();
 
   constructor(cfg: PiConfigService, shell: ShellService) {
     this.cfg = cfg;
     this.shell = shell;
+  }
+
+  private start(span: string, ctx: string): string {
+    const key = `${ctx}:${span}`;
+    const list = this.timings.get(ctx) ?? [];
+    list.push({ name: span, at: performance.now() });
+    this.timings.set(ctx, list);
+    return key;
+  }
+
+  private end(span: string, ctx: string) {
+    const list = this.timings.get(ctx);
+    if (!list) return;
+    const mark = list.find((m) => m.name === span && m.dur === undefined);
+    if (mark) mark.dur = performance.now() - mark.at;
+  }
+
+  private flush(ctx: string): TimingMark[] {
+    const list = this.timings.get(ctx) ?? [];
+    this.timings.delete(ctx);
+    return list;
+  }
+
+  private log(ctx: string, marks: TimingMark[]) {
+    const total = marks.at(-1)?.at ? marks.at(-1)!.at - marks[0]!.at : 0;
+    const spans = marks.map((m) => `${m.name}:${Math.round(m.dur ?? 0)}ms`).join(" ");
+    console.log(`[timing] ${ctx} total=${Math.round(total)}ms ${spans}`);
   }
 
   listen(fn: (event: PiSessionBridgeEvent) => void) {
@@ -1030,19 +1060,25 @@ export class PiSessionService {
     }
   }
 
-  private load(mgr: SessionManager) {
+  private load(mgr: SessionManager, ctx?: string) {
     return Effect.tryPromise({
       try: async () => {
+        if (ctx) this.start("load", ctx);
         this.ensure();
         this.cfg.sync();
         const settings = this.cfg.settings(this.shell.cwd);
+        if (ctx) this.start("loader_create", ctx);
         const loader = new DefaultResourceLoader({
           cwd: this.shell.cwd,
           agentDir: this.cfg.paths(this.shell.cwd).agent,
           settingsManager: settings,
           extensionFactories: [cursorExtension],
         });
+        if (ctx) this.end("loader_create", ctx);
+        if (ctx) this.start("loader_reload", ctx);
         await loader.reload();
+        if (ctx) this.end("loader_reload", ctx);
+        if (ctx) this.start("createAgentSession", ctx);
         const result = await createAgentSession({
           cwd: this.shell.cwd,
           authStorage: this.cfg.auth,
@@ -1051,11 +1087,17 @@ export class PiSessionService {
           sessionManager: mgr,
           settingsManager: settings,
         });
+        if (ctx) this.end("createAgentSession", ctx);
         const session = result.session;
         this.items.set(session.sessionId, { session });
         session.subscribe((event) => {
           this.push(session, event as Event);
         });
+        if (ctx) {
+          this.end("load", ctx);
+          const marks = this.flush(ctx);
+          this.log(ctx, marks);
+        }
         return session;
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),
@@ -1099,34 +1141,77 @@ export class PiSessionService {
     );
   }
 
-  private open(sessionId: string) {
-    const cur = this.items.get(sessionId)?.session;
-    if (cur) return Effect.succeed(cur);
-    return this.listAll().pipe(
-      Effect.flatMap((list) => {
-        const hit = list.find((item) => item.id === sessionId);
-        if (!hit) {
-          return Effect.fail(new Error(`Unknown session: ${sessionId}`));
-        }
-        return this.load(SessionManager.open(hit.path));
-      }),
-    );
+  private open(sessionId: string, ctx: string) {
+    const cached = this.items.get(sessionId)?.session;
+    if (cached) {
+      this.start("cache_hit", ctx);
+      this.end("cache_hit", ctx);
+      const marks = this.flush(ctx);
+      this.log(ctx, marks);
+      return Effect.succeed(cached);
+    }
+    this.start("resolve_path", ctx);
+    const summary = this.sums.get(sessionId);
+    this.end("resolve_path", ctx);
+
+    if (!summary?.path) {
+      this.start("fallback_listAll", ctx);
+      return this.listAll().pipe(
+        Effect.flatMap((list) => {
+          this.end("fallback_listAll", ctx);
+          const found = list.find((item) => item.id === sessionId);
+          if (!found) {
+            const marks = this.flush(ctx);
+            this.log(ctx, marks);
+            return Effect.fail(new Error(`Unknown session: ${sessionId}`));
+          }
+          return this.load(SessionManager.open(found.path), ctx);
+        }),
+      );
+    }
+
+    return this.load(SessionManager.open(summary.path), ctx);
   }
 
-  get(sessionId: string): Effect.Effect<PiSessionSnapshot, Error> {
+  private stub(sum: PiSessionSummary): PiSessionSnapshot {
+    return {
+      id: sum.id,
+      file: sum.path,
+      cwd: sum.cwd,
+      name: sum.name,
+      model: null,
+      thinkingLevel: "off",
+      messages: [],
+      live: null,
+      tree: [],
+      isStreaming: sum.isStreaming,
+      pending: { steering: [], followUp: [] },
+    };
+  }
+
+  view(sessionId: string): PiSessionSnapshot | null {
+    const live = this.items.get(sessionId)?.session;
+    if (live) return this.snapshot(live);
+    const sum = this.sums.get(sessionId);
+    if (!sum) return null;
+    return this.stub(sum);
+  }
+
+  get(sessionId: string, ctx?: string): Effect.Effect<PiSessionSnapshot, Error> {
     return Effect.gen(
       function* (this: PiSessionService) {
-        const session: Session = yield* this.open(sessionId);
+        const session: Session = yield* this.open(sessionId, ctx ?? `get:${sessionId.slice(-8)}`);
         return this.snapshot(session);
       }.bind(this),
     );
   }
 
-  watch(sessionId: string): Effect.Effect<PiSessionSnapshot, Error> {
-    const bump = Effect.sync(() => {
+  watch(sessionId: string, opts?: { ctx?: string }): Effect.Effect<PiSessionSnapshot, Error> {
+    const ctx = opts?.ctx ?? `watch:${sessionId.slice(-8)}`;
+    const track = Effect.sync(() => {
       this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
     });
-    return bump.pipe(Effect.flatMap(() => this.get(sessionId)));
+    return track.pipe(Effect.flatMap(() => this.get(sessionId, ctx)));
   }
 
   unwatch(sessionId: string) {
@@ -1141,7 +1226,7 @@ export class PiSessionService {
   }
 
   prompt(sessionId: string, input: string | PiPromptInput) {
-    return this.open(sessionId).pipe(
+    return this.open(sessionId, `prompt:${sessionId.slice(-8)}`).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
           try: async () => {
@@ -1161,14 +1246,14 @@ export class PiSessionService {
   commands(sessionId: string) {
     return Effect.gen(
       function* (this: PiSessionService) {
-        const session: Session = yield* this.open(sessionId);
+        const session: Session = yield* this.open(sessionId, `commands:${sessionId.slice(-8)}`);
         return commands(session);
       }.bind(this),
     );
   }
 
   abort(sessionId: string) {
-    return this.open(sessionId).pipe(
+    return this.open(sessionId, `abort:${sessionId.slice(-8)}`).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
           try: () => session.abort(),
@@ -1179,7 +1264,7 @@ export class PiSessionService {
   }
 
   setModel(sessionId: string, provider: string, model: string) {
-    return this.open(sessionId).pipe(
+    return this.open(sessionId, `setModel:${sessionId.slice(-8)}`).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
           try: async () => {
@@ -1209,7 +1294,7 @@ export class PiSessionService {
   }
 
   setThinkingLevel(sessionId: string, level: PiThinkingLevel) {
-    return this.open(sessionId).pipe(
+    return this.open(sessionId, `setThinkingLevel:${sessionId.slice(-8)}`).pipe(
       Effect.flatMap((session) =>
         Effect.tryPromise({
           try: async () => {
