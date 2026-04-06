@@ -1,14 +1,7 @@
 import type { GitFileSummary, GitState } from "@glass/contracts";
 import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
 import * as Schema from "effect/Schema";
-import {
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { readGlass } from "../host";
 import { useGlassShellStore } from "../lib/glass-shell-store";
@@ -39,14 +32,12 @@ export interface GlassGitPanelModel {
   count: number;
   selected: string | null;
   patch: FileDiffMetadata | null;
-  diffStyle: "unified" | "split";
   hit: string | null;
   totalAdd: number;
   totalDel: number;
   statsById: Map<string, { add: number; del: number }>;
   rows: DiffRow[];
   setSelected: (id: string) => void;
-  setDiffStyle: Dispatch<SetStateAction<"unified" | "split">>;
   refresh: () => Promise<GitState | null>;
   init: () => Promise<GitState | null>;
   discard: (paths: string[]) => Promise<GitState | null>;
@@ -158,7 +149,6 @@ export function useGlassGitPanel(): GlassGitPanelModel {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [diffStyle, setDiffStyle] = useGlassDiffStylePreference();
 
   const load = useCallback(
     (kind: "getState" | "refresh") => {
@@ -311,14 +301,12 @@ export function useGlassGitPanel(): GlassGitPanelModel {
     count: snap?.count ?? 0,
     selected,
     patch,
-    diffStyle,
     hit: recent?.id ?? null,
     totalAdd,
     totalDel,
     statsById,
     rows: files,
     setSelected,
-    setDiffStyle,
     refresh: () => load("refresh"),
     init,
     discard,
