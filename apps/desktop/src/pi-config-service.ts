@@ -16,7 +16,10 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { registerCursorProvider, syncCursorProvider } from "./cursor-provider";
 
-function trim(value: unknown) {
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+type JsonObj = { [k: string]: Json };
+
+function trim(value: string | null | undefined) {
   if (typeof value !== "string") return null;
   const text = value.trim();
   return text || null;
@@ -26,10 +29,12 @@ function raw(file: string) {
   if (!existsSync(file)) return {};
   const text = readFileSync(file, "utf8").trim();
   if (!text) return {};
-  return JSON.parse(text) as Record<string, unknown>;
+  const parsed = JSON.parse(text) as Json;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  return parsed as JsonObj;
 }
 
-function save(file: string, data: unknown, mode?: number) {
+function save(file: string, data: JsonObj, mode?: number) {
   mkdirSync(Path.dirname(file), { recursive: true, mode: 0o700 });
   writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
   if (mode !== undefined) chmodSync(file, mode);

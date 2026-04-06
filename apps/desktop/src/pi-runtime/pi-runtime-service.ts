@@ -28,7 +28,6 @@ import { PiRuntimeStore } from "./pi-runtime-store";
 
 const mention = /(^|[\s=])@("([^"]+)"|([^\s"=]+))/g;
 const other = "__other__";
-const levels = new Set<PiThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const idleMs = 15_000;
 const maxRuns = 8;
 
@@ -165,12 +164,6 @@ async function buildInput(cwd: string, input: string | PiPromptInput) {
     text,
     images: parts.flatMap((item) => item.images),
   };
-}
-
-function thinking(value: unknown) {
-  return typeof value === "string" && levels.has(value as PiThinkingLevel)
-    ? (value as PiThinkingLevel)
-    : "off";
 }
 
 function slug(text: string, i: number) {
@@ -629,9 +622,7 @@ export class PiRuntimeService {
   }
 
   setThinkingLevel(sessionId: string, next: PiThinkingLevel) {
-    return this.attach(sessionId).pipe(
-      Effect.flatMap((run) => run.client.setThinkingLevel(thinking(next))),
-    );
+    return this.attach(sessionId).pipe(Effect.flatMap((run) => run.client.setThinkingLevel(next)));
   }
 
   dispose() {

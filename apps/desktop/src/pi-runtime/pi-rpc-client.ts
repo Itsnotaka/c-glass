@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { AgentMessage, ThinkingLevel } from "@mariozechner/pi-agent-core";
+import type { Api, Model } from "@mariozechner/pi-ai";
 import type { PiProcessManagerOptions } from "./pi-process-manager";
 import { PiProcessManager } from "./pi-process-manager";
 import { parsePiRpcLine, type PiRpcIntake } from "./pi-rpc-event-parser";
@@ -101,7 +102,7 @@ export class PiRpcClient {
     return this.call({ type: "get_state" }).pipe(
       Effect.map((res) =>
         data<{
-          model?: unknown;
+          model?: Model<Api>;
           thinkingLevel: string;
           isStreaming: boolean;
           isCompacting: boolean;

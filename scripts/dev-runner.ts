@@ -26,7 +26,7 @@ export const DEFAULT_GLASS_HOME = Effect.map(Effect.service(Path.Path), (path) =
 
 class DevRunnerError extends Data.TaggedError("DevRunnerError")<{
   readonly message: string;
-  readonly cause?: unknown;
+  readonly cause?: Error | string | number | boolean | null | object;
 }> {}
 
 const optionalString = (name: string) =>

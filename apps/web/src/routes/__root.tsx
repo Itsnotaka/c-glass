@@ -275,35 +275,15 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   );
 }
 
-function errorMessage(error: unknown) {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  if (typeof error === "string" && error.trim().length > 0) {
-    return error;
-  }
-
-  return "An unexpected router error occurred.";
+function errorMessage(error: ErrorComponentProps["error"]) {
+  return error.message.trim().length > 0 ? error.message : "An unexpected router error occurred.";
 }
 
-function errorDetails(error: unknown) {
-  if (error instanceof Error) {
-    return error.stack ?? error.message;
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  try {
-    return JSON.stringify(error, null, 2);
-  } catch {
-    return "No additional error details are available.";
-  }
+function errorDetails(error: ErrorComponentProps["error"]) {
+  return error.stack ?? error.message;
 }
 
-function formatErrorReport(error: unknown) {
+function formatErrorReport(error: ErrorComponentProps["error"]) {
   const lines: string[] = [APP_DISPLAY_NAME];
   if (typeof window !== "undefined") lines.push(window.location.href);
   lines.push("", errorMessage(error), "", errorDetails(error));

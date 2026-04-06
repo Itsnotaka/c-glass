@@ -12,9 +12,11 @@ interface UpdateReleasePackageVersionsOptions {
   readonly rootDir?: string;
 }
 
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+
 interface MutablePackageJson {
   version?: string;
-  [key: string]: unknown;
+  [key: string]: Json;
 }
 
 export function updateReleasePackageVersions(

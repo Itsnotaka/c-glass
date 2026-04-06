@@ -5,6 +5,8 @@ type Exit = {
   signal: NodeJS.Signals | null;
 };
 
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+
 export interface PiProcessManagerOptions {
   workerPath: string;
   cwd: string;
@@ -92,7 +94,7 @@ export class PiProcessManager {
     }
   }
 
-  send(value: unknown) {
+  send(value: Json) {
     if (!this.child?.stdin) {
       throw new Error("Runtime process is not running");
     }

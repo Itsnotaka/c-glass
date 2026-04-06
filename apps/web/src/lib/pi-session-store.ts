@@ -74,7 +74,7 @@ function flags(cfgStatus: PiBootStatus, sumsStatus: PiBootStatus) {
   };
 }
 
-function issue(err: unknown) {
+function issue(err: Error | string | null | undefined) {
   if (err instanceof Error && err.message.trim()) return err.message;
   if (typeof err === "string" && err.trim()) return err;
   return "Unknown Pi boot error";

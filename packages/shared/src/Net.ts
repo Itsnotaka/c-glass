@@ -2,20 +2,17 @@ import * as Net from "node:net";
 
 import { Data, Effect, Layer, ServiceMap } from "effect";
 
+type NetCause = Error | string | number | boolean | null | object;
+
 export class NetError extends Data.TaggedError("NetError")<{
   readonly message: string;
-  readonly cause?: unknown;
+  readonly cause?: NetCause;
 }> {}
 
-function isErrnoExceptionWithCode(cause: unknown): cause is {
+function isErrnoExceptionWithCode(cause: { readonly code?: string } | null): cause is {
   readonly code: string;
 } {
-  return (
-    typeof cause === "object" &&
-    cause !== null &&
-    "code" in cause &&
-    typeof (cause as { readonly code: unknown }).code === "string"
-  );
+  return typeof cause?.code === "string";
 }
 
 const closeServer = (server: Net.Server) => {

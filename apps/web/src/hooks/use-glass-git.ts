@@ -160,7 +160,7 @@ export function useGlassGitPanel(): GlassGitPanelModel {
           setErr(null);
           return next;
         })
-        .catch((err: unknown) => {
+        .catch((err) => {
           setErr(err instanceof Error ? err.message : String(err));
           return null;
         })
@@ -267,7 +267,7 @@ export function useGlassGitPanel(): GlassGitPanelModel {
         setErr(null);
         return next;
       })
-      .catch((err: unknown) => {
+      .catch((err) => {
         setErr(err instanceof Error ? err.message : String(err));
         return null;
       })
@@ -286,7 +286,7 @@ export function useGlassGitPanel(): GlassGitPanelModel {
           setErr(null);
           return next;
         })
-        .catch((err: unknown) => {
+        .catch((err) => {
           setErr(err instanceof Error ? err.message : String(err));
           return null;
         });

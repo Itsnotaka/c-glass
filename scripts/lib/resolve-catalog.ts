@@ -5,13 +5,13 @@
  * the concrete version string found in `catalog`. Throws on missing entries.
  */
 export function resolveCatalogDependencies(
-  dependencies: Record<string, unknown>,
-  catalog: Record<string, unknown>,
+  dependencies: Record<string, string>,
+  catalog: Record<string, string>,
   label: string,
-): Record<string, unknown> {
+): Record<string, string> {
   return Object.fromEntries(
     Object.entries(dependencies).map(([name, spec]) => {
-      if (typeof spec !== "string" || !spec.startsWith("catalog:")) {
+      if (!spec.startsWith("catalog:")) {
         return [name, spec];
       }
 

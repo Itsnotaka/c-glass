@@ -10,13 +10,13 @@ import { ScrollArea } from "~/components/ui/scroll-area";
 import { Separator } from "~/components/ui/separator";
 import {
   Sheet,
+  SheetContent,
   SheetDescription,
   SheetHeader,
-  SheetPopup,
   SheetTitle,
 } from "~/components/ui/sheet";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useIsMobile } from "~/hooks/use-media-query";
 import { getLocalStorageItem, setLocalStorageItem } from "~/hooks/use-local-storage";
 import { Schema } from "effect";
@@ -219,7 +219,7 @@ function Sidebar({
     return (
       <SidebarInstanceContext.Provider value={instanceContextValue}>
         <Sheet onOpenChange={setOpenMobile} open={openMobile} {...props}>
-          <SheetPopup
+          <SheetContent
             className={cn(
               "w-(--sidebar-width) max-w-none bg-sidebar p-0 text-sidebar-foreground",
               className,
@@ -240,7 +240,7 @@ function Sidebar({
               <SheetDescription>Displays the mobile sidebar.</SheetDescription>
             </SheetHeader>
             <div className="flex h-full w-full flex-col">{children}</div>
-          </SheetPopup>
+          </SheetContent>
         </Sheet>
       </SidebarInstanceContext.Provider>
     );
@@ -805,8 +805,8 @@ function SidebarMenuButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger render={buttonElement as React.ReactElement<Record<string, unknown>>} />
-      <TooltipPopup
+      <TooltipTrigger render={buttonElement} />
+      <TooltipContent
         align="center"
         hidden={state !== "collapsed" || isMobile}
         side="right"

@@ -13,7 +13,7 @@ function read(key: string): string[] {
   if (typeof localStorage === "undefined") return [];
   const raw = localStorage.getItem(key);
   if (!raw) return [];
-  const parsed = JSON.parse(raw) as unknown;
+  const parsed = JSON.parse(raw);
   return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
 }
 

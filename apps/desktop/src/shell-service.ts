@@ -183,7 +183,7 @@ function runDetached(command: string, args: readonly string[]) {
     try: () =>
       new Promise<void>((resolve, reject) => {
         let done = false;
-        const fail = (err: unknown) => {
+        const fail = (err: Error | string | null | undefined) => {
           if (done) return;
           done = true;
           reject(err instanceof Error ? err : new Error(String(err)));
@@ -224,7 +224,7 @@ function saved(path: string | null) {
   return Effect.runSync(
     Effect.match(
       Effect.sync(() => {
-        const data = JSON.parse(readFileSync(path, "utf8")) as { cwd?: unknown };
+        const data = JSON.parse(readFileSync(path, "utf8")) as { cwd?: string };
         if (typeof data.cwd !== "string" || !data.cwd.trim()) return null;
         if (!statSync(data.cwd).isDirectory()) return null;
         return data.cwd;

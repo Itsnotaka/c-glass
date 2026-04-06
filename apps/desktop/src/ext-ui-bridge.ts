@@ -83,11 +83,22 @@ type Pending = {
   timer: ReturnType<typeof setTimeout> | null;
 };
 
+type SendData =
+  | ExtUiReq
+  | ExtUiReply
+  | {
+      message: string;
+      type: "info" | "warning" | "error";
+    }
+  | {
+      text: string;
+    };
+
 function win() {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
 }
 
-function send(channel: string, data: unknown) {
+function send(channel: string, data: SendData) {
   const cur = win();
   if (!cur || cur.isDestroyed()) return false;
   cur.webContents.send(channel, data);

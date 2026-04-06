@@ -42,10 +42,10 @@ function paths(item: PiSessionItem | null) {
     if (typeof path === "string" && path.trim()) out.push(path);
     if (part.name !== "edit" || !Array.isArray(args?.multi)) return out;
 
-    const list: unknown[] = args.multi;
+    const list: Array<{ path?: string } | null> = args.multi;
     list.reduce<string[]>((next, item) => {
       if (!item || typeof item !== "object") return next;
-      const path = (item as { path?: unknown }).path;
+      const path = item.path;
       if (typeof path !== "string" || !path.trim()) return next;
       next.push(path);
       return next;
