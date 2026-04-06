@@ -16,8 +16,8 @@ import {
 import type { RefObject } from "react";
 import { cn } from "../../lib/utils";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { GlassComposerFilePreview } from "./glass-composer-file-preview";
-import type { GlassSlashItem, SlashMenuRow } from "./glass-slash-registry";
+import { GlassComposerFilePreview } from "./composer-file-preview";
+import type { GlassSlashItem, SlashMenuRow } from "./slash-registry";
 
 function kindGlyph(kind: GlassSlashItem["kind"]) {
   if (kind === "skill") return IconSparklesSoft;

@@ -1,6 +1,6 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-import { GlassProviderShellOverlay } from "../../components/glass/glass-provider-shell-overlay";
+import { GlassProviderShellOverlay } from "../../components/glass/provider-shell-overlay";
 import { SidebarInset } from "../../components/ui/sidebar";
 
 function ChatRouteLayout() {

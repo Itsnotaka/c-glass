@@ -1,11 +1,11 @@
 import type { PiSlashCommand } from "@glass/contracts";
-import { rank } from "./glass-pi-composer-search";
-import { recentBoost, type SlashRecentsSnapshot } from "./glass-slash-recents";
-import type { GlassSlashItemKind } from "./glass-slash-types";
+import { rank } from "./pi-composer-search";
+import { recentBoost, type SlashRecentsSnapshot } from "./slash-recents";
+import type { GlassSlashItemKind } from "./slash-types";
 
 const cap = { global: 15, recent: 15 } as const;
 
-export type { GlassSlashItemKind } from "./glass-slash-types";
+export type { GlassSlashItemKind } from "./slash-types";
 
 export type GlassSlashItem = {
   id: string;

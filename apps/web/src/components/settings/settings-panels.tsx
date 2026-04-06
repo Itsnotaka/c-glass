@@ -35,8 +35,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { GlassSelect } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
-import { GlassOpenPicker } from "../glass/glass-open-picker";
-import { GlassTintPopover } from "../glass/glass-tint-popover";
+import { GlassOpenPicker } from "../glass/open-picker";
+import { GlassTintPopover } from "../glass/tint-popover";
 import { PiModelPicker } from "../glass/pi-model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;

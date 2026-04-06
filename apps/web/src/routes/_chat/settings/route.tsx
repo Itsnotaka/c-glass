@@ -2,7 +2,7 @@
 
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { GlassSettingsShell } from "../../../components/glass/glass-settings-shell";
+import { GlassSettingsShell } from "../../../components/glass/settings-shell";
 
 export const Route = createFileRoute("/_chat/settings")({
   beforeLoad: ({ location }) => {

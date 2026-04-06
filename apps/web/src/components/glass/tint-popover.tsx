@@ -5,7 +5,7 @@ import { buttonVariants } from "~/components/ui/button";
 import { GLASS_TINT_PAD, glassTintPreviewCss } from "~/lib/glass-tint";
 import { cn } from "~/lib/utils";
 
-import { GlassTintPad } from "./glass-tint-pad";
+import { GlassTintPad } from "./tint-pad";
 
 export function GlassTintPopover(props: {
   hue: number;

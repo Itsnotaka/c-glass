@@ -15,7 +15,7 @@ export const chatStreamdownShikiTheme: [BundledTheme, BundledTheme] = [
   "github-dark",
 ];
 
-/** Canonical root classes for assistant / tool-rail markdown (see `chat-markdown.css`). */
+/** Canonical root classes for assistant / tool-rail markdown (see `styles/chat-markdown.css`). */
 export const chatMarkdownThreadClassName = "font-glass chat-markdown text-body/5 text-foreground";
 
 export const chatMarkdownToolClassName =

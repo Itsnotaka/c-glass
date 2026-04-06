@@ -17,24 +17,25 @@ import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { SidebarTrigger } from "~/components/ui/sidebar";
 
 import { GlassDiffSidebar } from "~/components/glass/diff-sidebar";
-import { GlassAgentList } from "~/components/glass/glass-agent-list";
-import { GlassAppShell, type GlassAppShellPanels } from "~/components/glass/glass-app-shell";
-import { GlassAskTool } from "~/components/glass/glass-ask-tool";
+import { GlassAgentList } from "~/components/glass/agent-list";
+import { GlassAppShell, type GlassAppShellPanels } from "~/components/glass/app-shell";
+import { GlassAskTool } from "~/components/glass/ask-tool";
 import {
   GlassComposerAttachmentChipDemo,
   GlassComposerToolbarIconDemo,
-} from "~/components/glass/glass-pi-composer";
-import { GlassComposerFilePreview } from "~/components/glass/glass-composer-file-preview";
-import { GlassCommandPalette } from "~/components/glass/glass-command-palette";
-import { GlassGitFileRow, GlassGitGroupHeader } from "~/components/glass/glass-git-panel";
-import { GlassOpenPicker } from "~/components/glass/glass-open-picker";
-import { GlassPiChatRowsIconStripDemo } from "~/components/glass/glass-pi-chat-rows";
-import { GlassSettingsNavRail } from "~/components/glass/glass-settings-nav-rail";
-import { GlassSidebarFooter } from "~/components/glass/glass-sidebar-footer";
-import { GlassSidebarHeader } from "~/components/glass/glass-sidebar-header";
-import { GlassComposerTokenMenu } from "~/components/glass/glass-slash-menu";
-import { GlassUpdatePill } from "~/components/glass/glass-update-pill";
-import type { GlassSlashItem, SlashMenuRow } from "~/components/glass/glass-slash-registry";
+} from "~/components/glass/pi-composer";
+import { GlassComposerFilePreview } from "~/components/glass/composer-file-preview";
+import { GlassCommandPalette } from "~/components/glass/command-palette";
+import { GlassGitFileRow, GlassGitGroupHeader } from "~/components/glass/git-panel";
+import { GlassWorkbenchLayout } from "~/components/glass/layout";
+import { GlassOpenPicker } from "~/components/glass/open-picker";
+import { GlassPiChatRowsIconStripDemo } from "~/components/glass/pi-chat-rows";
+import { GlassSettingsNavRail } from "~/components/glass/settings-nav-rail";
+import { GlassSidebarFooter } from "~/components/glass/sidebar-footer";
+import { GlassSidebarHeader } from "~/components/glass/sidebar-header";
+import { GlassComposerTokenMenu } from "~/components/glass/slash-menu";
+import { GlassUpdatePill } from "~/components/glass/update-pill";
+import type { GlassSlashItem, SlashMenuRow } from "~/components/glass/slash-registry";
 import { PiModelPicker } from "~/components/glass/pi-model-picker";
 import {
   GlassCombobox,
@@ -43,7 +44,7 @@ import {
   GlassComboboxPopup,
   GlassComboboxSearchInput,
   GlassComboboxTrigger,
-} from "~/components/glass/glass-combobox";
+} from "~/components/glass/combobox";
 import type { DiffRow } from "~/hooks/use-glass-git";
 import type { GlassSidebarSection } from "~/lib/glass-view-model";
 import type { PiModelItem } from "~/lib/pi-models";
@@ -279,7 +280,7 @@ export function GlassIconDemosPanel() {
   return (
     <div className="space-y-6">
       <DemoSection
-        title="components/glass/glass-settings-nav-rail.tsx"
+        title="components/glass/settings-nav-rail.tsx"
         hint="settings-panels.tsx uses the same IconArrowRotateCounterClockwise on “Reset Pi defaults” (same glyph as Restore here)."
       >
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
@@ -293,7 +294,7 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-app-shell.tsx">
+      <DemoSection title="components/glass/app-shell.tsx">
         <div className="h-[min(22rem,70vh)] overflow-hidden rounded-lg border border-border">
           <GlassAppShell
             left={<div className="p-2 text-detail text-muted-foreground">Threads</div>}
@@ -307,12 +308,22 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-open-picker.tsx">
+      <DemoSection title="components/glass/layout.tsx (GlassWorkbenchLayout)">
+        <div className="h-48 overflow-hidden rounded-lg border border-border">
+          <GlassWorkbenchLayout
+            leftSidebar={<div className="p-2 text-detail text-muted-foreground">Agents</div>}
+            center={<div className="p-2 text-detail">Chat</div>}
+            rightSidebar={<div className="p-2 text-detail text-muted-foreground">Diff</div>}
+          />
+        </div>
+      </DemoSection>
+
+      <DemoSection title="components/glass/open-picker.tsx">
         <GlassOpenPicker variant="hero" />
       </DemoSection>
 
       <DemoSection
-        title="components/glass/glass-update-pill.tsx"
+        title="components/glass/update-pill.tsx"
         hint="In Electron, update states show ArrowRotateClockwise and CloudDownload. In web dev the pill may be empty."
       >
         <div className="max-w-xs rounded-lg border border-border p-2">
@@ -320,33 +331,33 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-sidebar-header.tsx">
+      <DemoSection title="components/glass/sidebar-header.tsx">
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
           <GlassSidebarHeader onNewAgent={() => {}} />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-composer-file-preview.tsx">
+      <DemoSection title="components/glass/composer-file-preview.tsx">
         <div className="h-48 max-w-md overflow-hidden rounded-lg border border-border">
           <GlassComposerFilePreview item={null} preview={null} />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-sidebar-footer.tsx">
+      <DemoSection title="components/glass/sidebar-footer.tsx">
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface py-2">
           <GlassSidebarFooter />
         </div>
       </DemoSection>
 
       <DemoSection
-        title="components/glass/glass-command-palette.tsx"
+        title="components/glass/command-palette.tsx"
         hint="Press Mod+Shift+P — palette lists PlusLarge, SettingsGear2, Sidebar icons."
       >
         <GlassCommandPalette panels={shell} onNewChat={() => {}} />
       </DemoSection>
 
       <DemoSection
-        title="components/glass/glass-slash-menu.tsx (GlassComposerTokenMenu)"
+        title="components/glass/slash-menu.tsx (GlassComposerTokenMenu)"
         hint="Slash row uses SparklesSoft, SettingsGear2, Bolt; file row uses Folder1, Images1, FileBend, ChevronRight."
       >
         <SlashAndFileMenus />
@@ -371,7 +382,7 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-git-panel.tsx (rows)">
+      <DemoSection title="components/glass/git-panel.tsx (rows)">
         <div className="max-w-md rounded-lg border border-border p-2">
           <GlassGitGroupHeader dir="src" count={1} open onToggle={() => {}} />
           <GlassGitFileRow
@@ -385,26 +396,26 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-pi-composer.tsx (toolbar + chips)">
+      <DemoSection title="components/glass/pi-composer.tsx (toolbar + chips)">
         <div className="space-y-3">
           <GlassComposerToolbarIconDemo />
           <GlassComposerAttachmentChipDemo />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-pi-chat-rows.tsx">
+      <DemoSection title="components/glass/pi-chat-rows.tsx">
         <div className="max-w-xl overflow-hidden rounded-lg border border-border">
           <GlassPiChatRowsIconStripDemo />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-ask-tool.tsx">
+      <DemoSection title="components/glass/ask-tool.tsx">
         <div className="max-w-lg rounded-lg border border-border p-3">
           <GlassAskTool state={askDemo} onReply={() => {}} />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-agent-list.tsx">
+      <DemoSection title="components/glass/agent-list.tsx">
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
           <GlassAgentList sections={agentSections} selectedId={null} onSelectAgent={() => {}} />
         </div>
@@ -451,7 +462,7 @@ export function GlassIconDemosPanel() {
         <ComboboxUiDemo />
       </DemoSection>
 
-      <DemoSection title="components/glass/glass-combobox.tsx">
+      <DemoSection title="components/glass/combobox.tsx">
         <GlassComboboxDemo />
       </DemoSection>
 

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState } from "react";
 import { useGlassNewChatStore } from "../../lib/glass-new-chat-store";
-import { GlassOpenPicker } from "./glass-open-picker";
-import { GlassPiComposer } from "./glass-pi-composer";
+import { GlassOpenPicker } from "./open-picker";
+import { GlassPiComposer } from "./pi-composer";
 import { usePiSession } from "./use-pi-session";
 
 export function GlassHeroCanvas() {

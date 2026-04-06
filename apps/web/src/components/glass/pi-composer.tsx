@@ -37,7 +37,7 @@ import {
   glassComposerImageThumbnail,
 } from "../../lib/glass-attachment-styles";
 import { cn } from "../../lib/utils";
-import { useGlassSettings } from "./glass-settings-context";
+import { useGlassSettings } from "./settings-context";
 import { PI_GLASS_EDITOR_SET_EVENT } from "../../lib/pi-glass-constants";
 import { pushComposerDraft } from "../../lib/pi-composer-draft-mirror";
 import {
@@ -48,10 +48,10 @@ import {
   mirrorSegmentsDraft,
   rankFileHits,
   slashMatch,
-} from "./glass-pi-composer-search";
-import { buildSlashMenuRows, mergeSlashItems, type SlashMenuRow } from "./glass-slash-registry";
-import { readSlashRecents, recordSlashUse } from "./glass-slash-recents";
-import { GlassComposerTokenMenu } from "./glass-slash-menu";
+} from "./pi-composer-search";
+import { buildSlashMenuRows, mergeSlashItems, type SlashMenuRow } from "./slash-registry";
+import { readSlashRecents, recordSlashUse } from "./slash-recents";
+import { GlassComposerTokenMenu } from "./slash-menu";
 import { PiModelPicker } from "./pi-model-picker";
 
 type Pick =

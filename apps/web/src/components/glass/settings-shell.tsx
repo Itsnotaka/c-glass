@@ -6,9 +6,9 @@ import { useEffect } from "react";
 import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
-import { GlassAppShell } from "./glass-app-shell";
-import { GlassSettingsNavRail } from "./glass-settings-nav-rail";
-import { GlassSidebarFooter } from "./glass-sidebar-footer";
+import { GlassAppShell } from "./app-shell";
+import { GlassSettingsNavRail } from "./settings-nav-rail";
+import { GlassSidebarFooter } from "./sidebar-footer";
 
 export function GlassSettingsShell() {
   const navigate = useNavigate();

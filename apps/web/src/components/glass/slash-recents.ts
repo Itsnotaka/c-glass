@@ -1,4 +1,4 @@
-import type { GlassSlashItemKind } from "./glass-slash-types";
+import type { GlassSlashItemKind } from "./slash-types";
 
 const keys = {
   commands: "glass.slash.recent.commands",

@@ -1,6 +1,6 @@
 import { IconPlusLarge } from "central-icons";
 
-import { GlassRowButton } from "./glass-row-button";
+import { GlassRowButton } from "./row-button";
 
 export function GlassSidebarHeader(props: { onNewAgent: () => void }) {
   return (

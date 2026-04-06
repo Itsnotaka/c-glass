@@ -1,7 +1,7 @@
 import type { PiSessionItem } from "@glass/contracts";
 import { memo, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { GlassPiLive, GlassPiTranscript } from "./glass-pi-chat-rows";
+import { GlassPiLive, GlassPiTranscript } from "./pi-chat-rows";
 
 export const GlassPiMessages = memo(function GlassPiMessages(props: {
   messages: PiSessionItem[];

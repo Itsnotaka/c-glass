@@ -8,8 +8,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { createHashHistory, createBrowserHistory } from "@tanstack/react-router";
 
 import "@xterm/xterm/css/xterm.css";
-import "./index.css";
-import "./glass.css";
+import "./styles/index.css";
 import "./glass-appearance-boot";
 
 import { isElectron } from "./env";

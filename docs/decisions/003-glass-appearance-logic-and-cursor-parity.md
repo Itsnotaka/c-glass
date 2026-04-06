@@ -118,18 +118,18 @@ The next implementation pass in `c-glass` should translate the relevant Cursor s
 
 The table below is the canonical translation layer for this ADR.
 
-| Cursor bundle symbol | Meaning in plain language | Humane name to use in docs and code review |
-| --- | --- | --- |
-| `FAi = "glass.theme.settingsId"` | persisted base Glass theme id | `theme_id` |
-| `MRu = "glass.theme.detectColorScheme"` | follow system light/dark choice | `follow_system` |
-| `NRu = "glass.theme.customTintHue"` | custom tint hue | `tint_hue` |
-| `BRu = "glass.theme.customTintIntensity"` | custom tint strength | `tint_intensity` |
-| `ARu = "data-cursor-glass-mode"` | Glass mode is active | `glass_mode` |
-| `IRu = "cursor-glass-os-vibrancy-on"` | OS vibrancy is active for Glass | `vibrancy_on` |
-| `RRu = "cursor-glass-os-vibrancy-off"` | Glass is running without OS vibrancy | `vibrancy_off` |
-| `PRu = "cursor-glass-reduce-transparency"` | accessibility-style opaque mode | `reduce_transparency` |
-| `FRu = "glass-custom-tint-tokens"` | injected style element for tint overrides | `tint_style` |
-| `KDg = [...]` | semantic tokens that tint is allowed to affect | `tint_targets` |
+| Cursor bundle symbol                       | Meaning in plain language                      | Humane name to use in docs and code review |
+| ------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |
+| `FAi = "glass.theme.settingsId"`           | persisted base Glass theme id                  | `theme_id`                                 |
+| `MRu = "glass.theme.detectColorScheme"`    | follow system light/dark choice                | `follow_system`                            |
+| `NRu = "glass.theme.customTintHue"`        | custom tint hue                                | `tint_hue`                                 |
+| `BRu = "glass.theme.customTintIntensity"`  | custom tint strength                           | `tint_intensity`                           |
+| `ARu = "data-cursor-glass-mode"`           | Glass mode is active                           | `glass_mode`                               |
+| `IRu = "cursor-glass-os-vibrancy-on"`      | OS vibrancy is active for Glass                | `vibrancy_on`                              |
+| `RRu = "cursor-glass-os-vibrancy-off"`     | Glass is running without OS vibrancy           | `vibrancy_off`                             |
+| `PRu = "cursor-glass-reduce-transparency"` | accessibility-style opaque mode                | `reduce_transparency`                      |
+| `FRu = "glass-custom-tint-tokens"`         | injected style element for tint overrides      | `tint_style`                               |
+| `KDg = [...]`                              | semantic tokens that tint is allowed to affect | `tint_targets`                             |
 
 These names are not required to be the exact final identifiers in source.
 
@@ -243,14 +243,14 @@ Instead, it injects a style overlay that rewrites semantic theme tokens after th
 Bundled JS evidence:
 
 ```js
-FRu="glass-custom-tint-tokens",
-KDg=[
-  {token:"sidebar"},
-  {token:"chrome",chromaScale:.5},
-  {token:"editor",chromaScale:.5},
-  {token:"accent",hueShift:!0},
-  {token:"focus",hueShift:!0}
-]
+((FRu = "glass-custom-tint-tokens"),
+  (KDg = [
+    { token: "sidebar" },
+    { token: "chrome", chromaScale: 0.5 },
+    { token: "editor", chromaScale: 0.5 },
+    { token: "accent", hueShift: !0 },
+    { token: "focus", hueShift: !0 },
+  ]));
 ```
 
 Then Cursor applies tint like this:
@@ -327,12 +327,12 @@ Cursor separately manages Glass material classes on `body`.
 Bundled JS evidence:
 
 ```js
-ARu="data-cursor-glass-mode",
-IRu="cursor-glass-os-vibrancy-on",
-RRu="cursor-glass-os-vibrancy-off",
-DRu="cursor-glass-windows-mica",
-PRu="cursor-glass-reduce-transparency",
-jDg=[IRu,RRu,DRu,PRu]
+((ARu = "data-cursor-glass-mode"),
+  (IRu = "cursor-glass-os-vibrancy-on"),
+  (RRu = "cursor-glass-os-vibrancy-off"),
+  (DRu = "cursor-glass-windows-mica"),
+  (PRu = "cursor-glass-reduce-transparency"),
+  (jDg = [IRu, RRu, DRu, PRu]));
 ```
 
 Then Cursor applies those classes like this:
@@ -388,28 +388,40 @@ The Cursor CSS confirms that final Glass surfaces are assigned after theme and m
 Bundled CSS evidence from `workbench.desktop.main.css`:
 
 ```css
-body.cursor-light [data-component=root]{
-  --glass-surface-background:hsla(0,0%,100%,.16);
-  --glass-onboard-surface-background:hsla(0,0%,100%,.36);
-  --glass-vibrancy-on-surface-background:transparent;
-  --glass-vibrancy-off-sidebar-surface-background:var(--cursor-bg-sidebar);
-  --glass-vibrancy-off-chat-surface-background:var(--cursor-bg-chrome);
-  --glass-vibrancy-off-editor-surface-background:var(--cursor-bg-chrome);
-  --glass-vibrancy-on-sidebar-surface-background:var(--cursor-bg-sidebar);
-  --glass-vibrancy-on-chat-surface-background:var(--cursor-bg-chrome);
-  --glass-vibrancy-on-editor-surface-background:var(--cursor-bg-chrome);
-  --glass-chat-bubble-background:var(--cursor-bg-elevated)
+body.cursor-light [data-component="root"] {
+  --glass-surface-background: hsla(0, 0%, 100%, 0.16);
+  --glass-onboard-surface-background: hsla(0, 0%, 100%, 0.36);
+  --glass-vibrancy-on-surface-background: transparent;
+  --glass-vibrancy-off-sidebar-surface-background: var(--cursor-bg-sidebar);
+  --glass-vibrancy-off-chat-surface-background: var(--cursor-bg-chrome);
+  --glass-vibrancy-off-editor-surface-background: var(--cursor-bg-chrome);
+  --glass-vibrancy-on-sidebar-surface-background: var(--cursor-bg-sidebar);
+  --glass-vibrancy-on-chat-surface-background: var(--cursor-bg-chrome);
+  --glass-vibrancy-on-editor-surface-background: var(--cursor-bg-chrome);
+  --glass-chat-bubble-background: var(--cursor-bg-elevated);
 }
 ```
 
 Cursor then refines the vibrancy-on values with transparency-aware `color-mix` rules when supported:
 
 ```css
-@supports (color:color-mix(in lab,red,red)){
-  body.cursor-light [data-component=root]{
-    --glass-vibrancy-on-sidebar-surface-background:color-mix(in srgb,var(--cursor-bg-sidebar) 32%,transparent);
-    --glass-vibrancy-on-chat-surface-background:color-mix(in srgb,var(--cursor-bg-chrome) 84%,transparent);
-    --glass-vibrancy-on-editor-surface-background:color-mix(in srgb,var(--cursor-bg-chrome) 84%,transparent)
+@supports (color: color-mix(in lab, red, red)) {
+  body.cursor-light [data-component="root"] {
+    --glass-vibrancy-on-sidebar-surface-background: color-mix(
+      in srgb,
+      var(--cursor-bg-sidebar) 32%,
+      transparent
+    );
+    --glass-vibrancy-on-chat-surface-background: color-mix(
+      in srgb,
+      var(--cursor-bg-chrome) 84%,
+      transparent
+    );
+    --glass-vibrancy-on-editor-surface-background: color-mix(
+      in srgb,
+      var(--cursor-bg-chrome) 84%,
+      transparent
+    );
   }
 }
 ```
@@ -421,32 +433,34 @@ Then Cursor assigns final surfaces based on material class.
 Bundled CSS evidence:
 
 ```css
-body.cursor-light[data-cursor-glass-mode=true] [data-component=root]{
-  --glass-sidebar-surface-background:var(--glass-vibrancy-off-sidebar-surface-background);
-  --glass-chat-surface-background:var(--glass-vibrancy-off-chat-surface-background);
-  --glass-editor-surface-background:var(--glass-vibrancy-off-editor-surface-background)
+body.cursor-light[data-cursor-glass-mode="true"] [data-component="root"] {
+  --glass-sidebar-surface-background: var(--glass-vibrancy-off-sidebar-surface-background);
+  --glass-chat-surface-background: var(--glass-vibrancy-off-chat-surface-background);
+  --glass-editor-surface-background: var(--glass-vibrancy-off-editor-surface-background);
 }
 
-body.cursor-light.cursor-glass-os-vibrancy-on[data-cursor-glass-mode=true] [data-component=root]{
-  --glass-sidebar-surface-background:var(--glass-vibrancy-on-sidebar-surface-background);
-  --glass-chat-surface-background:var(--glass-vibrancy-on-chat-surface-background);
-  --glass-editor-surface-background:var(--glass-vibrancy-on-editor-surface-background)
+body.cursor-light.cursor-glass-os-vibrancy-on[data-cursor-glass-mode="true"]
+  [data-component="root"] {
+  --glass-sidebar-surface-background: var(--glass-vibrancy-on-sidebar-surface-background);
+  --glass-chat-surface-background: var(--glass-vibrancy-on-chat-surface-background);
+  --glass-editor-surface-background: var(--glass-vibrancy-on-editor-surface-background);
 }
 ```
 
 Cursor has the same off/on mapping shape for dark mode:
 
 ```css
-body.cursor-dark[data-cursor-glass-mode=true] [data-component=root]{
-  --glass-sidebar-surface-background:var(--glass-vibrancy-off-sidebar-surface-background);
-  --glass-chat-surface-background:var(--glass-vibrancy-off-chat-surface-background);
-  --glass-editor-surface-background:var(--glass-vibrancy-off-editor-surface-background)
+body.cursor-dark[data-cursor-glass-mode="true"] [data-component="root"] {
+  --glass-sidebar-surface-background: var(--glass-vibrancy-off-sidebar-surface-background);
+  --glass-chat-surface-background: var(--glass-vibrancy-off-chat-surface-background);
+  --glass-editor-surface-background: var(--glass-vibrancy-off-editor-surface-background);
 }
 
-body.cursor-dark.cursor-glass-os-vibrancy-on[data-cursor-glass-mode=true] [data-component=root]{
-  --glass-sidebar-surface-background:var(--glass-vibrancy-on-sidebar-surface-background);
-  --glass-chat-surface-background:var(--glass-vibrancy-on-chat-surface-background);
-  --glass-editor-surface-background:var(--glass-vibrancy-on-editor-surface-background)
+body.cursor-dark.cursor-glass-os-vibrancy-on[data-cursor-glass-mode="true"]
+  [data-component="root"] {
+  --glass-sidebar-surface-background: var(--glass-vibrancy-on-sidebar-surface-background);
+  --glass-chat-surface-background: var(--glass-vibrancy-on-chat-surface-background);
+  --glass-editor-surface-background: var(--glass-vibrancy-on-editor-surface-background);
 }
 ```
 

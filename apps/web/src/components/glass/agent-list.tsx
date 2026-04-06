@@ -4,7 +4,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 
 import type { GlassSidebarSection } from "../../lib/glass-view-model";
 import { cn } from "../../lib/utils";
-import { GlassAgentRow } from "./glass-agent-row";
+import { GlassAgentRow } from "./agent-row";
 
 function Section(props: {
   section: GlassSidebarSection;

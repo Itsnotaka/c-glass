@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GlassChatSession } from "../../../components/glass/glass-chat-session";
+import { GlassChatSession } from "../../../components/glass/chat-session";
 
 function ChatThreadRouteView() {
   const id = Route.useParams({ select: (p) => p.threadId });

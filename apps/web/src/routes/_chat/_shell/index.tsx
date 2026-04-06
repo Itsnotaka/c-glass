@@ -2,7 +2,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GlassHeroCanvas } from "../../../components/glass/glass-hero-canvas";
+import { GlassHeroCanvas } from "../../../components/glass/hero-canvas";
 
 function ChatIndexRouteView() {
   return <GlassHeroCanvas />;

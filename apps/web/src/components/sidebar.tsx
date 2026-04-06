@@ -3,9 +3,9 @@ import { useCallback } from "react";
 import { useGlassAgents } from "../hooks/use-glass-agents";
 import { useShellState } from "../hooks/use-shell-cwd";
 import { useGlassNewChatStore } from "../lib/glass-new-chat-store";
-import { GlassAgentList } from "./glass/glass-agent-list";
-import { GlassSidebarFooter } from "./glass/glass-sidebar-footer";
-import { GlassSidebarHeader } from "./glass/glass-sidebar-header";
+import { GlassAgentList } from "./glass/agent-list";
+import { GlassSidebarFooter } from "./glass/sidebar-footer";
+import { GlassSidebarHeader } from "./glass/sidebar-header";
 
 export function Sidebar() {
   const navigate = useNavigate();

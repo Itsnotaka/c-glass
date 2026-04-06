@@ -13,12 +13,12 @@ import { useGlassNewChatStore } from "../../lib/glass-new-chat-store";
 import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore, usePiSumsStatus } from "../../lib/pi-session-store";
-import { GlassAppShell } from "./glass-app-shell";
-import { GlassWorkspacePicker } from "./glass-workspace-picker";
-import { GlassCommandPalette } from "./glass-command-palette";
-import { GlassGitPanel } from "./glass-git-panel";
-import { GlassSidebarFooter } from "./glass-sidebar-footer";
-import { GlassThreadRail } from "./glass-thread-rail";
+import { GlassAppShell } from "./app-shell";
+import { GlassWorkspacePicker } from "./workspace-picker";
+import { GlassCommandPalette } from "./command-palette";
+import { GlassGitPanel } from "./git-panel";
+import { GlassSidebarFooter } from "./sidebar-footer";
+import { GlassThreadRail } from "./thread-rail";
 
 export function GlassChatShell() {
   const navigate = useNavigate();

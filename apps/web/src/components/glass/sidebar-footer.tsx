@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { IconSettingsGear2 } from "central-icons";
 
 import { cn } from "../../lib/utils";
-import { GlassUpdatePill } from "./glass-update-pill";
+import { GlassUpdatePill } from "./update-pill";
 
 export function GlassSidebarFooter(props: { settings?: boolean }) {
   const active = Boolean(props.settings);

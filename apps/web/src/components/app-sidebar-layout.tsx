@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 
-import { GlassSettingsProvider, useGlassSettings } from "./glass/glass-settings-context";
+import { GlassSettingsProvider, useGlassSettings } from "./glass/settings-context";
 
 import { SidebarProvider } from "./ui/sidebar";
 

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { buildPiSessionSidebarAgent, type GlassSidebarAgent } from "../../lib/glass-view-model";
 import { usePiSummary } from "../../lib/pi-session-store";
 
-import { GlassRowButton } from "./glass-row-button";
+import { GlassRowButton } from "./row-button";
 
 function StatusDot(props: { state: GlassSidebarAgent["state"] }) {
   if (props.state === "running") {

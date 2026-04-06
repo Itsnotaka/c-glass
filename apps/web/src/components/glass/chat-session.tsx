@@ -4,9 +4,10 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { usePiSummary } from "../../lib/pi-session-store";
-import { GlassOpenPicker } from "./glass-open-picker";
-import { GlassPiComposer } from "./glass-pi-composer";
-import { GlassPiMessages } from "./glass-pi-messages";
+import { GlassOpenPicker } from "./open-picker";
+import { GlassPiComposer } from "./pi-composer";
+import { GlassPiMessages } from "./pi-messages";
+import { GlassShell } from "./shell";
 import { usePiSession } from "./use-pi-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
@@ -28,7 +29,7 @@ function HeroSession(props: { sessionId: string }) {
   }, [props.sessionId]);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-editor">
+    <GlassShell>
       <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
         <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
           <GlassPiComposer
@@ -47,7 +48,7 @@ function HeroSession(props: { sessionId: string }) {
           <GlassOpenPicker variant="hero" />
         </div>
       </div>
-    </div>
+    </GlassShell>
   );
 }
 
@@ -71,7 +72,7 @@ function DockSession(props: { sessionId: string }) {
   );
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-glass-editor">
+    <GlassShell>
       <GlassPiMessages messages={session.messages} live={session.live} expanded={expanded} />
       <GlassPiComposer
         sessionId={props.sessionId}
@@ -86,6 +87,6 @@ function DockSession(props: { sessionId: string }) {
         onThinkingLevel={session.setThinkingLevel}
         onSend={session.send}
       />
-    </div>
+    </GlassShell>
   );
 }
