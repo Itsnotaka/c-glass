@@ -10,7 +10,7 @@ import { useShellState } from "./use-shell-cwd";
 
 const DiffStyle = Schema.Literals(["unified", "split"]);
 
-/** Same storage as Changes panel (`glass-git-panel`) — unified vs split diff. */
+/** Pi tool diff embeds (`glass-pi-chat-rows`); Changes panel is stacked (unified) only. */
 export function useGlassDiffStylePreference() {
   return useLocalStorage<"unified" | "split", "unified" | "split">(
     "glass:git-diff-style",

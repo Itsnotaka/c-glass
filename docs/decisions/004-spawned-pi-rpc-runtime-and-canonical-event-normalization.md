@@ -51,13 +51,24 @@ The important lesson is:
 2. the UI should consume canonical events and derived state,
 3. and the runtime boundary should be explicit.
 
-Pi already supports a subprocess integration surface through RPC mode:
+Pi already supports two subprocess-friendly JSON-producing modes:
+
+1. `pi --mode rpc`
+2. `pi --mode json`
+
+For Glass, these are not equivalent.
+
+RPC mode provides the full application protocol Glass needs:
 
 1. `pi --mode rpc`
 2. JSONL framing over stdin/stdout
 3. command/response semantics
 4. event streaming semantics
 5. extension UI request/response support
+6. long-lived session control
+7. session switching, forking, and state reads
+
+JSON mode is useful for one-shot event streaming, shell pipelines, and simple integrations, but it is not a full runtime control plane.
 
 Because Glass is unreleased, now is the correct moment to make the canonical decision.
 
@@ -72,11 +83,12 @@ Glass will stop treating embedded Pi internals as the canonical runtime integrat
 Glass will instead:
 
 1. spawn Pi as a child process,
-2. run it in RPC mode,
-3. parse its JSONL responses and events through a strict protocol layer,
-4. normalize those raw Pi RPC events into canonical Glass runtime events,
-5. derive the existing Glass session/config state from those canonical events,
-6. and only then expose state to the web renderer.
+2. run it in RPC mode as the canonical runtime protocol,
+3. not use JSON mode as the primary runtime integration,
+4. parse its JSONL responses and events through a strict protocol layer,
+5. normalize those raw Pi RPC events into canonical Glass runtime events,
+6. derive the existing Glass session/config state from those canonical events,
+7. and only then expose state to the web renderer.
 
 ### What This Means In Plain Language
 
@@ -114,7 +126,7 @@ The canonical runtime architecture for Glass is:
 
 ### Supporting Decisions
 
-#### 1. Use Pi RPC, Not Interactive Output Scraping
+#### 1. Use Pi RPC as the Canonical Runtime Protocol
 
 Glass must not parse Pi’s interactive-mode output or terminal rendering.
 
@@ -125,6 +137,9 @@ Glass must use Pi’s supported subprocess protocol:
 3. command/response handling
 4. event stream handling
 5. extension UI request/response handling when needed
+6. session control commands like prompt, abort, get_state, get_messages, switch_session, new_session, and fork
+
+`pi --mode json` is explicitly rejected as the primary Glass runtime protocol. JSON mode is event-stream output for one-shot or simple integrations. It is not the canonical control plane for a long-lived desktop agent host.
 
 The runtime boundary must be protocol-based, not stdout-scraping.
 
@@ -218,6 +233,35 @@ The canonical version is:
 4. keep runtime-specific shapes behind the adapter.
 
 Glass must use the canonical version.
+
+### Why Not Use Pi JSON Mode as the Main Runtime
+
+Pi JSON mode emits events as JSON lines and is useful for:
+
+1. one-shot prompts,
+2. shell pipelines,
+3. diagnostics,
+4. simple batch integrations.
+
+It is not the right canonical runtime mode for Glass because Glass needs a long-lived control protocol for:
+
+1. prompt submission,
+2. abort,
+3. steering and follow-ups,
+4. current state reads,
+5. session switching,
+6. forking,
+7. extension UI request/response handling,
+8. user-input round-tripping.
+
+Those are RPC concerns, not JSON stream concerns.
+
+Using JSON mode as the primary runtime would force Glass to either:
+
+1. give up app-level runtime control, or
+2. rebuild a partial RPC protocol on top of a mode that is not intended to be the main desktop control plane.
+
+That would be less canonical than using Pi RPC directly.
 
 ### Why This Is Better Than a Full Web Rewrite
 
@@ -472,6 +516,39 @@ That means:
 3. existing boot snapshot behavior should be preserved or improved,
 4. `ask` and similar Glass-native adaptations remain native,
 5. provider/default settings UI remains driven by Glass contracts, not raw Pi RPC structures.
+
+## Rejected Alternatives
+
+### Alternative A: Keep Embedded Pi as the Canonical Runtime
+
+Rejected because it keeps Glass coupled too tightly to Pi internals and prevents a clean runtime boundary.
+
+### Alternative B: Spawn Pi and Scrape Interactive Output
+
+Rejected because interactive output is not a protocol contract and would leak terminal behavior into app state.
+
+### Alternative C: Use `pi --mode json` as the Main Runtime Protocol
+
+Rejected because JSON mode is an event-stream output mode, not a full application control protocol.
+
+It is acceptable for:
+
+1. one-shot helpers,
+2. diagnostics,
+3. experiments,
+4. shell-oriented integrations.
+
+It is not acceptable as Glass’s canonical runtime mode because Glass needs:
+
+1. bidirectional control,
+2. request/response correlation,
+3. session lifecycle control,
+4. extension UI request handling,
+5. structured user-input round-tripping.
+
+### Alternative D: Rewrite the Renderer First
+
+Rejected because the canonical migration must replace the runtime boundary first and preserve the current Glass-facing contracts during the transition.
 
 ## Migration Plan
 
