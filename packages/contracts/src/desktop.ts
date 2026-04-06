@@ -1,3 +1,7 @@
+import type { PiConfig } from "./pi";
+import type { PiAskState, PiSessionSnapshot, PiSessionSummary } from "./session";
+import type { ShellState } from "./shell";
+
 export interface ContextMenuItem<T extends string = string> {
   id: T;
   label: string;
@@ -91,8 +95,19 @@ export interface DesktopExtUiReply {
   value?: string | boolean;
 }
 
+export interface DesktopBootSnapshot {
+  electron: boolean;
+  shell: ShellState | null;
+  pi: PiConfig | null;
+  sessions: PiSessionSummary[];
+  snapshots: Record<string, PiSessionSnapshot>;
+  asks: Record<string, PiAskState>;
+}
+
 export interface DesktopBridge {
   confirm: (message: string) => Promise<boolean>;
+  /** Desktop preload: canonical boot snapshot fetched before first paint. */
+  readBootSnapshot?: () => DesktopBootSnapshot | null;
   /** Desktop: runs in the renderer when Pi or workspace boot state changes. */
   onBootRefresh?: (cb: () => void) => () => void;
   setTheme: (theme: DesktopTheme) => Promise<void>;

@@ -18,6 +18,7 @@ import type { MenuItemConstructorOptions } from "electron";
 import * as Effect from "effect/Effect";
 import type {
   ContextMenuItem,
+  DesktopBootSnapshot,
   DesktopTheme,
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
@@ -72,9 +73,9 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
+const GLASS_READ_BOOT_CHANNEL = "glass:boot.read";
 const SESSION_LIST_CHANNEL = "glass:session.list";
 const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
-const SESSION_LIST_ALL_BOOT_CHANNEL = "glass:session.list-all-boot";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
 const SESSION_READ_CHANNEL = "glass:session.read";
@@ -91,7 +92,6 @@ const SESSION_ASK_CHANNEL = "glass:session.ask";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
-const PI_GET_BOOT_CONFIG_CHANNEL = "glass:pi.get-boot-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
@@ -152,6 +152,7 @@ let removeUiNotifyEvents: (() => void) | null = null;
 let removeUiSetEditorEvents: (() => void) | null = null;
 let removeGitEvents: (() => void) | null = null;
 let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
+let bootState: DesktopBootSnapshot | null = null;
 
 const pendingSessionSummaries = new Map<string, PiSessionSummaryEvent>();
 const pendingSessionActives = new Map<number, PiSessionActiveEvent[]>();
@@ -1094,6 +1095,27 @@ function clearAllWatchedSessions(): void {
   }
 }
 
+async function readBootSnapshot(): Promise<DesktopBootSnapshot> {
+  await Effect.runPromise(pi.prepare(shellService.cwd));
+  return {
+    electron: true,
+    shell: Effect.runSync(shellService.getState()),
+    pi: Effect.runSync(pi.getConfig(shellService.cwd)),
+    sessions: sessionService.peek(),
+    snapshots: sessionService.bootSnapshots(),
+    asks: sessionService.bootAsks(),
+  };
+}
+
+async function refreshBootSnapshot(): Promise<void> {
+  bootState = await readBootSnapshot();
+}
+
+async function publishGlassBootRefresh(): Promise<void> {
+  await refreshBootSnapshot();
+  emitGlassBootRefresh();
+}
+
 function restartGitWatch(root: string | null) {
   if (gitWatch) {
     gitWatch.close();
@@ -1255,9 +1277,9 @@ function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.removeAllListeners(SESSION_LIST_ALL_BOOT_CHANNEL);
-  ipcMain.on(SESSION_LIST_ALL_BOOT_CHANNEL, (event) => {
-    event.returnValue = sessionService.peek();
+  ipcMain.removeAllListeners(GLASS_READ_BOOT_CHANNEL);
+  ipcMain.on(GLASS_READ_BOOT_CHANNEL, (event) => {
+    event.returnValue = bootState;
   });
 
   ipcMain.removeHandler(SESSION_LIST_CHANNEL);
@@ -1405,16 +1427,6 @@ function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.removeAllListeners(PI_GET_BOOT_CONFIG_CHANNEL);
-  ipcMain.on(PI_GET_BOOT_CONFIG_CHANNEL, (event) => {
-    try {
-      void Effect.runPromise(pi.prepare(shellService.cwd));
-      event.returnValue = Effect.runSync(pi.getConfig(shellService.cwd));
-    } catch {
-      event.returnValue = null;
-    }
-  });
-
   ipcMain.removeHandler(PI_GET_CONFIG_CHANNEL);
   ipcMain.handle(PI_GET_CONFIG_CHANNEL, async () => {
     await Effect.runPromise(pi.prepare(shellService.cwd));
@@ -1432,14 +1444,14 @@ function registerIpcHandlers(): void {
         throw new Error("Missing model");
       }
       await Effect.runPromise(pi.setDefaultModel(shellService.cwd, provider, model));
-      emitGlassBootRefresh();
+      await publishGlassBootRefresh();
     },
   );
 
   ipcMain.removeHandler(PI_CLEAR_DEFAULT_MODEL_CHANNEL);
   ipcMain.handle(PI_CLEAR_DEFAULT_MODEL_CHANNEL, async () => {
     await Effect.runPromise(pi.clearDefaultModel(shellService.cwd));
-    emitGlassBootRefresh();
+    await publishGlassBootRefresh();
   });
 
   ipcMain.removeHandler(PI_SET_DEFAULT_THINKING_CHANNEL);
@@ -1448,7 +1460,7 @@ function registerIpcHandlers(): void {
       throw new Error("Missing thinking level");
     }
     await Effect.runPromise(pi.setDefaultThinkingLevel(shellService.cwd, thinking));
-    emitGlassBootRefresh();
+    await publishGlassBootRefresh();
   });
 
   ipcMain.removeHandler(PI_GET_API_KEY_CHANNEL);
@@ -1468,7 +1480,7 @@ function registerIpcHandlers(): void {
       throw new Error("Missing key");
     }
     await Effect.runPromise(pi.setApiKey(provider, key));
-    emitGlassBootRefresh();
+    await publishGlassBootRefresh();
   });
 
   ipcMain.removeListener(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
@@ -1528,7 +1540,7 @@ function registerIpcHandlers(): void {
         },
       }),
     );
-    emitGlassBootRefresh();
+    await publishGlassBootRefresh();
   });
 
   ipcMain.removeHandler(SHELL_GET_STATE_CHANNEL);
@@ -1549,7 +1561,7 @@ function registerIpcHandlers(): void {
       sessionService.dispose();
       const state = await Effect.runPromise(gitService.refresh(next.cwd));
       restartGitWatch(state.gitRoot);
-      emitGlassBootRefresh();
+      await publishGlassBootRefresh();
     }
     return next;
   });
@@ -1565,7 +1577,7 @@ function registerIpcHandlers(): void {
     await pi.init(next.cwd);
     const state = await Effect.runPromise(gitService.refresh(next.cwd));
     restartGitWatch(state.gitRoot);
-    emitGlassBootRefresh();
+    await publishGlassBootRefresh();
     return next;
   });
 
@@ -1811,7 +1823,7 @@ configureAppIdentity();
 
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
-  await pi.init(shellService.cwd);
+  await Effect.runPromise(pi.prepare(shellService.cwd));
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
   await Effect.runPromise(
@@ -1820,6 +1832,7 @@ async function bootstrap(): Promise<void> {
       onSuccess: (items) => items,
     }),
   );
+  await refreshBootSnapshot();
   writeDesktopLogHeader("bootstrap session summaries primed");
   mainWindow = createWindow();
   writeDesktopLogHeader("bootstrap main window created");

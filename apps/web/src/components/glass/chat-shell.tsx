@@ -4,13 +4,12 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 
 import { isElectron } from "../../env";
-import { readGlass } from "../../host";
 import { useGlassAgents } from "../../hooks/use-glass-agents";
 import { useGlassGitPanel } from "../../hooks/use-glass-git";
 import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
 import { useShellState } from "../../hooks/use-shell-cwd";
+import { switchWorkspace } from "../../lib/glass-workspace";
 import { useGlassNewChatStore } from "../../lib/glass-new-chat-store";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore, usePiSumsStatus } from "../../lib/pi-session-store";
 import { GlassAppShell } from "./app-shell";
@@ -43,25 +42,10 @@ export function GlassChatShell() {
   }, [clear, routeThreadId]);
 
   useEffect(() => {
-    const g = readGlass();
-    if (!g || !sum?.cwd) return;
+    if (!sum?.cwd) return;
     if (cwd !== null && sum.cwd === cwd) return;
 
-    let live = true;
-    reset();
-    void g.shell
-      .setWorkspace(sum.cwd)
-      .then(() => {
-        if (!live) return;
-        window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
-      })
-      .catch(() => {
-        void Promise.all([usePiStore.getState().refreshCfg(), usePiStore.getState().refreshSums()]);
-      });
-
-    return () => {
-      live = false;
-    };
+    void switchWorkspace(sum.cwd, reset);
   }, [cwd, reset, sum?.cwd]);
 
   useEffect(() => {
@@ -86,29 +70,13 @@ export function GlassChatShell() {
   }, [bump, navigate]);
 
   const select = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const next = sums[id];
-      const go = () => {
-        navigate({ to: "/$threadId", params: { threadId: id } });
-      };
-      const g = readGlass();
-      if (!g || !next?.cwd || next.cwd === cwd) {
-        go();
-        return;
+      if (next?.cwd && next.cwd !== cwd) {
+        const ok = await switchWorkspace(next.cwd, reset);
+        if (!ok) return;
       }
-      reset();
-      void g.shell
-        .setWorkspace(next.cwd)
-        .then(() => {
-          window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
-          go();
-        })
-        .catch(() => {
-          void Promise.all([
-            usePiStore.getState().refreshCfg(),
-            usePiStore.getState().refreshSums(),
-          ]);
-        });
+      void navigate({ to: "/$threadId", params: { threadId: id } });
     },
     [cwd, navigate, reset, sums],
   );

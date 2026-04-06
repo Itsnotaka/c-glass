@@ -1,4 +1,7 @@
-import "./hooks/use-theme";
-import { applyGlassAppearance } from "./lib/glass-appearance";
+import { applyHostMarkers } from "./env";
+import { applyStoredTheme } from "./hooks/use-theme";
+import { applyGlassAppearanceBoot } from "./lib/glass-appearance";
 
-applyGlassAppearance();
+applyHostMarkers();
+applyStoredTheme();
+applyGlassAppearanceBoot();

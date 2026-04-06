@@ -16,23 +16,37 @@ function bundled(id: string) {
 }
 
 const shared = {
-  format: "cjs" as const,
   outDir: "dist-electron",
   sourcemap: true,
-  outExtensions: () => ({ js: ".js" }),
   deps: {
     alwaysBundle: bundled,
   },
 };
 
+const cjs = {
+  ...shared,
+  format: "cjs" as const,
+  outExtensions: () => ({ js: ".js" }),
+};
+
+const esm = {
+  ...shared,
+  format: "esm" as const,
+  outExtensions: () => ({ js: ".mjs" }),
+};
+
 export default defineConfig([
   {
-    ...shared,
+    ...cjs,
     entry: ["src/main.ts"],
     clean: true,
   },
   {
-    ...shared,
-    entry: ["src/preload.ts", "src/pi-runtime/pi-runtime-worker.ts"],
+    ...cjs,
+    entry: ["src/preload.ts"],
+  },
+  {
+    ...esm,
+    entry: ["src/pi-runtime/pi-runtime-worker.ts"],
   },
 ]);

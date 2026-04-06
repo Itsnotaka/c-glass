@@ -2,14 +2,16 @@ if (import.meta.env.DEV) {
   import("react-grab");
 }
 
+import "./glass-appearance-boot";
+import "@xterm/xterm/css/xterm.css";
+import "./styles/tailwind.css";
+import "./styles/app.css";
+import "./styles/glass.css";
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { createHashHistory, createBrowserHistory } from "@tanstack/react-router";
-
-import "@xterm/xterm/css/xterm.css";
-import "./styles/index.css";
-import "./glass-appearance-boot";
 
 import { isElectron } from "./env";
 import { getRouter } from "./router";

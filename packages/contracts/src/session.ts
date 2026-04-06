@@ -404,8 +404,6 @@ export type PiSessionBridgeEvent = PiSessionSummaryEvent | PiSessionActiveEvent;
 export interface SessionBridge {
   list: () => Promise<PiSessionSummary[]>;
   listAll: () => Promise<PiSessionSummary[]>;
-  /** Desktop preload: initial session summary snapshot fetched before first paint. */
-  readBootSummaries?: () => PiSessionSummary[] | null;
   create: () => Promise<PiSessionSnapshot>;
   get: (sessionId: string) => Promise<PiSessionSnapshot>;
   read: (sessionId: string) => Promise<PiSessionSnapshot>;

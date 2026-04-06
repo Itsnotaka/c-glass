@@ -1,9 +1,5 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
-import type {
-  PiRpcExtensionError,
-  PiRpcExtensionUiRequest,
-  PiRpcResponse,
-} from "./pi-rpc-types";
+import type { PiRpcExtensionError, PiRpcExtensionUiRequest, PiRpcResponse } from "./pi-rpc-types";
 import {
   isPiAgentEvent,
   isPiRpcExtensionError,

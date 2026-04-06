@@ -6,7 +6,7 @@ import { useGlassAppearance } from "../../hooks/use-glass-appearance";
 import { usePiDefaults } from "../../hooks/use-pi-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
-import { getGlass } from "../../host";
+import { pickWorkspace } from "../../lib/glass-workspace";
 import {
   clearPiDefaultModel,
   readPiApiKey,
@@ -15,7 +15,6 @@ import {
   writePiDefaultModel,
   writePiDefaultThinkingLevel,
 } from "../../lib/pi-models";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
 import {
   type ColorPaletteId,
   resetGlassAppearance,
@@ -127,7 +126,7 @@ function ToneSlider(props: {
 
   return (
     <div className={cn("flex min-w-[16rem] items-center gap-3", props.disabled && "opacity-50")}>
-      <div className="relative flex h-10 min-w-[14rem] flex-1 items-center rounded-full">
+      <div className="relative flex h-10 min-w-56 flex-1 items-center rounded-full">
         <div
           aria-hidden
           className="absolute inset-x-0 top-1/2 h-[18px] -translate-y-1/2 rounded-full bg-foreground/10 dark:bg-foreground/12"
@@ -315,7 +314,7 @@ function AppearancePage() {
           description="Override the Glass interface typeface (comma-separated stack)."
           control={
             <FontInput
-              className="min-w-[12rem] font-sans"
+              className="min-w-48 font-sans"
               value={g.uiFont}
               placeholder="Inter, system-ui, sans-serif"
               onCommit={setUiFontFamily}
@@ -363,21 +362,7 @@ function WorkspaceRows() {
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => {
-                void getGlass()
-                  .shell.pickWorkspace()
-                  .then((state) => {
-                    if (!state) return;
-                    reset();
-                    window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
-                  })
-                  .catch(() => {
-                    void Promise.all([
-                      usePiStore.getState().refreshCfg(),
-                      usePiStore.getState().refreshSums(),
-                    ]);
-                  });
-              }}
+              onClick={() => void pickWorkspace(reset)}
             >
               Choose workspace
             </Button>

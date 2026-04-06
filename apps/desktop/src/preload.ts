@@ -1,13 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  DesktopBootSnapshot,
   GlassBridge,
   PiAskEvent,
   PiAskReply,
   PiAskState,
-  PiConfig,
   PiPromptInput,
   PiSessionActiveEvent,
-  PiSessionSummary,
   PiSessionSummaryEvent,
   PiThinkingLevel,
 } from "@glass/contracts";
@@ -22,6 +21,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
+const GLASS_READ_BOOT_CHANNEL = "glass:boot.read";
 const EXT_UI_REQUEST_CHANNEL = "glass:ext-ui.request";
 const EXT_UI_REPLY_CHANNEL = "glass:ext-ui.reply";
 const EXT_UI_NOTIFY_CHANNEL = "glass:ext-ui.notify";
@@ -29,7 +29,6 @@ const EXT_UI_SET_EDITOR_CHANNEL = "glass:ext-ui.set-editor";
 const EXT_UI_COMPOSER_DRAFT_CHANNEL = "glass:ext-ui.composer-draft";
 const SESSION_LIST_CHANNEL = "glass:session.list";
 const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
-const SESSION_LIST_ALL_BOOT_CHANNEL = "glass:session.list-all-boot";
 const SESSION_CREATE_CHANNEL = "glass:session.create";
 const SESSION_GET_CHANNEL = "glass:session.get";
 const SESSION_READ_CHANNEL = "glass:session.read";
@@ -46,7 +45,6 @@ const SESSION_ASK_CHANNEL = "glass:session.ask";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
-const PI_GET_BOOT_CONFIG_CHANNEL = "glass:pi.get-boot-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
@@ -72,31 +70,18 @@ const GIT_DISCARD_CHANNEL = "glass:git.discard";
 const GIT_STATE_CHANNEL = "glass:git.state";
 const GLASS_BOOT_REFRESH_CHANNEL = "glass:boot.refresh";
 
-function bootConfig() {
+function bootSnapshot() {
   try {
-    const data = ipcRenderer.sendSync(PI_GET_BOOT_CONFIG_CHANNEL);
+    const data = ipcRenderer.sendSync(GLASS_READ_BOOT_CHANNEL);
     if (typeof data !== "object" || data === null) return null;
-    return data as PiConfig;
+    return data as DesktopBootSnapshot;
   } catch {
     return null;
   }
 }
-
-function bootSummaries() {
-  try {
-    const data = ipcRenderer.sendSync(SESSION_LIST_ALL_BOOT_CHANNEL);
-    return Array.isArray(data) ? (data as PiSessionSummary[]) : [];
-  } catch {
-    return null;
-  }
-}
-
-const bootCfg = bootConfig();
-const bootSums = bootSummaries();
 
 const piBridge = {
-  readBootConfig: () => bootCfg,
-  getConfig: () => ipcRenderer.invoke(PI_GET_CONFIG_CHANNEL) as Promise<PiConfig>,
+  getConfig: () => ipcRenderer.invoke(PI_GET_CONFIG_CHANNEL),
   setDefaultModel: (provider: string, model: string) =>
     ipcRenderer.invoke(PI_SET_DEFAULT_MODEL_CHANNEL, provider, model),
   clearDefaultModel: () => ipcRenderer.invoke(PI_CLEAR_DEFAULT_MODEL_CHANNEL),
@@ -109,7 +94,6 @@ const piBridge = {
 };
 
 const sessionBridge = {
-  readBootSummaries: () => bootSums,
   list: () => ipcRenderer.invoke(SESSION_LIST_CHANNEL),
   listAll: () => ipcRenderer.invoke(SESSION_LIST_ALL_CHANNEL),
   create: () => ipcRenderer.invoke(SESSION_CREATE_CHANNEL),
@@ -198,6 +182,7 @@ contextBridge.exposeInMainWorld("glass", {
     },
   },
   desktop: {
+    readBootSnapshot: bootSnapshot,
     onBootRefresh: (cb) => {
       bootListeners.add(cb);
       return () => bootListeners.delete(cb);

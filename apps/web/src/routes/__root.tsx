@@ -121,7 +121,6 @@ function DesktopExtUiBridge() {
 
 function PiBootBridge() {
   const boot = usePiStore((state) => state.boot);
-  const refreshCfg = usePiStore((state) => state.refreshCfg);
   const refreshSums = usePiStore((state) => state.refreshSums);
   const reset = usePiStore((state) => state.resetForWorkspaceChange);
   const applySummaryEvent = usePiStore((state) => state.applySummaryEvent);
@@ -140,7 +139,7 @@ function PiBootBridge() {
     };
 
     const reload = () => {
-      void Promise.all([refreshCfg(), refreshSums()]);
+      void boot();
     };
 
     const shell = () => {
@@ -153,7 +152,7 @@ function PiBootBridge() {
         applySummaryEvent(event);
       });
     });
-    const offBoot = glass.desktop.onBootRefresh?.(reload);
+    const offBoot = glass.desktop.onBootRefresh?.(reload) ?? (() => {});
 
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
@@ -164,9 +163,9 @@ function PiBootBridge() {
       document.removeEventListener("visibilitychange", sync);
       window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, shell);
       offSummary();
-      offBoot?.();
+      offBoot();
     };
-  }, [applySummaryEvent, refreshCfg, refreshSums, reset]);
+  }, [applySummaryEvent, boot, refreshSums, reset]);
 
   return null;
 }
@@ -183,7 +182,7 @@ function NotFoundView() {
         <p className="text-caption font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
           {APP_DISPLAY_NAME}
         </p>
-        <p className="mt-8 font-mono text-[8rem] leading-none font-bold tracking-tighter text-foreground/[0.04] sm:text-[10rem] select-none">
+        <p className="mt-8 font-mono text-[8rem] leading-none font-bold tracking-tighter text-foreground/4 sm:text-[10rem] select-none">
           404
         </p>
         <div className="-mt-16 sm:-mt-20">

@@ -85,6 +85,18 @@ function reportTarget(fn) {
   return fn;
 }
 
+/**
+ * @param {Record<string, unknown>} node
+ */
+function firstUnknown(node) {
+  if (node.type === "TSUnknownKeyword") return node;
+  for (const c of childNodes(node)) {
+    const hit = firstUnknown(c);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 const noTinyWrapperFunction = {
   meta: {
     type: "suggestion",
@@ -158,9 +170,79 @@ const noTinyWrapperFunction = {
   },
 };
 
+const noUnknownFunctionType = {
+  meta: {
+    type: "suggestion",
+    docs: {
+      description:
+        "Flags explicit `unknown` in function and method signatures. Use concrete types or a validated boundary object instead of `unknown` to bypass checks.",
+    },
+    schema: [],
+    messages: {
+      unknownSig:
+        "Avoid `unknown` in {{where}} for this {{kind}}. Use a concrete type, narrowed union, or boundary parser result.",
+    },
+  },
+
+  create(context) {
+    /**
+     * @param {Record<string, unknown>} fn
+     * @param {"function" | "method"} kind
+     */
+    function report(fn, kind, where, node) {
+      context.report({
+        node: node ?? reportTarget(fn),
+        messageId: "unknownSig",
+        data: { kind, where },
+      });
+    }
+
+    /**
+     * @param {Record<string, unknown>} fn
+     * @param {"function" | "method"} kind
+     */
+    function check(fn, kind) {
+      for (const p of fn.params ?? []) {
+        const hit = firstUnknown(p);
+        if (!hit) continue;
+        report(fn, kind, "parameters", hit);
+      }
+
+      if (fn.returnType) {
+        const hit = firstUnknown(fn.returnType);
+        if (hit) report(fn, kind, "return type", hit);
+      }
+
+      if (fn.typeParameters) {
+        const hit = firstUnknown(fn.typeParameters);
+        if (hit) report(fn, kind, "type parameters", hit);
+      }
+    }
+
+    return {
+      FunctionDeclaration(node) {
+        if (node.declare) return;
+        check(node, "function");
+      },
+      FunctionExpression(node) {
+        if (node.parent?.type === "MethodDefinition") return;
+        check(node, "function");
+      },
+      ArrowFunctionExpression(node) {
+        check(node, "function");
+      },
+      MethodDefinition(node) {
+        if (node.kind === "constructor") return;
+        check(node.value, "method");
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "glass" },
   rules: {
     "no-tiny-wrapper-function": noTinyWrapperFunction,
+    "no-unknown-function-type": noUnknownFunctionType,
   },
 };

@@ -20,13 +20,17 @@ import { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { ExtUiReply, ExtUiReq } from "../ext-ui-bridge";
 import { image, resolveFile, text as textFile } from "../files";
 import type { ShellService } from "../shell-service";
+import { PiReadCache } from "./pi-read-cache";
 import { normalizePiRpcIntake } from "./pi-runtime-normalizer";
 import { PiRpcClient } from "./pi-rpc-client";
+import { PiSessionDirectory } from "./pi-session-directory";
 import { PiRuntimeStore } from "./pi-runtime-store";
 
 const mention = /(^|[\s=])@("([^"]+)"|([^\s"=]+))/g;
 const other = "__other__";
-const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+const levels = new Set<PiThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const idleMs = 15_000;
+const maxRuns = 8;
 
 type UiPending = {
   sessionId: string;
@@ -58,7 +62,9 @@ function createRun(id: string, client: PiRpcClient, store: PiRuntimeStore) {
     client,
     store,
     refs: 0,
+    at: Date.now(),
     off: () => {},
+    timer: null as ReturnType<typeof setTimeout> | null,
   };
 }
 
@@ -161,12 +167,10 @@ async function buildInput(cwd: string, input: string | PiPromptInput) {
   };
 }
 
-function isThinking(value: unknown): value is PiThinkingLevel {
-  return typeof value === "string" && levels.some((item) => item === value);
-}
-
-function thinking(value: unknown): PiThinkingLevel {
-  return isThinking(value) ? value : "off";
+function thinking(value: unknown) {
+  return typeof value === "string" && levels.has(value as PiThinkingLevel)
+    ? (value as PiThinkingLevel)
+    : "off";
 }
 
 function slug(text: string, i: number) {
@@ -255,12 +259,6 @@ function summary(item: {
   };
 }
 
-function byTime(items: PiSessionSummary[]) {
-  return items.toSorted((left, right) =>
-    left.modifiedAt < right.modifiedAt ? 1 : left.modifiedAt > right.modifiedAt ? -1 : 0,
-  );
-}
-
 function askState(sessionId: string, req: Exclude<ExtUiReq, { type: "get-editor" }>): AskBuilt {
   const map = new Map<string, string>();
   if (req.type === "select") {
@@ -331,8 +329,9 @@ function askState(sessionId: string, req: Exclude<ExtUiReq, { type: "get-editor"
 }
 
 export class PiRuntimeService {
+  private dir = new PiSessionDirectory();
+  private cache = new PiReadCache();
   private runs = new Map<string, ReturnType<typeof createRun>>();
-  private sums = new Map<string, PiSessionSummary>();
   private listeners = new Set<(event: PiSessionBridgeEvent) => void>();
   private askListeners = new Set<(event: PiAskEvent) => void>();
   private uiReq = new Set<(req: ExtUiReq) => void>();
@@ -382,6 +381,19 @@ export class PiRuntimeService {
 
   readAsk(sessionId: string) {
     return this.asks.get(sessionId) ?? null;
+  }
+
+  bootSnapshots() {
+    return this.cache.boot();
+  }
+
+  bootAsks() {
+    const out: Record<string, PiAskState> = {};
+    for (const [id, state] of this.asks.entries()) {
+      if (!state) continue;
+      out[id] = state;
+    }
+    return out;
   }
 
   answerAsk(sessionId: string, reply: PiAskReply) {
@@ -492,13 +504,14 @@ export class PiRuntimeService {
         this.pend.delete(reply.id);
         this.asks.set(pending.sessionId, null);
         this.emitAsk(pending.sessionId, null);
+        this.retain(pending.sessionId);
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),
     });
   }
 
   peek() {
-    return byTime([...this.sums.values()]);
+    return this.dir.all();
   }
 
   create() {
@@ -529,34 +542,39 @@ export class PiRuntimeService {
     const run = this.runs.get(sessionId);
     if (run) return run.store.snapshot();
 
-    const item = this.sums.get(sessionId);
-    if (!item) return null;
-    return {
-      id: item.id,
-      file: item.path,
-      cwd: item.cwd,
-      name: item.name,
-      model: null,
-      thinkingLevel: "off",
-      messages: [],
-      live: null,
-      tree: [],
-      isStreaming: item.isStreaming,
-      pending: { steering: [], followUp: [] },
-    };
+    const sum = this.dir.get(sessionId);
+    if (!sum) return null;
+    return this.cache.read(sum);
   }
 
   get(sessionId: string) {
-    return this.ensure(sessionId).pipe(Effect.map((run) => run.store.snapshot()));
+    return Effect.sync(() => {
+      const snap = this.read(sessionId);
+      if (!snap) throw new Error(`Unknown session: ${sessionId}`);
+      return snap;
+    });
   }
 
   watch(sessionId: string) {
-    return this.ensure(sessionId).pipe(
-      Effect.map((run) => {
-        run.refs += 1;
-        return run.store.snapshot();
-      }),
-    );
+    return Effect.tryPromise({
+      try: async () => {
+        const snap = this.read(sessionId);
+        if (!snap) throw new Error(`Unknown session: ${sessionId}`);
+
+        const run = this.runs.get(sessionId);
+        if (run) {
+          run.refs += 1;
+          this.touch(run);
+          return run.store.snapshot();
+        }
+
+        if (snap.isStreaming || this.asks.get(sessionId)) {
+          void Effect.runPromise(Effect.exit(this.attach(sessionId, true)));
+        }
+        return snap;
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
   }
 
   unwatch(sessionId: string) {
@@ -564,11 +582,12 @@ export class PiRuntimeService {
       const run = this.runs.get(sessionId);
       if (!run) return;
       run.refs = Math.max(0, run.refs - 1);
+      this.retain(sessionId);
     });
   }
 
   prompt(sessionId: string, input: string | PiPromptInput) {
-    return this.ensure(sessionId).pipe(
+    return this.attach(sessionId).pipe(
       Effect.flatMap((run) =>
         Effect.tryPromise({
           try: async () => {
@@ -582,7 +601,7 @@ export class PiRuntimeService {
   }
 
   commands(sessionId: string) {
-    return this.ensure(sessionId).pipe(
+    return this.attach(sessionId).pipe(
       Effect.flatMap((run) => run.client.getCommands()),
       Effect.map(
         (items) =>
@@ -600,34 +619,38 @@ export class PiRuntimeService {
   }
 
   abort(sessionId: string) {
-    return this.ensure(sessionId).pipe(Effect.flatMap((run) => run.client.abort()));
+    return this.attach(sessionId).pipe(Effect.flatMap((run) => run.client.abort()));
   }
 
   setModel(sessionId: string, provider: string, model: string) {
-    return this.ensure(sessionId).pipe(
+    return this.attach(sessionId).pipe(
       Effect.flatMap((run) => run.client.setModel(provider, model)),
     );
   }
 
   setThinkingLevel(sessionId: string, next: PiThinkingLevel) {
-    return this.ensure(sessionId).pipe(
+    return this.attach(sessionId).pipe(
       Effect.flatMap((run) => run.client.setThinkingLevel(thinking(next))),
     );
   }
 
   dispose() {
     for (const run of this.runs.values()) {
+      if (run.timer) clearTimeout(run.timer);
       run.off();
       void Effect.runPromise(run.client.stop());
     }
     this.runs.clear();
-    this.sums.clear();
+    this.dir.clear();
+    this.cache.clear();
     this.pend.clear();
     this.asks.clear();
   }
 
   private workerPath() {
     const dirs = [
+      Path.join(__dirname, "pi-runtime", "pi-runtime-worker.mjs"),
+      Path.join(__dirname, "pi-runtime-worker.mjs"),
       Path.join(__dirname, "pi-runtime", "pi-runtime-worker.js"),
       Path.join(__dirname, "pi-runtime-worker.js"),
     ];
@@ -636,20 +659,79 @@ export class PiRuntimeService {
     return hit;
   }
 
-  private ensure(sessionId: string) {
+  private attach(sessionId: string, watch = false) {
     return Effect.tryPromise({
       try: async () => {
         const run = this.runs.get(sessionId);
-        if (run) return run;
+        if (run) {
+          if (watch) run.refs += 1;
+          this.touch(run);
+          return run;
+        }
 
-        const sum =
-          this.sums.get(sessionId) ??
-          (await Effect.runPromise(this.listAll())).find((item) => item.id === sessionId);
+        const sum = this.dir.get(sessionId);
         if (!sum || !sum.path) throw new Error(`Unknown session: ${sessionId}`);
-        return Effect.runPromise(this.openRun(sum.path));
+        const next = await Effect.runPromise(this.openRun(sum.path));
+        if (watch) next.refs += 1;
+        this.touch(next);
+        this.trim();
+        return next;
       },
       catch: (err) => (err instanceof Error ? err : new Error(String(err))),
     });
+  }
+
+  private touch(run: ReturnType<typeof createRun>) {
+    run.at = Date.now();
+    if (!run.timer) return;
+    clearTimeout(run.timer);
+    run.timer = null;
+  }
+
+  private retain(sessionId: string) {
+    const run = this.runs.get(sessionId);
+    if (!run) return;
+    if (run.refs > 0 || run.store.snapshot().isStreaming || this.asks.get(sessionId)) {
+      this.touch(run);
+      return;
+    }
+    if (run.timer) return;
+    run.timer = setTimeout(() => {
+      run.timer = null;
+      void this.release(sessionId);
+    }, idleMs);
+    run.timer.unref?.();
+  }
+
+  private async release(sessionId: string) {
+    const run = this.runs.get(sessionId);
+    if (!run) return;
+    if (run.refs > 0 || run.store.snapshot().isStreaming || this.asks.get(sessionId)) {
+      this.touch(run);
+      return;
+    }
+    if (run.timer) {
+      clearTimeout(run.timer);
+      run.timer = null;
+    }
+    run.off();
+    this.runs.delete(sessionId);
+    await Effect.runPromise(run.client.stop());
+  }
+
+  private trim() {
+    if (this.runs.size <= maxRuns) return;
+    const idle = [...this.runs.values()]
+      .filter(
+        (run) => run.refs === 0 && !run.store.snapshot().isStreaming && !this.asks.get(run.id),
+      )
+      .toSorted((left, right) => left.at - right.at);
+
+    while (this.runs.size > maxRuns) {
+      const run = idle.shift();
+      if (!run) return;
+      void this.release(run.id);
+    }
   }
 
   private openRun(sessionPath?: string) {
@@ -698,7 +780,9 @@ export class PiRuntimeService {
           this.consume(run, intake);
         });
         this.runs.set(id, run);
-        this.sums.set(id, store.summary());
+        this.dir.upsert(store.summary());
+        this.cache.write(store.snapshot(), store.summary().modifiedAt);
+        this.touch(run);
         this.emit({
           lane: "summary",
           type: "upsert",
@@ -716,8 +800,9 @@ export class PiRuntimeService {
     for (const run of this.runs.values()) {
       map.set(run.id, run.store.summary());
     }
-    this.sums = map;
-    return byTime([...map.values()]);
+    const items = this.dir.replace([...map.values()]);
+    this.cache.prune(this.dir.ids());
+    return items;
   }
 
   private consume(
@@ -730,9 +815,10 @@ export class PiRuntimeService {
         this.handleUiRequest(run.id, evt.request);
       }
       const out = run.store.apply(evt);
+      this.cache.write(run.store.snapshot(), run.store.summary().modifiedAt);
       if (out.summary) {
         if (out.summary.type === "upsert") {
-          this.sums.set(run.id, out.summary.summary);
+          this.dir.upsert(out.summary.summary);
         }
         this.emit(out.summary);
       }
@@ -745,6 +831,7 @@ export class PiRuntimeService {
         } satisfies PiSessionActiveEvent);
       }
     }
+    this.retain(run.id);
   }
 
   private handleUiRequest(
@@ -781,18 +868,11 @@ export class PiRuntimeService {
     const next = toReq(req);
     if (!next) return;
 
-    this.pend.set(req.id, { sessionId, method: next.type, map: new Map() });
-    if (
-      next.type === "input" ||
-      next.type === "editor" ||
-      next.type === "select" ||
-      next.type === "confirm"
-    ) {
-      const built = askState(sessionId, next);
-      this.pend.set(req.id, { sessionId, method: next.type, map: built.map });
-      this.asks.set(sessionId, built.state);
-      this.emitAsk(sessionId, built.state);
-    }
+    const built = askState(sessionId, next);
+    this.pend.set(req.id, { sessionId, method: next.type, map: built.map });
+    this.asks.set(sessionId, built.state);
+    this.emitAsk(sessionId, built.state);
+    this.retain(sessionId);
     for (const fn of this.uiReq) fn(next);
   }
 

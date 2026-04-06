@@ -3,11 +3,7 @@ import type { AgentMessage, ThinkingLevel } from "@mariozechner/pi-agent-core";
 import type { PiProcessManagerOptions } from "./pi-process-manager";
 import { PiProcessManager } from "./pi-process-manager";
 import { parsePiRpcLine, type PiRpcIntake } from "./pi-rpc-event-parser";
-import type {
-  PiRpcCommand,
-  PiRpcExtensionUiResponse,
-  PiRpcResponse,
-} from "./pi-rpc-types";
+import type { PiRpcCommand, PiRpcExtensionUiResponse, PiRpcResponse } from "./pi-rpc-types";
 
 type ReqCommand = Exclude<PiRpcCommand, { type: "extension_ui_response" }>;
 
@@ -65,7 +61,9 @@ export class PiRpcClient {
         this.offs.push(
           this.proc.onExit((event) => {
             this.rejectAll(
-              new Error(`Runtime process exited (code=${event.code ?? "null"}, signal=${event.signal ?? "null"})`),
+              new Error(
+                `Runtime process exited (code=${event.code ?? "null"}, signal=${event.signal ?? "null"})`,
+              ),
             );
           }),
         );
@@ -88,9 +86,11 @@ export class PiRpcClient {
   }
 
   prompt(message: string, images?: { type: "image"; mimeType: string; data: string }[]) {
-    return this.call({ type: "prompt", message, ...(images && images.length ? { images } : {}) }).pipe(
-      Effect.asVoid,
-    );
+    return this.call({
+      type: "prompt",
+      message,
+      ...(images && images.length ? { images } : {}),
+    }).pipe(Effect.asVoid);
   }
 
   abort() {

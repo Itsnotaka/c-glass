@@ -86,7 +86,11 @@ function stamp(rawType: string, rawPayload: unknown): Base {
   };
 }
 
-function warn(intake: PiRpcIntake, type: "runtime.warning" | "runtime.error", message: string): PiRuntimeEvent {
+function warn(
+  intake: PiRpcIntake,
+  type: "runtime.warning" | "runtime.error",
+  message: string,
+): PiRuntimeEvent {
   if (intake.kind === "parse_error") {
     return {
       type,

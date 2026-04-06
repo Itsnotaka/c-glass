@@ -8,7 +8,7 @@ import type {
 } from "@glass/contracts";
 import { useMemo } from "react";
 import { create } from "zustand";
-import { readGlass } from "../host";
+import { readGlass, readGlassBoot } from "../host";
 
 export type PiBootStatus = "loading" | "ready" | "error";
 
@@ -128,6 +128,19 @@ function setSums(
   } satisfies State;
 }
 
+function setBoot(state: State) {
+  const boot = readGlassBoot();
+  if (!boot) return state;
+
+  let next = state;
+  next = setCfg(next, boot.pi, "ready", null);
+  next = setSums(next, boot.sessions, "ready", null);
+  return {
+    ...next,
+    snaps: { ...next.snaps, ...boot.snapshots },
+  } satisfies State;
+}
+
 let cfgSeq = 0;
 let sumsSeq = 0;
 let cfgRun: Promise<void> | null = null;
@@ -147,7 +160,8 @@ export const usePiStore = create<State>()((set, get) => ({
   snaps: {},
   boot: async () => {
     const glass = readGlass();
-    if (!glass) {
+    const boot = readGlassBoot();
+    if (!glass && !boot) {
       set((state) => {
         let next = setCfg(state, null, "ready", null);
         next = setSums(next, [], "ready", null);
@@ -156,14 +170,11 @@ export const usePiStore = create<State>()((set, get) => ({
       return;
     }
 
-    const cfg = glass.pi.readBootConfig?.() ?? null;
-    const sums = glass.session.readBootSummaries?.() ?? null;
-    set((state) => {
-      let next = state;
-      if (cfg) next = setCfg(next, cfg, "ready", null);
-      if (sums !== null) next = setSums(next, sums, "ready", null);
-      return next;
-    });
+    if (boot) {
+      set((state) => setBoot(state));
+    }
+
+    if (!glass) return;
 
     await Promise.all([get().refreshCfg(), get().refreshSums()]);
   },

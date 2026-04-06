@@ -15,10 +15,9 @@ import type {
   PiSessionSummaryEvent,
   PiThinkingLevel,
 } from "@glass/contracts";
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { PiRuntimeEvent } from "./pi-runtime-normalizer";
 
-const levels: PiThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+const levels = new Set<PiThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const fileTag = /<file\s+name="([^"]+)"\s*>([\s\S]*?)<\/file>/g;
 
 type ApplyOut = {
@@ -27,9 +26,9 @@ type ApplyOut = {
   summary: PiSessionSummaryEvent | null;
 };
 
-function level(value: unknown): PiThinkingLevel {
+export function level(value: unknown): PiThinkingLevel {
   if (typeof value !== "string") return "off";
-  return levels.includes(value as PiThinkingLevel) ? (value as PiThinkingLevel) : "off";
+  return levels.has(value as PiThinkingLevel) ? (value as PiThinkingLevel) : "off";
 }
 
 function model(value: unknown): PiModelRef | null {
@@ -189,7 +188,7 @@ function toContent(value: unknown) {
   });
 }
 
-function toMessage(value: unknown): PiMessage {
+export function toMessage(value: unknown): PiMessage {
   if (!value || typeof value !== "object") {
     return { role: "unknown", value };
   }
@@ -263,7 +262,7 @@ function toMessage(value: unknown): PiMessage {
   return { ...item, role };
 }
 
-function msgId(value: unknown, fallback: string) {
+export function msgId(value: unknown, fallback: string) {
   if (!value || typeof value !== "object") return fallback;
   const item = value as Record<string, unknown>;
   const role = typeof item.role === "string" ? item.role : "unknown";

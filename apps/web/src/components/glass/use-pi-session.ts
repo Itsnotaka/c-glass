@@ -128,14 +128,6 @@ export function usePiSession(sessionId: string | null) {
     let live = true;
 
     void glass.session
-      .read(sessionId)
-      .then((snap) => {
-        if (!live) return;
-        putSnap(snap);
-      })
-      .catch(() => {});
-
-    void glass.session
       .readAsk(sessionId)
       .then((state) => {
         if (!live) return;
@@ -146,7 +138,7 @@ export function usePiSession(sessionId: string | null) {
     return () => {
       live = false;
     };
-  }, [putSnap, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) return;

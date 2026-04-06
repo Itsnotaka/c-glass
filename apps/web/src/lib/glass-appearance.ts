@@ -110,7 +110,7 @@ function syncVibrancy() {
   void bridge.desktop.setVibrancy(wantsOsVibrancy());
 }
 
-export function applyGlassAppearance() {
+function applyGlassRoot() {
   const root = document.documentElement;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
@@ -144,6 +144,14 @@ export function applyGlassAppearance() {
   }
 
   applyColorPalette();
+}
+
+export function applyGlassAppearanceBoot() {
+  applyGlassRoot();
+}
+
+function applyGlassAppearance() {
+  applyGlassRoot();
   syncVibrancy();
 }
 

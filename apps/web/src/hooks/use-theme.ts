@@ -18,7 +18,7 @@ function emitChange() {
   for (const listener of listeners) listener();
 }
 
-function getStored(): Theme {
+function readStoredTheme(): Theme {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw === "light" || raw === "dark" || raw === "system") return raw;
   return "system";
@@ -55,10 +55,12 @@ function syncDesktopTheme(theme: Theme) {
   });
 }
 
-applyTheme(getStored());
+export function applyStoredTheme(suppressTransitions = false) {
+  applyTheme(readStoredTheme(), suppressTransitions);
+}
 
 function getSnapshot(): ThemeSnapshot {
-  const theme = getStored();
+  const theme = readStoredTheme();
   const systemDark = theme === "system" ? window.matchMedia(MEDIA_QUERY).matches : false;
 
   if (lastSnapshot && lastSnapshot.theme === theme && lastSnapshot.systemDark === systemDark) {
@@ -74,14 +76,14 @@ function subscribe(listener: () => void): () => void {
 
   const mq = window.matchMedia(MEDIA_QUERY);
   const handleChange = () => {
-    if (getStored() === "system") applyTheme("system", true);
+    if (readStoredTheme() === "system") applyTheme("system", true);
     emitChange();
   };
   mq.addEventListener("change", handleChange);
 
   const handleStorage = (e: StorageEvent) => {
     if (e.key === STORAGE_KEY) {
-      applyTheme(getStored(), true);
+      applyTheme(readStoredTheme(), true);
       emitChange();
     }
   };

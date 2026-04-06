@@ -1,64 +1,27 @@
 import { IconFolder1 } from "central-icons";
-import { useEffect, useState } from "react";
-import { getGlass } from "../../host";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../../lib/pi-glass-constants";
+import { useShellState } from "../../hooks/use-shell-cwd";
 import { shortWorkspacePathLabel } from "../../lib/glass-path-label";
+import { pickWorkspace } from "../../lib/glass-workspace";
 import { usePiStore } from "../../lib/pi-session-store";
 import { cn } from "../../lib/utils";
 
 export function GlassWorkspacePicker(props: { className?: string }) {
-  const [state, setState] = useState<{ cwd: string; name: string; home: string } | null>(null);
+  const shell = useShellState();
   const reset = usePiStore((item) => item.resetForWorkspaceChange);
-
-  useEffect(() => {
-    let live = true;
-
-    const load = () => {
-      void getGlass()
-        .shell.getState()
-        .then((next) => {
-          if (!live) return;
-          setState(next);
-        })
-        .catch(() => {});
-    };
-
-    load();
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, load);
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, load);
-    };
-  }, []);
 
   return (
     <button
       type="button"
-      onClick={() => {
-        void getGlass()
-          .shell.pickWorkspace()
-          .then((next) => {
-            if (!next) return;
-            reset();
-            setState(next);
-            window.dispatchEvent(new CustomEvent(PI_GLASS_SHELL_CHANGED_EVENT));
-          })
-          .catch(() => {
-            void Promise.all([
-              usePiStore.getState().refreshCfg(),
-              usePiStore.getState().refreshSums(),
-            ]);
-          });
-      }}
+      onClick={() => void pickWorkspace(reset)}
       className={cn(
         "font-glass glass-sidebar-label flex min-w-0 items-center justify-start gap-2 rounded-glass-control px-2 py-1 text-left text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground",
         props.className,
       )}
-      title={state?.cwd ?? "Choose workspace"}
+      title={shell.cwd ?? "Choose workspace"}
     >
       <IconFolder1 className="size-4 shrink-0 opacity-60" />
       <span className="truncate">
-        {state ? shortWorkspacePathLabel(state.cwd, state.home) : "Workspace"}
+        {shell.cwd ? shortWorkspacePathLabel(shell.cwd, shell.home) : "Workspace"}
       </span>
     </button>
   );

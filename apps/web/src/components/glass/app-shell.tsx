@@ -8,6 +8,7 @@ import {
 } from "central-icons";
 import { type PointerEvent as Evt, type ReactNode, useEffect, useRef, useState } from "react";
 
+import { isElectronHost } from "../../env";
 import { cn } from "../../lib/utils";
 
 type Side = "left" | "right";
@@ -40,7 +41,7 @@ export function GlassAppShell(props: {
   onBack?: () => void;
 }) {
   const p = props.panels;
-  const electron = typeof window !== "undefined" && window.glass !== undefined;
+  const electron = isElectronHost();
   const showRight = props.right !== null;
   const leftRef = useRef<HTMLElement | null>(null);
   const rightRef = useRef<HTMLElement | null>(null);
@@ -164,10 +165,7 @@ export function GlassAppShell(props: {
   const rightW = p.rightOpen ? (side === "right" ? live.current.right : p.rightW) : 0;
 
   return (
-    <div
-      className="relative flex h-full min-w-0 flex-1 flex-row bg-transparent"
-      data-electron={electron ? "" : undefined}
-    >
+    <div className="relative flex h-full min-w-0 flex-1 flex-row bg-transparent">
       {/* Full-height sidebar */}
       <aside
         className={cn(
@@ -205,7 +203,7 @@ export function GlassAppShell(props: {
           >
             <div
               aria-hidden
-              className="pointer-events-none h-[var(--glass-header-height)] shrink-0 select-none"
+              className="pointer-events-none h-(--glass-header-height) shrink-0 select-none"
             />
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden outline-hidden">
               {props.center}
@@ -245,11 +243,11 @@ export function GlassAppShell(props: {
       {/* Floating controls (no visible bar) */}
       <div
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 z-10 h-[var(--glass-header-height)]",
+          "pointer-events-none absolute inset-x-0 top-0 z-10 h-(--glass-header-height)",
           electron && "drag-region",
         )}
       >
-        <div className="pointer-events-none absolute inset-y-0 left-[var(--glass-workbench-toggle-left)] flex items-center gap-1">
+        <div className="pointer-events-none absolute inset-y-0 left-(--glass-workbench-toggle-left) flex items-center gap-1">
           {props.onBack ? (
             <button
               type="button"
@@ -274,7 +272,7 @@ export function GlassAppShell(props: {
           </button>
         </div>
         {showRight ? (
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-[var(--glass-workbench-toggle-right)]">
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-(--glass-workbench-toggle-right)">
             <button
               type="button"
               onClick={() => p.toggleRight()}
