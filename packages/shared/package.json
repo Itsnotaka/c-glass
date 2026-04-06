@@ -23,7 +23,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@glass/contracts": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

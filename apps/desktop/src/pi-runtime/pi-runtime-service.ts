@@ -26,6 +26,7 @@ import { PiRuntimeStore } from "./pi-runtime-store";
 
 const mention = /(^|[\s=])@("([^"]+)"|([^\s"=]+))/g;
 const other = "__other__";
+const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
 type UiPending = {
   sessionId: string;
@@ -160,14 +161,12 @@ async function buildInput(cwd: string, input: string | PiPromptInput) {
   };
 }
 
+function isThinking(value: unknown): value is PiThinkingLevel {
+  return typeof value === "string" && levels.some((item) => item === value);
+}
+
 function thinking(value: unknown): PiThinkingLevel {
-  if (value === "off") return "off";
-  if (value === "minimal") return "minimal";
-  if (value === "low") return "low";
-  if (value === "medium") return "medium";
-  if (value === "high") return "high";
-  if (value === "xhigh") return "xhigh";
-  return "off";
+  return isThinking(value) ? value : "off";
 }
 
 function slug(text: string, i: number) {

@@ -732,7 +732,10 @@ export function ExtensionsSettingsPanel() {
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-body">{item.name}</div>
-                    <div className="mt-1 truncate font-mono text-detail text-muted-foreground" title={item.path}>
+                    <div
+                      className="mt-1 truncate font-mono text-detail text-muted-foreground"
+                      title={item.path}
+                    >
                       {item.path}
                     </div>
                     <div

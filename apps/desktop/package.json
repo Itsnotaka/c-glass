@@ -17,9 +17,6 @@
     "@mariozechner/pi-agent-core": "0.64.0",
     "@mariozechner/pi-ai": "0.64.0",
     "@mariozechner/pi-coding-agent": "^0.64.0",
-    "@mariozechner/pi-tui": "0.64.0",
-    "@sinclair/typebox": "^0.34.41",
-    "diff": "^8.0.2",
     "effect": "catalog:",
     "electron": "40.6.0",
     "electron-updater": "^6.8.3"
