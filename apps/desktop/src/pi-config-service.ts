@@ -1,5 +1,4 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import * as OS from "node:os";
 import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
@@ -15,9 +14,7 @@ import {
   SettingsManager,
   getAgentDir,
 } from "@mariozechner/pi-coding-agent";
-import { cursorExtension, registerCursorProvider, syncCursorProvider } from "./cursor-provider";
-import { extDtos, extFactories } from "./glass-ext";
-import { getPaperMcpStatus } from "./glass-ext/paper-mcp-status";
+import { registerCursorProvider, syncCursorProvider } from "./cursor-provider";
 
 function trim(value: unknown) {
   if (typeof value !== "string") return null;
@@ -47,26 +44,6 @@ function level(value: string | undefined): PiThinkingLevel | null {
 
 function key(provider: string, model: string) {
   return `${provider}/${model}`;
-}
-
-const GLASS_PREFS = Path.join(OS.homedir(), ".glass", "userdata", "glass-prefs.json");
-
-type GlassPrefs = { nativeGlassExtensions?: boolean };
-
-function readGlassPrefs(): GlassPrefs {
-  if (!existsSync(GLASS_PREFS)) return {};
-  try {
-    const t = readFileSync(GLASS_PREFS, "utf8").trim();
-    if (!t) return {};
-    return JSON.parse(t) as GlassPrefs;
-  } catch {
-    return {};
-  }
-}
-
-function writeGlassPrefs(data: GlassPrefs) {
-  mkdirSync(Path.dirname(GLASS_PREFS), { recursive: true });
-  writeFileSync(GLASS_PREFS, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
 function errDto(item: { path: string; error: string }) {
@@ -183,13 +160,10 @@ export class PiConfigService {
       this.exts = [];
       this.xerrs = [];
 
-      const glassFacts = this.nativeGlassExtensionsEnabled() ? extFactories() : [];
       const loader = new DefaultResourceLoader({
         cwd,
         agentDir: getAgentDir(),
         settingsManager: this.settings(cwd),
-        extensionFactories: [cursorExtension, ...glassFacts],
-        noExtensions: true,
         noSkills: true,
         noPromptTemplates: true,
         noThemes: true,
@@ -198,7 +172,15 @@ export class PiConfigService {
       try {
         await loader.reload();
         const exts = loader.getExtensions();
-        this.exts = extDtos();
+        this.exts = exts.extensions.map((item) => ({
+          name: item.sourceInfo.source || Path.basename(item.path),
+          path: item.path,
+          resolvedPath: item.resolvedPath,
+          scope:
+            item.sourceInfo.scope === "user" || item.sourceInfo.scope === "project"
+              ? item.sourceInfo.scope
+              : "other",
+        }));
         this.xerrs = exts.errors.map((item) => errDto(item));
 
         const runner = new ExtensionRunner(
@@ -321,18 +303,6 @@ export class PiConfigService {
     });
   }
 
-  nativeGlassExtensionsEnabled(): boolean {
-    const p = readGlassPrefs();
-    return p.nativeGlassExtensions !== false;
-  }
-
-  setNativeGlassExtensionsEnabled(enabled: boolean): Effect.Effect<void> {
-    return Effect.sync(() => {
-      const cur = readGlassPrefs();
-      writeGlassPrefs({ ...cur, nativeGlassExtensions: enabled });
-    });
-  }
-
   getConfig(cwd: string): Effect.Effect<PiConfig> {
     return Effect.sync(() => {
       this.sync();
@@ -368,8 +338,6 @@ export class PiConfigService {
         models: all.map((model) => modelDto(model)),
         extensions: this.exts,
         extensionErrors: this.xerrs,
-        nativeGlassExtensions: this.nativeGlassExtensionsEnabled(),
-        paperMcp: getPaperMcpStatus(),
         available: available.map((model) => key(model.provider, model.id)),
         error: this.errs(cwd),
       };

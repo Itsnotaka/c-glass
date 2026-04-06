@@ -4,10 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./glass-ext": {
-      "types": "./src/glass-ext.ts",
-      "import": "./src/glass-ext.ts"
-    },
     "./logging": {
       "types": "./src/logging.ts",
       "import": "./src/logging.ts"

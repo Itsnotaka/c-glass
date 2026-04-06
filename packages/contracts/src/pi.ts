@@ -70,12 +70,6 @@ export const PiExtensionError = Schema.Struct({
 });
 export type PiExtensionError = typeof PiExtensionError.Type;
 
-export const PiPaperMcpStatus = Schema.Struct({
-  ok: Schema.Boolean,
-  detail: Schema.optional(Schema.String),
-});
-export type PiPaperMcpStatus = typeof PiPaperMcpStatus.Type;
-
 export const PiDefaults = Schema.Struct({
   provider: Schema.NullOr(TrimmedNonEmptyString),
   model: Schema.NullOr(TrimmedNonEmptyString),
@@ -94,10 +88,6 @@ export const PiConfig = Schema.Struct({
   models: Schema.Array(PiModel),
   extensions: Schema.Array(PiExtension),
   extensionErrors: Schema.Array(PiExtensionError),
-  /** When false, new sessions skip built-in Glass extension factories (cursor integration remains). */
-  nativeGlassExtensions: Schema.Boolean,
-  /** Last Paper MCP reachability from an active session; null if not probed yet. */
-  paperMcp: Schema.NullOr(PiPaperMcpStatus),
   available: Schema.Array(TrimmedNonEmptyString),
   error: Schema.NullOr(Schema.String),
 });
@@ -136,6 +126,4 @@ export interface PiBridge {
   setApiKey: (provider: string, key: string) => Promise<void>;
   /** Desktop: run Pi OAuth login for a provider (opens browser / prompts as needed). */
   startOAuthLogin: (provider: string) => Promise<void>;
-  /** Desktop: enable or disable built-in Glass extension factories for new sessions. */
-  setNativeGlassExtensions: (enabled: boolean) => Promise<void>;
 }

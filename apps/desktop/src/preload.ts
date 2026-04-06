@@ -52,7 +52,6 @@ const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
 const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
-const PI_SET_NATIVE_GLASS_EXT_CHANNEL = "glass:pi.set-native-glass-extensions";
 const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
 const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
 const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
@@ -106,8 +105,6 @@ const piBridge = {
   getApiKey: (provider: string) => ipcRenderer.invoke(PI_GET_API_KEY_CHANNEL, provider),
   setApiKey: (provider: string, key: string) =>
     ipcRenderer.invoke(PI_SET_API_KEY_CHANNEL, provider, key),
-  setNativeGlassExtensions: (enabled: boolean) =>
-    ipcRenderer.invoke(PI_SET_NATIVE_GLASS_EXT_CHANNEL, enabled),
   startOAuthLogin: (provider: string) => ipcRenderer.invoke(PI_START_OAUTH_LOGIN_CHANNEL, provider),
 };
 

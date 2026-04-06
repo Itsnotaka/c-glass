@@ -21,6 +21,7 @@ import type {
   DesktopTheme,
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
+  PiAskReply,
   PiPromptInput,
   DesktopUpdateState,
   PiSessionActiveEvent,
@@ -32,15 +33,15 @@ import { RotatingFileSink } from "@glass/shared/logging";
 import { showDesktopConfirmDialog } from "./confirmDialog";
 import {
   EXT_UI_COMPOSER_DRAFT_CHANNEL,
+  EXT_UI_NOTIFY_CHANNEL,
   EXT_UI_REPLY_CHANNEL,
-  ExtUiBridge,
+  EXT_UI_REQUEST_CHANNEL,
+  EXT_UI_SET_EDITOR_CHANNEL,
   type ExtUiReply,
 } from "./ext-ui-bridge";
-import { AskHub } from "./glass-ext/ask";
-import { registerPaperMcpBootRefresh } from "./glass-ext/paper-mcp-status";
 import { GitService } from "./git-service";
 import { PiConfigService } from "./pi-config-service";
-import { PiSessionService } from "./pi-session-service";
+import { PiRuntimeService } from "./pi-runtime/pi-runtime-service";
 import { ShellService } from "./shell-service";
 import { probeSign } from "./sign";
 import { syncShellEnvironment } from "./syncShellEnvironment";
@@ -96,7 +97,6 @@ const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
 const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
-const PI_SET_NATIVE_GLASS_EXT_CHANNEL = "glass:pi.set-native-glass-extensions";
 const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
 const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
 const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
@@ -147,6 +147,9 @@ let desktopLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
 let removeSessionEvents: (() => void) | null = null;
 let removeAskEvents: (() => void) | null = null;
+let removeUiReqEvents: (() => void) | null = null;
+let removeUiNotifyEvents: (() => void) | null = null;
+let removeUiSetEditorEvents: (() => void) | null = null;
 let removeGitEvents: (() => void) | null = null;
 let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -156,8 +159,6 @@ const watchedSessions = new Map<number, string>();
 const watchedSenders = new Set<number>();
 
 const pi = new PiConfigService();
-const extUi = new ExtUiBridge();
-const ask = new AskHub();
 
 let oauthPromptResolve: ((value: string) => void) | null = null;
 
@@ -167,7 +168,7 @@ function oauthPromptReplyHandler(_event: Electron.IpcMainEvent, value: unknown) 
   oauthPromptResolve = null;
 }
 const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
-const sessionService = new PiSessionService(pi, shellService, extUi, ask);
+const sessionService = new PiRuntimeService(shellService);
 const gitService = new GitService();
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
@@ -1118,16 +1119,36 @@ function emitGlassBootRefresh() {
 }
 
 function registerIpcHandlers(): void {
-  registerPaperMcpBootRefresh(emitGlassBootRefresh);
   removeSessionEvents?.();
   removeSessionEvents = sessionService.listen((event) => {
     emitSessionEvent(event);
   });
   removeAskEvents?.();
-  removeAskEvents = ask.listen((event) => {
+  removeAskEvents = sessionService.listenAsk((event) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (window.isDestroyed()) continue;
       window.webContents.send(SESSION_ASK_CHANNEL, event);
+    }
+  });
+  removeUiReqEvents?.();
+  removeUiReqEvents = sessionService.listenUiRequest((req) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(EXT_UI_REQUEST_CHANNEL, req);
+    }
+  });
+  removeUiNotifyEvents?.();
+  removeUiNotifyEvents = sessionService.listenUiNotify((item) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(EXT_UI_NOTIFY_CHANNEL, item);
+    }
+  });
+  removeUiSetEditorEvents?.();
+  removeUiSetEditorEvents = sessionService.listenUiSetEditor((item) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(EXT_UI_SET_EDITOR_CHANNEL, item.text);
     }
   });
   removeGitEvents?.();
@@ -1323,7 +1344,7 @@ function registerIpcHandlers(): void {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
       throw new Error("Missing session id");
     }
-    return ask.read(sessionId);
+    return sessionService.readAsk(sessionId);
   });
 
   ipcMain.removeHandler(SESSION_ANSWER_ASK_CHANNEL);
@@ -1334,7 +1355,7 @@ function registerIpcHandlers(): void {
     if (!reply || typeof reply !== "object") {
       throw new Error("Missing ask reply");
     }
-    ask.answer(sessionId, reply as Parameters<typeof ask.answer>[1]);
+    await Effect.runPromise(sessionService.answerAsk(sessionId, reply as PiAskReply));
   });
 
   ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
@@ -1450,13 +1471,6 @@ function registerIpcHandlers(): void {
     emitGlassBootRefresh();
   });
 
-  ipcMain.removeHandler(PI_SET_NATIVE_GLASS_EXT_CHANNEL);
-  ipcMain.handle(PI_SET_NATIVE_GLASS_EXT_CHANNEL, async (_event, enabled: unknown) => {
-    if (typeof enabled !== "boolean") throw new Error("Invalid native extensions flag");
-    await Effect.runPromise(pi.setNativeGlassExtensionsEnabled(enabled));
-    emitGlassBootRefresh();
-  });
-
   ipcMain.removeListener(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
   ipcMain.on(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
 
@@ -1464,13 +1478,13 @@ function registerIpcHandlers(): void {
   ipcMain.on(EXT_UI_REPLY_CHANNEL, (_event, data: ExtUiReply) => {
     if (!data || typeof data !== "object") return;
     if (typeof data.id !== "string" || !data.id) return;
-    extUi.reply(data);
+    void Effect.runPromise(sessionService.replyUi(data));
   });
 
   ipcMain.removeAllListeners(EXT_UI_COMPOSER_DRAFT_CHANNEL);
   ipcMain.on(EXT_UI_COMPOSER_DRAFT_CHANNEL, (_event, text: unknown) => {
     if (typeof text !== "string") return;
-    extUi.setComposerDraft(text);
+    sessionService.setComposerDraft(text);
   });
 
   ipcMain.removeHandler(PI_START_OAUTH_LOGIN_CHANNEL);
@@ -1532,6 +1546,7 @@ function registerIpcHandlers(): void {
     if (next) {
       await pi.init(next.cwd);
       clearAllWatchedSessions();
+      sessionService.dispose();
       const state = await Effect.runPromise(gitService.refresh(next.cwd));
       restartGitWatch(state.gitRoot);
       emitGlassBootRefresh();
@@ -1545,6 +1560,7 @@ function registerIpcHandlers(): void {
       throw new Error("Missing cwd");
     }
     clearAllWatchedSessions();
+    sessionService.dispose();
     const next = await Effect.runPromise(shellService.setWorkspace(cwd));
     await pi.init(next.cwd);
     const state = await Effect.runPromise(gitService.refresh(next.cwd));
@@ -1820,6 +1836,14 @@ app.on("before-quit", () => {
   removeGitEvents = null;
   removeSessionEvents?.();
   removeSessionEvents = null;
+  removeAskEvents?.();
+  removeAskEvents = null;
+  removeUiReqEvents?.();
+  removeUiReqEvents = null;
+  removeUiNotifyEvents?.();
+  removeUiNotifyEvents = null;
+  removeUiSetEditorEvents?.();
+  removeUiSetEditorEvents = null;
   sessionService.dispose();
   restoreStdIoCapture?.();
 });
@@ -1864,6 +1888,14 @@ if (process.platform !== "win32") {
     removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
+    removeAskEvents?.();
+    removeAskEvents = null;
+    removeUiReqEvents?.();
+    removeUiReqEvents = null;
+    removeUiNotifyEvents?.();
+    removeUiNotifyEvents = null;
+    removeUiSetEditorEvents?.();
+    removeUiSetEditorEvents = null;
     sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();
@@ -1880,6 +1912,14 @@ if (process.platform !== "win32") {
     removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
+    removeAskEvents?.();
+    removeAskEvents = null;
+    removeUiReqEvents?.();
+    removeUiReqEvents = null;
+    removeUiNotifyEvents?.();
+    removeUiNotifyEvents = null;
+    removeUiSetEditorEvents?.();
+    removeUiSetEditorEvents = null;
     sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();

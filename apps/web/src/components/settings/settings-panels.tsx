@@ -683,7 +683,6 @@ function scopeLabel(scope: PiConfig["extensions"][number]["scope"]) {
 export function ExtensionsSettingsPanel() {
   const cfg = usePiCfg();
   const status = usePiCfgStatus();
-  const refreshCfg = usePiStore((state) => state.refreshCfg);
   const exts = useMemo(
     () =>
       cfg?.extensions.toSorted(
@@ -708,28 +707,12 @@ export function ExtensionsSettingsPanel() {
         Extensions
       </h1>
       <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
-        Built-in global extensions Glass loads natively.
+        Extensions Pi discovers from the workspace and user agent directories.
       </p>
       <SettingsSection label="Discovery">
         <SettingsRow
-          label="Pi Glass native extensions"
-          description="When on, new chat sessions load built-in Glass tools and lifecycle hooks (Paper MCP, Ask, web search, and others). Cursor integration stays available when this is off."
-          control={
-            <Switch
-              checked={cfg?.nativeGlassExtensions ?? true}
-              disabled={status === "loading"}
-              onCheckedChange={(next) => {
-                void getGlass()
-                  .pi.setNativeGlassExtensions(next)
-                  .then(() => refreshCfg())
-                  .catch(() => {});
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label="Future layer"
-          description="Workspace `.pi/extensions` and user `~/.pi/agent/extensions` folders remain visible for reference, but Glass does not execute them yet."
+          label="Sources"
+          description="Glass now follows Pi's standard extension discovery. Workspace `.pi/extensions` and user `~/.pi/agent/extensions` folders are loaded directly by the runtime."
         />
       </SettingsSection>
       <SettingsSection label="Loaded">
@@ -738,23 +721,18 @@ export function ExtensionsSettingsPanel() {
         ) : status === "error" ? (
           <div className="py-3 text-muted-foreground text-body">Unable to load extensions.</div>
         ) : exts.length === 0 ? (
-          <div className="py-3 text-muted-foreground text-body">
-            No native Glass extensions registered.
-          </div>
+          <div className="py-3 text-muted-foreground text-body">No extensions discovered.</div>
         ) : (
           <ul className="space-y-2 py-3">
             {exts.map((item) => {
               const isPaper = item.path === "glass://paper-mcp";
-              const nativeOn = cfg?.nativeGlassExtensions ?? true;
               const pm = cfg?.paperMcp;
               const paperLine = isPaper
-                ? !nativeOn
-                  ? "Native extensions are off — enable Pi Glass native extensions to use Paper MCP."
-                  : pm == null
-                    ? "Start a chat session to check Paper Desktop."
-                    : pm.ok
-                      ? "Connected to Paper Desktop."
-                      : (pm.detail ?? "Paper MCP unavailable.")
+                ? pm == null
+                  ? "Start a chat session to check Paper Desktop."
+                  : pm.ok
+                    ? "Connected to Paper Desktop."
+                    : (pm.detail ?? "Paper MCP unavailable.")
                 : null;
               return (
                 <li
