@@ -98,10 +98,16 @@ export function applyColorPalette() {
   emit();
 }
 
-function syncVibrancy(reduce: boolean) {
+function wantsOsVibrancy() {
+  if (getColorPalette() !== "glass") return false;
+  if (localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1") return false;
+  return true;
+}
+
+function syncVibrancy() {
   const bridge = readGlass();
   if (!bridge) return;
-  void bridge.desktop.setVibrancy(!reduce);
+  void bridge.desktop.setVibrancy(wantsOsVibrancy());
 }
 
 export function applyGlassAppearance() {
@@ -117,7 +123,6 @@ export function applyGlassAppearance() {
   root.classList.toggle("glass-reduce-transparency", reduce);
   root.classList.remove("glass-hide-email");
   root.style.setProperty("--glass-transparency", String(transparency));
-  syncVibrancy(reduce);
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
   const codePx = parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18);
@@ -139,6 +144,7 @@ export function applyGlassAppearance() {
   }
 
   applyColorPalette();
+  syncVibrancy();
 }
 
 export function resetGlassAppearance() {
