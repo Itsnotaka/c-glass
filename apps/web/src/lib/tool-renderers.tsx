@@ -1,12 +1,7 @@
 import type { PiToolCallBlock } from "@glass/contracts";
 import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
 import { memo } from "react";
-import { Streamdown } from "streamdown";
-import {
-  chatStreamdownControls,
-  chatStreamdownPlugins,
-  chatStreamdownShikiTheme,
-} from "./chat-streamdown";
+import { ChatMarkdown } from "./chat-markdown";
 import { cn } from "./utils";
 
 interface ToolData {
@@ -305,18 +300,7 @@ function isPlainToolLang(lang: string | undefined) {
 
 const CodeRaw = memo(function CodeRaw(props: { text: string; lang?: string }) {
   if (!props.text.trim()) return null;
-  return (
-    <Streamdown
-      className="font-glass-mono chat-markdown text-detail/[1.4] text-foreground"
-      controls={chatStreamdownControls}
-      dir="auto"
-      lineNumbers={false}
-      plugins={chatStreamdownPlugins}
-      shikiTheme={chatStreamdownShikiTheme}
-    >
-      {fenced(props.text, props.lang ?? "")}
-    </Streamdown>
-  );
+  return <ChatMarkdown variant="tool">{fenced(props.text, props.lang ?? "")}</ChatMarkdown>;
 });
 
 const Code = memo(function Code(props: { text: string; lang?: string; error?: boolean }) {

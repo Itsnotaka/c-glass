@@ -571,7 +571,7 @@ const createBuildConfig = Effect.fn("createBuildConfig")(function* (
 
   if (platform === "mac") {
     buildConfig.mac = {
-      target: target === "dmg" ? [target, "zip"] : [target],
+      target: [target],
       icon: "icon.icns",
       category: "public.app-category.developer-tools",
     };

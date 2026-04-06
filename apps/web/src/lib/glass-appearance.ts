@@ -3,6 +3,9 @@ import { ALL_PRESET_VAR_KEYS, PIERRE_DARK_VARS, PIERRE_LIGHT_VARS } from "./pier
 
 export const STORAGE_COLOR_PALETTE = "glass:color-preset";
 export const STORAGE_REDUCE_TRANSPARENCY = "glass:reduce-transparency";
+export const STORAGE_WINDOW_TRANSPARENCY = "glass:window-transparency";
+export const STORAGE_TINT_HUE = "glass:accent-hue";
+export const STORAGE_TINT_SATURATION = "glass:accent-saturation";
 export const STORAGE_UI_FONT_SIZE = "glass:ui-font-size";
 export const STORAGE_CODE_FONT_SIZE = "glass:code-font-size";
 export const STORAGE_UI_FONT = "glass:ui-font";
@@ -16,6 +19,10 @@ let listeners: Array<() => void> = [];
 const keys = new Set([
   STORAGE_COLOR_PALETTE,
   STORAGE_REDUCE_TRANSPARENCY,
+  STORAGE_WINDOW_TRANSPARENCY,
+  STORAGE_TINT_HUE,
+  STORAGE_TINT_SATURATION,
+  "glass:accent-intensity",
   STORAGE_UI_FONT_SIZE,
   STORAGE_CODE_FONT_SIZE,
   STORAGE_UI_FONT,
@@ -51,6 +58,12 @@ function parseIntStored(raw: string | null, fallback: number, min: number, max: 
   return Math.min(max, Math.max(min, n));
 }
 
+function readTintSaturation() {
+  const raw =
+    localStorage.getItem(STORAGE_TINT_SATURATION) ?? localStorage.getItem("glass:accent-intensity");
+  return parseIntStored(raw, 33, 0, 100);
+}
+
 export function getColorPalette(): ColorPaletteId {
   const raw = localStorage.getItem(STORAGE_COLOR_PALETTE);
   if (raw === "pierre") return "pierre";
@@ -60,6 +73,8 @@ export function getColorPalette(): ColorPaletteId {
 export function applyColorPalette() {
   const root = document.documentElement;
   const preset = getColorPalette();
+  const hue = parseIntStored(localStorage.getItem(STORAGE_TINT_HUE), 255, 0, 360);
+  const saturation = readTintSaturation();
 
   if (preset === "pierre") {
     const map = root.classList.contains("dark") ? PIERRE_DARK_VARS : PIERRE_LIGHT_VARS;
@@ -78,8 +93,8 @@ export function applyColorPalette() {
   for (const k of ALL_PRESET_VAR_KEYS) {
     root.style.removeProperty(k);
   }
-  root.style.removeProperty("--glass-user-hue");
-  root.style.removeProperty("--glass-intensity");
+  root.style.setProperty("--glass-user-hue", String(hue));
+  root.style.setProperty("--glass-intensity", String(saturation));
   emit();
 }
 
@@ -93,8 +108,15 @@ export function applyGlassAppearance() {
   const root = document.documentElement;
 
   const reduce = localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1";
+  const transparency = parseIntStored(
+    localStorage.getItem(STORAGE_WINDOW_TRANSPARENCY),
+    18,
+    0,
+    100,
+  );
   root.classList.toggle("glass-reduce-transparency", reduce);
   root.classList.remove("glass-hide-email");
+  root.style.setProperty("--glass-transparency", String(transparency));
   syncVibrancy(reduce);
 
   const uiPx = parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16);
@@ -121,7 +143,9 @@ export function applyGlassAppearance() {
 
 export function resetGlassAppearance() {
   localStorage.removeItem(STORAGE_COLOR_PALETTE);
-  localStorage.removeItem("glass:accent-hue");
+  localStorage.removeItem(STORAGE_WINDOW_TRANSPARENCY);
+  localStorage.removeItem(STORAGE_TINT_HUE);
+  localStorage.removeItem(STORAGE_TINT_SATURATION);
   localStorage.removeItem("glass:accent-intensity");
   localStorage.removeItem(STORAGE_REDUCE_TRANSPARENCY);
   localStorage.removeItem(STORAGE_UI_FONT_SIZE);
@@ -139,6 +163,21 @@ export function setColorPalette(next: ColorPaletteId) {
 
 export function setReduceTransparency(on: boolean) {
   localStorage.setItem(STORAGE_REDUCE_TRANSPARENCY, on ? "1" : "0");
+  applyGlassAppearance();
+}
+
+export function setWindowTransparency(value: number) {
+  localStorage.setItem(STORAGE_WINDOW_TRANSPARENCY, String(Math.min(100, Math.max(0, value))));
+  applyGlassAppearance();
+}
+
+export function setTintHue(value: number) {
+  localStorage.setItem(STORAGE_TINT_HUE, String(Math.min(360, Math.max(0, value))));
+  applyGlassAppearance();
+}
+
+export function setTintSaturation(value: number) {
+  localStorage.setItem(STORAGE_TINT_SATURATION, String(Math.min(100, Math.max(0, value))));
   applyGlassAppearance();
 }
 
@@ -173,6 +212,9 @@ export function setCodeFontFamily(css: string) {
 type GlassAppearanceSnapshot = {
   readonly palette: ColorPaletteId;
   readonly reduceTransparency: boolean;
+  readonly transparency: number;
+  readonly hue: number;
+  readonly saturation: number;
   readonly uiFontSize: number;
   readonly codeFontSize: number;
   readonly uiFont: string;
@@ -183,6 +225,9 @@ function buildSnapshot(): GlassAppearanceSnapshot {
   return {
     palette: getColorPalette(),
     reduceTransparency: localStorage.getItem(STORAGE_REDUCE_TRANSPARENCY) === "1",
+    transparency: parseIntStored(localStorage.getItem(STORAGE_WINDOW_TRANSPARENCY), 18, 0, 100),
+    hue: parseIntStored(localStorage.getItem(STORAGE_TINT_HUE), 255, 0, 360),
+    saturation: readTintSaturation(),
     uiFontSize: parseIntStored(localStorage.getItem(STORAGE_UI_FONT_SIZE), 13, 11, 16),
     codeFontSize: parseIntStored(localStorage.getItem(STORAGE_CODE_FONT_SIZE), 12, 10, 18),
     uiFont: localStorage.getItem(STORAGE_UI_FONT)?.trim() ?? "",
@@ -198,6 +243,9 @@ export function readGlassAppearanceSnapshot() {
     cached &&
     cached.palette === next.palette &&
     cached.reduceTransparency === next.reduceTransparency &&
+    cached.transparency === next.transparency &&
+    cached.hue === next.hue &&
+    cached.saturation === next.saturation &&
     cached.uiFontSize === next.uiFontSize &&
     cached.codeFontSize === next.codeFontSize &&
     cached.uiFont === next.uiFont &&

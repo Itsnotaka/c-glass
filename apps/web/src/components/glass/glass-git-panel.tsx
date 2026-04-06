@@ -96,7 +96,7 @@ interface FileRowProps {
   onRevert: () => void;
 }
 
-const FileRow = memo(function FileRow(props: FileRowProps) {
+export const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps) {
   const { prefix, name } = split(props.file.path);
 
   return (
@@ -163,7 +163,7 @@ interface GroupHeaderProps {
   onToggle: () => void;
 }
 
-const GroupHeader = memo(function GroupHeader(props: GroupHeaderProps) {
+export const GlassGitGroupHeader = memo(function GlassGitGroupHeader(props: GroupHeaderProps) {
   return (
     <button
       type="button"
@@ -214,7 +214,7 @@ function FileTree(props: TreeProps) {
       {props.groups.map((grp) => (
         <div key={grp.dir} className="isolate">
           {!flat && (
-            <GroupHeader
+            <GlassGitGroupHeader
               dir={grp.dir || "."}
               count={grp.files.length}
               open={open.has(grp.dir)}
@@ -224,7 +224,7 @@ function FileTree(props: TreeProps) {
           {(flat || open.has(grp.dir)) && (
             <div className={cn("flex flex-col gap-1", !flat && "pl-[18px]")}>
               {grp.files.map((file) => (
-                <FileRow
+                <GlassGitFileRow
                   key={file.id}
                   file={file}
                   selected={props.selected === file.id}

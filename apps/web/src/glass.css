@@ -31,37 +31,78 @@
   --glass-composer-icon-size: var(--glass-composer-icon-size-user, 1rem);
   --glass-user-hue: 255;
   --glass-intensity: 33;
-  /* Neutral panel like Cursor: slightly cooler than chat/editor; hue/intensity from Appearance when palette is Glass */
-  --glass-color-sidebar: oklch(
+  --glass-transparency: 18;
+  --glass-sidebar-opacity: calc((84 - var(--glass-transparency, 18) * 0.32) * 1%);
+  --glass-chat-opacity: calc((92 - var(--glass-transparency, 18) * 0.24) * 1%);
+  --glass-editor-opacity: calc((95 - var(--glass-transparency, 18) * 0.2) * 1%);
+  --glass-surface-opacity: calc((88 - var(--glass-transparency, 18) * 0.28) * 1%);
+  --glass-elevated-opacity: calc((86 - var(--glass-transparency, 18) * 0.24) * 1%);
+  --glass-bubble-opacity: calc((92 - var(--glass-transparency, 18) * 0.16) * 1%);
+  --glass-menubar-opacity: calc((88 - var(--glass-transparency, 18) * 0.3) * 1%);
+  /* Neutral panel like Cursor: slightly cooler than chat/editor; hue/saturation from Appearance when palette is Glass */
+  --glass-base-sidebar: oklch(
     0.965 calc(0.006 + var(--glass-intensity, 33) / 100 * 0.012) var(--glass-user-hue, 255)
   );
-  --glass-color-chat: color-mix(
+  --glass-base-chat: color-mix(
     in srgb,
     var(--color-white) 90%,
     oklch(0.96 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.02) var(--glass-user-hue, 255))
   );
-  --glass-color-editor: color-mix(
+  --glass-base-editor: color-mix(
     in srgb,
     var(--color-white) 97%,
     oklch(0.97 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.015) var(--glass-user-hue, 255))
   );
-  --glass-color-surface: color-mix(
+  --glass-base-surface: color-mix(
     in srgb,
     var(--color-white) 94%,
     oklch(0.96 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.018) var(--glass-user-hue, 255))
   );
-  --glass-color-elevated: color-mix(
+  --glass-base-elevated: color-mix(
     in srgb,
     var(--color-white) 84%,
     oklch(0.94 calc(0.01 + var(--glass-intensity, 33) / 100 * 0.025) var(--glass-user-hue, 255))
   );
-  --glass-color-bubble: color-mix(in srgb, var(--glass-color-elevated) 88%, transparent);
+  --glass-color-sidebar: color-mix(
+    in srgb,
+    var(--glass-base-sidebar) var(--glass-sidebar-opacity),
+    transparent
+  );
+  --glass-color-chat: color-mix(
+    in srgb,
+    var(--glass-base-chat) var(--glass-chat-opacity),
+    transparent
+  );
+  --glass-color-editor: color-mix(
+    in srgb,
+    var(--glass-base-editor) var(--glass-editor-opacity),
+    transparent
+  );
+  --glass-color-surface: color-mix(
+    in srgb,
+    var(--glass-base-surface) var(--glass-surface-opacity),
+    transparent
+  );
+  --glass-color-elevated: color-mix(
+    in srgb,
+    var(--glass-base-elevated) var(--glass-elevated-opacity),
+    transparent
+  );
+  --glass-color-bubble: color-mix(
+    in srgb,
+    var(--glass-base-elevated) var(--glass-bubble-opacity),
+    transparent
+  );
   --glass-color-bubble-opaque: color-mix(
     in srgb,
-    var(--glass-color-elevated) 94%,
+    var(--glass-base-elevated) 94%,
     var(--background)
   );
-  --glass-color-menubar: color-mix(in srgb, var(--glass-color-editor) 82%, transparent);
+  --glass-color-menubar: color-mix(
+    in srgb,
+    var(--glass-base-editor) var(--glass-menubar-opacity),
+    transparent
+  );
   --glass-color-border: color-mix(in srgb, var(--color-black) 10%, transparent);
   --glass-color-stroke: color-mix(in srgb, var(--glass-color-border) 88%, transparent);
   --glass-color-stroke-tertiary: color-mix(in srgb, var(--glass-color-border) 94%, transparent);
@@ -76,8 +117,8 @@
   --glass-shadow-popup: 0 16px 48px rgb(0 0 0 / 0.18);
   --glass-shell-blur: 28px;
   --glass-shell-saturate: 160%;
-  --glass-shell-sidebar-bg: color-mix(in srgb, var(--glass-color-sidebar) 72%, transparent);
-  --glass-shell-surface-bg: color-mix(in srgb, var(--glass-color-surface) 78%, transparent);
+  --glass-shell-sidebar-bg: var(--glass-color-sidebar);
+  --glass-shell-surface-bg: var(--glass-color-surface);
 }
 
 [data-electron] {
@@ -107,16 +148,15 @@
 }
 
 .dark {
-  --glass-color-sidebar: color-mix(
+  --glass-base-sidebar: color-mix(
     in srgb,
     var(--background) 90%,
     oklch(0.35 calc(0.03 + var(--glass-intensity, 33) / 100 * 0.04) var(--glass-user-hue, 255)) 10%
   );
-  --glass-color-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
-  --glass-color-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
-  --glass-color-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);
-  --glass-color-elevated: color-mix(in srgb, var(--background) 84%, var(--color-white) 12%);
-  --glass-color-menubar: color-mix(in srgb, var(--glass-color-editor) 80%, transparent);
+  --glass-base-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
+  --glass-base-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
+  --glass-base-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);
+  --glass-base-elevated: color-mix(in srgb, var(--background) 84%, var(--color-white) 12%);
   --glass-color-border: color-mix(in srgb, var(--color-white) 10%, transparent);
   --glass-color-hover: color-mix(in srgb, var(--color-white) 6%, transparent);
   --glass-color-active: color-mix(in srgb, var(--color-white) 10%, transparent);
@@ -124,6 +164,13 @@
 }
 
 html.glass-reduce-transparency {
+  --glass-sidebar-opacity: 100%;
+  --glass-chat-opacity: 100%;
+  --glass-editor-opacity: 100%;
+  --glass-surface-opacity: 100%;
+  --glass-elevated-opacity: 100%;
+  --glass-bubble-opacity: 100%;
+  --glass-menubar-opacity: 100%;
   --glass-color-bubble: var(--glass-color-bubble-opaque);
   --glass-color-menubar: var(--glass-color-editor);
   --glass-shell-blur: 0px;

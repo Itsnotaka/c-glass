@@ -885,18 +885,24 @@ function configureAutoUpdater(): void {
 
   const githubToken =
     process.env.GLASS_DESKTOP_UPDATE_GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || "";
-  if (githubToken) {
-    // When a token is provided, re-configure the feed with `private: true` so
-    // electron-updater uses the GitHub API (api.github.com) instead of the
-    // public Atom feed (github.com/…/releases.atom) which rejects Bearer auth.
-    const appUpdateYml = readAppUpdateYml();
-    if (appUpdateYml?.provider === "github") {
+  const appUpdateYml = readAppUpdateYml();
+  if (appUpdateYml?.provider === "github") {
+    if (githubToken) {
+      // When a token is provided, re-configure the feed with `private: true` so
+      // electron-updater uses the GitHub API (api.github.com) instead of the
+      // public Atom feed (github.com/…/releases.atom) which rejects Bearer auth.
       autoUpdater.setFeedURL({
         ...appUpdateYml,
         provider: "github" as const,
         private: true,
         token: githubToken,
       });
+    } else {
+      // Warn that private repos require a token - the default Atom feed will 404
+      console.warn(
+        "[desktop-updater] No GLASS_DESKTOP_UPDATE_GITHUB_TOKEN or GH_TOKEN provided. " +
+          "Updates may fail if the repository is private.",
+      );
     }
   }
 
@@ -904,6 +910,16 @@ function configureAutoUpdater(): void {
     autoUpdater.setFeedURL({
       provider: "generic",
       url: `http://localhost:${process.env.GLASS_DESKTOP_MOCK_UPDATE_SERVER_PORT ?? 3000}`,
+    });
+  }
+
+  // Runtime override: GLASS_DESKTOP_UPDATE_URL can point to any generic server
+  const runtimeUpdateUrl = process.env.GLASS_DESKTOP_UPDATE_URL?.trim();
+  if (runtimeUpdateUrl) {
+    console.info(`[desktop-updater] Using runtime update URL: ${runtimeUpdateUrl}`);
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: runtimeUpdateUrl,
     });
   }
 
@@ -943,17 +959,25 @@ function configureAutoUpdater(): void {
   });
   autoUpdater.on("error", (error) => {
     const message = formatErrorMessage(error);
+    const isPrivateRepo404 =
+      message.includes("404") &&
+      message.includes("releases.atom") &&
+      !process.env.GLASS_DESKTOP_UPDATE_GITHUB_TOKEN;
+    const displayMessage = isPrivateRepo404
+      ? "Update check failed: Private repository requires GLASS_DESKTOP_UPDATE_GITHUB_TOKEN"
+      : message;
+
     if (updateInstallInFlight) {
       updateInstallInFlight = false;
       isQuitting = false;
-      setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, message));
+      setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, displayMessage));
       console.error(`[desktop-updater] Updater error: ${message}`);
       return;
     }
     if (!updateCheckInFlight && !updateDownloadInFlight) {
       setUpdateState({
         status: "error",
-        message,
+        message: displayMessage,
         checkedAt: new Date().toISOString(),
         downloadPercent: null,
         errorContext: resolveUpdaterErrorContext(),

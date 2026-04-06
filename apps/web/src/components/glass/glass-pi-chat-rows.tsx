@@ -14,14 +14,13 @@ import {
 } from "central-icons";
 import React from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Streamdown } from "streamdown";
-import {
-  chatStreamdownControls,
-  chatStreamdownPlugins,
-  chatStreamdownShikiTheme,
-} from "../../lib/chat-streamdown";
+import { ChatMarkdown } from "../../lib/chat-markdown";
 import { useGlassDiffStylePreference } from "../../hooks/use-glass-git";
 import { useTheme } from "../../hooks/use-theme";
+import {
+  glassUserAttachmentFileRow,
+  glassUserAttachmentImageCard,
+} from "../../lib/glass-attachment-styles";
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
 import { VsFileIcon } from "../../lib/vscode-file-icon";
 import {
@@ -157,7 +156,7 @@ function draw(row: PiRow, expanded: boolean) {
 const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachment }) {
   if (props.item.kind === "image") {
     return (
-      <div className="w-full overflow-hidden rounded-2xl border border-glass-border/45 bg-glass-bubble/70 shadow-glass-card backdrop-blur-sm sm:w-52">
+      <div className={glassUserAttachmentImageCard}>
         {props.item.data ? (
           <img
             alt={props.item.name}
@@ -184,7 +183,7 @@ const AttachmentTile = memo(function AttachmentTile(props: { item: PiUserAttachm
   }
 
   return (
-    <div className="flex min-w-44 max-w-full items-start gap-2 rounded-2xl border border-glass-border/45 bg-glass-bubble/70 px-3 py-2 text-left shadow-glass-card backdrop-blur-sm sm:max-w-72">
+    <div className={glassUserAttachmentFileRow}>
       <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-glass-card bg-glass-hover/25 text-muted-foreground/75">
         <IconFileBend className="size-4.5" />
       </span>
@@ -266,16 +265,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
 const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   return (
     <li className="min-w-0 py-1">
-      <Streamdown
-        className="font-glass chat-markdown text-body/5 text-foreground"
-        controls={chatStreamdownControls}
-        dir="auto"
-        lineNumbers={false}
-        plugins={chatStreamdownPlugins}
-        shikiTheme={chatStreamdownShikiTheme}
-      >
-        {props.text}
-      </Streamdown>
+      <ChatMarkdown>{props.text}</ChatMarkdown>
     </li>
   );
 });
@@ -1035,32 +1025,10 @@ const TextCard = memo(function TextCard(props: {
           </div>
         );
       } catch {
-        return (
-          <Streamdown
-            className="font-glass chat-markdown text-body/5 text-foreground"
-            controls={chatStreamdownControls}
-            dir="auto"
-            lineNumbers={false}
-            plugins={chatStreamdownPlugins}
-            shikiTheme={chatStreamdownShikiTheme}
-          >
-            {props.text}
-          </Streamdown>
-        );
+        return <ChatMarkdown>{props.text}</ChatMarkdown>;
       }
     }
-    return (
-      <Streamdown
-        className="font-glass chat-markdown text-body/5 text-foreground"
-        controls={chatStreamdownControls}
-        dir="auto"
-        lineNumbers={false}
-        plugins={chatStreamdownPlugins}
-        shikiTheme={chatStreamdownShikiTheme}
-      >
-        {props.text}
-      </Streamdown>
-    );
+    return <ChatMarkdown>{props.text}</ChatMarkdown>;
   }, [props.text]);
 
   return (
@@ -1105,5 +1073,80 @@ const GlassPiLive = memo(function GlassPiLive(props: {
   const rows = useMemo(() => (props.item ? buildPiRows([props.item]) : []), [props.item]);
   return <GlassPiList rows={rows} expanded={props.expanded} />;
 });
+
+/** Dev `/dev/icons`: real transcript chrome that uses `central-icons` in this file. */
+export function GlassPiChatRowsIconStripDemo() {
+  const running: Extract<PiRow, { kind: "tool" }> = {
+    id: "demo-run",
+    kind: "tool",
+    name: "read",
+    args: '{"path":"x"}',
+    result: "",
+    error: false,
+    call: null,
+    details: null,
+  };
+  const bash: Extract<PiRow, { kind: "bash" }> = {
+    id: "demo-bash",
+    kind: "bash",
+    command: "ls",
+    output: "",
+    code: null,
+    cancelled: false,
+    truncated: false,
+    path: null,
+    exclude: false,
+  };
+  const glob: Extract<PiRow, { kind: "tool" }> = {
+    id: "demo-glob",
+    kind: "tool",
+    name: "glob",
+    args: '{"pattern":"**"}',
+    result: "",
+    error: false,
+    call: null,
+    details: null,
+  };
+  const fileAtt: PiUserAttachment = {
+    kind: "file",
+    name: "a.ts",
+    path: "/a.ts",
+    note: "",
+  };
+  const imgAtt: PiUserAttachment = {
+    kind: "image",
+    name: "b.png",
+    path: null,
+    note: "",
+    mimeType: "image/png",
+  };
+
+  return (
+    <div className="flex max-w-lg flex-col gap-0">
+      <div className="border-b border-border bg-muted/20 px-3 py-2">
+        <span className="inline-flex items-center gap-2 text-detail text-muted-foreground">
+          <ToolSubtitle row={running} />
+          <span>Tool status</span>
+        </span>
+      </div>
+      <ul className="list-none">
+        <ThinkingRow text="Thinking text…" expanded={false} />
+      </ul>
+      <div className="flex flex-wrap justify-end gap-2 border-b border-border px-2 py-2">
+        <AttachmentTile item={fileAtt} />
+        <AttachmentTile item={imgAtt} />
+      </div>
+      <div className="border-b border-border px-2 py-2">
+        <JsonSection label="Output" text='{"a":1}' />
+      </div>
+      <ul className="list-none space-y-1">
+        <AssistantErrorBlock text="Something went wrong" expanded={true} />
+        <BashCard row={bash} expanded={true} />
+        <ToolCard row={glob} expanded={true} />
+        <TextCard label="Results" text='{"x":1}' expanded={true} />
+      </ul>
+    </div>
+  );
+}
 
 export { GlassPiTranscript, GlassPiLive };

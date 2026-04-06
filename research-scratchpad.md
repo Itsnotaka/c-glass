@@ -521,6 +521,32 @@ Cursor uses two layers: `.review-changes-*` (individual file cells) inside `.cha
 
 ---
 
+## Chat markdown (agent / tool output)
+
+Cursor agent chat does **not** ship a separate markdown theme file: it reuses **VS Code interactive session** rules scoped as `.interactive-item-container .value .rendered-markdown` in `workbench.desktop.main.css`, with **VS Code CSS variables** (`--vscode-textLink-foreground`, `--vscode-textCodeBlock-background`, `--vscode-chat-requestBorder`, etc.).
+
+**c-glass canonical stack**
+
+| Piece                                                                                        | Role                                                                                                             |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [`apps/web/src/chat-markdown.css`](apps/web/src/chat-markdown.css)                           | Ported prose + Streamdown `[data-streamdown=*]` overrides (imported from `index.css`).                           |
+| [`apps/web/src/lib/chat-streamdown.ts`](apps/web/src/lib/chat-streamdown.ts)                 | Plugins, controls, Shiki theme pair, **canonical** `chatMarkdownThreadClassName` / `chatMarkdownToolClassName`.  |
+| [`apps/web/src/lib/chat-markdown.tsx`](apps/web/src/lib/chat-markdown.tsx)                   | `ChatMarkdown` wrapper — only supported way to render Streamdown in product UI.                                  |
+| [`scripts/extract-cursor-markdown-css.mjs`](scripts/extract-cursor-markdown-css.mjs)         | Regenerate rule fragments containing `rendered-markdown` after Cursor updates (`CURSOR_WORKBENCH_CSS` optional). |
+| [`apps/web/src/lib/glass-attachment-styles.ts`](apps/web/src/lib/glass-attachment-styles.ts) | **Chat** vs **composer** attachment surfaces (not interchangeable).                                              |
+
+### Composer attachment strip (pending uploads)
+
+Source in `workbench.desktop.main.css`:
+
+- **`.prompt-attachment`** — `display:flex; gap:4px` between chips → c-glass strip uses `glassComposerAttachmentStrip` (`gap-1`).
+- **`.composer-image-thumbnail`** — `border:1px solid var(--vscode-input-border)`; hover: `var(--vscode-focusBorder)` + `box-shadow:0 2px 8px rgba(0,0,0,.15)` → `glassComposerImageThumbnail` (maps to `border-input` / `ring`).
+- **Glass prompt shell** — `body[data-cursor-glass-mode=true] … .ui-prompt-input__container`: `border-radius:12px`, `backdrop-filter:blur(10px)`, `background-color:var(--glass-chat-bubble-background)` — mirrors `GlassPiComposer` shell (`rounded-glass-card`, `backdrop-blur-[10px]`, `bg-glass-bubble`).
+
+**Chat transcript** image/file tiles use **`glassUserAttachmentImageCard` / `glassUserAttachmentFileRow`** (larger bubble cards). **Composer** pending chips use **`glassComposerAttachmentChip`** + thumbnail row — do not reuse chat bubble classes in the composer.
+
+---
+
 ## Removed from this scratchpad
 
 Older content about generic Cursor infra (`product.json` update URLs, full extension matrix, Composer service string dumps) was **dropped** to keep this document **Glass-only**. Reintroduce those sections from git history or regenerate if you need the full-app atlas again.

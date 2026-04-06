@@ -275,6 +275,8 @@ It already supports:
 6. model and thinking-level selection via `PiModelPicker`,
 7. local app commands like `/new` and `/settings`.
 
+**Attachment UI parity:** Cursor’s workbench styles **composer** pending attachments with **`.composer-image-thumbnail`** (input border + hover) and **`.prompt-attachment`** (`gap:4px`), not the same surfaces as **sent** chat bubbles. c-glass maps that in `apps/web/src/lib/glass-attachment-styles.ts` (`glassComposerAttachmentStrip`, `glassComposerImageThumbnail`, `glassComposerAttachmentChip`) and keeps **thread** image/file tiles on `glassUserAttachment*` for the transcript. See `research-scratchpad.md` (Composer attachment strip).
+
 From a product perspective, this component is not the missing piece. The missing piece is the orchestration layer behind it.
 
 ### Settings Flow

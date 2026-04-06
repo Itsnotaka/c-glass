@@ -27,7 +27,7 @@ rounded-[18px]          // 18px - way too big
 rounded-2xl             // 16px - too big
 
 // glass-pi-composer.tsx
-rounded-2xl             // 16px for attachment chip
+rounded-glass-control   // 6px for pending attachment chips (Cursor composer-image-thumbnail row)
 rounded-[14px]          // 14px for drop overlay
 ```
 

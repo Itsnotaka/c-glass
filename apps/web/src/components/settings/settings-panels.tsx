@@ -1,5 +1,5 @@
 import type { PiConfig } from "@glass/contracts";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { IconArrowRotateCounterClockwise } from "central-icons";
 
 import { useGlassAppearance } from "../../hooks/use-glass-appearance";
@@ -23,8 +23,11 @@ import {
   setCodeFontSize,
   setColorPalette,
   setReduceTransparency,
+  setTintHue,
+  setTintSaturation,
   setUiFontFamily,
   setUiFontSize,
+  setWindowTransparency,
 } from "../../lib/glass-appearance";
 import { usePiCfg, usePiCfgStatus, usePiStore } from "../../lib/pi-session-store";
 import { cn } from "../../lib/utils";
@@ -36,6 +39,7 @@ import { GlassOpenPicker } from "../glass/glass-open-picker";
 import { PiModelPicker } from "../glass/pi-model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+type Vars = CSSProperties & Record<`--${string}`, string>;
 
 function SettingsSection(props: { label: string; children: ReactNode }) {
   return (
@@ -105,9 +109,104 @@ function FontInput(props: {
   );
 }
 
+function scale(value: number, min: number, max: number) {
+  if (max <= min) return 0;
+  return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+}
+
+function ToneSlider(props: {
+  value: number;
+  min: number;
+  max: number;
+  track: string;
+  suffix?: string;
+  disabled?: boolean;
+  label: string;
+  onChange: (value: number) => void;
+}) {
+  const left = scale(props.value, props.min, props.max);
+
+  return (
+    <div className={cn("flex min-w-[16rem] items-center gap-3", props.disabled && "opacity-50")}>
+      <div className="relative h-11 min-w-[14rem] flex-1 rounded-full focus-within:ring-2 focus-within:ring-ring/70">
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full border border-glass-stroke/60 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-white)_18%,transparent)]"
+          style={{ background: props.track }}
+        />
+        <div
+          aria-hidden
+          className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-glass-border/60 bg-background shadow-[0_6px_18px_rgb(0_0_0_/_0.16)]"
+          style={{ left: `${left}%` }}
+        />
+        <input
+          type="range"
+          min={props.min}
+          max={props.max}
+          step={1}
+          value={props.value}
+          disabled={props.disabled}
+          aria-label={props.label}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          onChange={(event) => props.onChange(Number(event.target.value))}
+        />
+      </div>
+      <span className="min-w-11 text-right font-medium tabular-nums text-body text-foreground">
+        {props.value}
+        {props.suffix ?? ""}
+      </span>
+    </div>
+  );
+}
+
+function TintPreview(props: {
+  palette: ColorPaletteId;
+  transparency: number;
+  hue: number;
+  saturation: number;
+}) {
+  const style: Vars = {
+    "--glass-transparency": String(props.transparency),
+  };
+
+  if (props.palette === "glass") {
+    style["--glass-user-hue"] = String(props.hue);
+    style["--glass-intensity"] = String(props.saturation);
+  }
+
+  return (
+    <div
+      className="w-full min-w-[18rem] rounded-glass-card border border-glass-border/60 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--color-white)_22%,transparent),transparent_56%),linear-gradient(135deg,color-mix(in_srgb,var(--color-black)_6%,transparent),transparent)] p-3 shadow-glass-card"
+      style={style}
+    >
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-glass-control border border-glass-border/60 bg-glass-sidebar px-3 py-2 text-detail font-medium text-foreground">
+          Sidebar
+        </div>
+        <div className="rounded-glass-control border border-glass-border/60 bg-glass-chat px-3 py-2 text-detail font-medium text-foreground">
+          Chat
+        </div>
+        <div className="rounded-glass-control border border-glass-border/60 bg-glass-editor px-3 py-2 text-detail font-medium text-foreground">
+          Editor
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between rounded-glass-control border border-glass-border/50 bg-glass-bubble px-3 py-2 text-detail text-muted-foreground">
+        <span>{props.palette === "glass" ? "Live Glass tint" : "Pierre palette active"}</span>
+        <span className="font-medium tabular-nums text-foreground/80">T {props.transparency}%</span>
+      </div>
+    </div>
+  );
+}
+
 function AppearancePage() {
   const theme = useTheme();
   const g = useGlassAppearance();
+  const tintOff = g.palette !== "glass";
+  const transparencyTrack =
+    "linear-gradient(90deg, color-mix(in srgb, var(--glass-base-surface) 96%, var(--background)), color-mix(in srgb, var(--glass-base-surface) 54%, transparent))";
+  const hueTrack =
+    "linear-gradient(90deg, oklch(0.76 0.16 0), oklch(0.78 0.16 60), oklch(0.8 0.16 120), oklch(0.76 0.16 180), oklch(0.72 0.18 240), oklch(0.74 0.17 300), oklch(0.76 0.16 360))";
+  const saturationTrack = `linear-gradient(90deg, oklch(0.82 0 ${g.hue}), oklch(0.76 0.24 ${g.hue}))`;
 
   return (
     <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
@@ -145,6 +244,76 @@ function AppearancePage() {
                 { value: "glass", label: "Glass default" },
                 { value: "pierre", label: "Pierre" },
               ]}
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection label="Glass Window">
+        <SettingsRow
+          label="Window transparency"
+          description="Higher values let more of the Electron glass show through the shell surfaces."
+          control={
+            <ToneSlider
+              label="Window transparency"
+              min={0}
+              max={100}
+              suffix="%"
+              track={transparencyTrack}
+              value={g.transparency}
+              onChange={setWindowTransparency}
+            />
+          }
+        />
+        <SettingsRow
+          label="Hue"
+          description={
+            tintOff
+              ? "Available when the Glass default palette is active."
+              : "Shift the Glass tint without changing light or dark mode."
+          }
+          control={
+            <ToneSlider
+              label="Glass hue"
+              min={0}
+              max={360}
+              suffix="°"
+              disabled={tintOff}
+              track={hueTrack}
+              value={g.hue}
+              onChange={setTintHue}
+            />
+          }
+        />
+        <SettingsRow
+          label="Saturation"
+          description={
+            tintOff
+              ? "Saved in the background and restored when you switch back to Glass default."
+              : "Controls how colorful the Glass tint feels across the window."
+          }
+          control={
+            <ToneSlider
+              label="Glass saturation"
+              min={0}
+              max={100}
+              suffix="%"
+              disabled={tintOff}
+              track={saturationTrack}
+              value={g.saturation}
+              onChange={setTintSaturation}
+            />
+          }
+        />
+        <SettingsRow
+          label="Preview"
+          description="Live sample of the sidebar, chat, and editor surfaces."
+          control={
+            <TintPreview
+              palette={g.palette}
+              transparency={g.transparency}
+              hue={g.hue}
+              saturation={g.saturation}
             />
           }
         />
@@ -802,6 +971,9 @@ export function useSettingsRestore(onRestore?: () => void) {
     const appearanceDirty =
       glass.palette !== "glass" ||
       glass.reduceTransparency ||
+      glass.transparency !== 18 ||
+      glass.hue !== 255 ||
+      glass.saturation !== 33 ||
       glass.uiFontSize !== 13 ||
       glass.codeFontSize !== 12 ||
       Boolean(glass.uiFont) ||
@@ -816,6 +988,9 @@ export function useSettingsRestore(onRestore?: () => void) {
     theme.theme,
     glass.palette,
     glass.reduceTransparency,
+    glass.transparency,
+    glass.hue,
+    glass.saturation,
     glass.uiFontSize,
     glass.codeFontSize,
     glass.uiFont,

@@ -18,6 +18,11 @@ export default defineConfig([
         id.startsWith("@mariozechner/pi-coding-agent") ||
         id.startsWith("@mariozechner/pi-agent-core") ||
         id.startsWith("@mariozechner/pi-ai") ||
+        id.startsWith("@mariozechner/pi-tui") ||
+        id.startsWith("get-east-asian-width") ||
+        id.startsWith("mime-types") ||
+        id.startsWith("marked") ||
+        id.startsWith("chalk") ||
         id.startsWith("electron-updater"),
     },
   },

@@ -1,28 +1,17 @@
-import { useRouter } from "@tanstack/react-router";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMatchRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { buildWorkspaceThreadSections, type GlassSidebarSection } from "../lib/glass-view-model";
 import { usePiSums, usePiSumsStatus } from "../lib/pi-session-store";
 
-const THREAD_ROUTE = "/_chat/_shell/$threadId";
+const THREAD_ROUTE = "/$threadId";
 
 function useShellThreadId() {
-  const router = useRouter();
-  return useSyncExternalStore(
-    (onStoreChange) => {
-      const unsub = router.history.subscribe(() => {
-        onStoreChange();
-      });
-      return () => {
-        unsub();
-      };
-    },
-    () => {
-      const hit = router.state.matches.find((m) => m.routeId === THREAD_ROUTE);
-      const id = hit?.params?.threadId;
-      return typeof id === "string" ? id : null;
-    },
-    () => null,
-  );
+  const match = useMatchRoute();
+  const pend = match({ to: THREAD_ROUTE, pending: true });
+  if (pend && typeof pend.threadId === "string") return pend.threadId;
+
+  const cur = match({ to: THREAD_ROUTE });
+  return cur && typeof cur.threadId === "string" ? cur.threadId : null;
 }
 
 export function useGlassAgents(cwd: string | null, home: string | null) {

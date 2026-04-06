@@ -31,6 +31,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { readGlass, getGlass } from "../../host";
 import { usePiModels } from "../../hooks/use-pi-models";
 import { usePiStore } from "../../lib/pi-session-store";
+import {
+  glassComposerAttachmentChip,
+  glassComposerAttachmentStrip,
+  glassComposerImageThumbnail,
+} from "../../lib/glass-attachment-styles";
 import { cn } from "../../lib/utils";
 import { useGlassSettings } from "./glass-settings-context";
 import { PI_GLASS_EDITOR_SET_EVENT } from "../../lib/pi-glass-constants";
@@ -212,28 +217,51 @@ function load(file: File) {
   });
 }
 
+function attachmentPreviewUrl(item: Pick): string | null {
+  if (item.type === "inline") return `data:${item.mimeType};base64,${item.data}`;
+  if (item.kind === "image" && item.previewData) {
+    return `data:${item.previewMime ?? item.mimeType ?? "image/png"};base64,${item.previewData}`;
+  }
+  return null;
+}
+
+function attachmentIsImage(item: Pick) {
+  return item.type === "inline" || item.kind === "image";
+}
+
 const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemove: () => void }) {
   const Glyph = icon(props.item);
-  const preview =
-    props.item.type === "inline"
-      ? `data:${props.item.mimeType};base64,${props.item.data}`
-      : props.item.kind === "image" && props.item.previewData
-        ? `data:${props.item.previewMime ?? props.item.mimeType ?? "image/png"};base64,${props.item.previewData}`
-        : null;
+  const src = attachmentPreviewUrl(props.item);
+
+  if (attachmentIsImage(props.item)) {
+    return (
+      <div className="group relative inline-flex shrink-0" title={props.item.name}>
+        <div className={glassComposerImageThumbnail}>
+          {src ? (
+            <img alt={props.item.name} className="h-full w-full object-cover" src={src} />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-glass-hover/20 text-muted-foreground/70">
+              <Glyph className="size-4" />
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          aria-label={`Remove ${props.item.name}`}
+          className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full bg-black/45 text-white opacity-0 shadow-sm transition-[opacity,background-color] hover:bg-black/58 group-hover:opacity-100 focus-visible:opacity-100"
+          onClick={props.onRemove}
+        >
+          <IconCrossSmall className="size-3" />
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="group relative flex min-w-0 items-center gap-2 rounded border border-glass-border/40 bg-glass-hover/18 px-2 py-2 shadow-glass-card">
-      {preview ? (
-        <img
-          alt={props.item.name}
-          className="size-10 shrink-0 rounded object-cover"
-          src={preview}
-        />
-      ) : (
-        <span className="flex size-10 shrink-0 items-center justify-center rounded bg-glass-hover/24 text-muted-foreground/75">
-          <Glyph className="size-4" />
-        </span>
-      )}
+    <div className={glassComposerAttachmentChip}>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-glass-hover/24 text-muted-foreground/75">
+        <Glyph className="size-4" />
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-body font-medium text-foreground/86">
           {props.item.name}
@@ -245,7 +273,7 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
       <button
         type="button"
         aria-label={`Remove ${props.item.name}`}
-        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground/65 transition-colors hover:bg-glass-hover hover:text-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground/65 transition-colors hover:bg-glass-hover/50 hover:text-foreground"
         onClick={props.onRemove}
       >
         <IconCrossSmall className="size-3.5" />
@@ -742,7 +770,7 @@ export const GlassPiComposer = memo(
                 }}
               >
                 {files.length ? (
-                  <div className="flex flex-wrap gap-2 border-b border-glass-border/30 px-3 pt-3 pb-2">
+                  <div className={cn(glassComposerAttachmentStrip, "px-3 pt-3 pb-2")}>
                     {files.map((item) => (
                       <AttachmentChip
                         key={item.id}
@@ -905,3 +933,84 @@ export const GlassPiComposer = memo(
     left.busy === right.busy &&
     same(left.model, right.model),
 );
+
+const demoModel: PiModelItem = {
+  key: "openai/gpt",
+  provider: "openai",
+  id: "gpt",
+  name: "GPT",
+  supportsXhigh: false,
+  reasoning: false,
+};
+
+/** Dev `/dev/icons`: composer toolbar icons (same markup as `GlassPiComposer`). */
+export function GlassComposerToolbarIconDemo() {
+  return (
+    <div className="flex w-full max-w-md items-center justify-between gap-2 rounded-glass-card border border-glass-border/45 bg-glass-bubble/55 px-2 py-1 shadow-glass-card">
+      <div className="flex min-w-0 items-center gap-1">
+        <button
+          type="button"
+          className="flex size-8 items-center justify-center rounded-glass-card text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground"
+          aria-label="Add files"
+        >
+          <IconPlusLarge className="glass-composer-icon" />
+        </button>
+        <PiModelPicker
+          items={[demoModel]}
+          status="ready"
+          selection={{
+            model: { provider: demoModel.provider, id: demoModel.id, name: demoModel.name },
+          }}
+          disabled={false}
+          variant="hero"
+          onSelect={() => {}}
+        />
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
+          aria-label="Stop"
+        >
+          <IconStop className="glass-composer-icon" />
+        </button>
+        <button
+          type="button"
+          className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
+          aria-label="Send"
+        >
+          <IconArrowUp className="glass-composer-icon" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const demoPathPick: Pick = {
+  id: "d1",
+  type: "path",
+  name: "demo.ts",
+  path: "/a/demo.ts",
+  kind: "file",
+  size: 120,
+  mimeType: "text/plain",
+};
+
+const demoInline: Pick = {
+  id: "d2",
+  type: "inline",
+  name: "shot.png",
+  mimeType: "image/png",
+  data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  size: 100,
+};
+
+/** Dev `/dev/icons`: attachment chips (file + inline image). */
+export function GlassComposerAttachmentChipDemo() {
+  return (
+    <div className="flex max-w-md flex-col gap-2">
+      <AttachmentChip item={demoPathPick} onRemove={() => {}} />
+      <AttachmentChip item={demoInline} onRemove={() => {}} />
+    </div>
+  );
+}
