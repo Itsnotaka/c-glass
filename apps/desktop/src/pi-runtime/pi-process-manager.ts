@@ -1,5 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 
+import type { PiRpcCommand } from "./pi-rpc-types";
+
 type Exit = {
   code: number | null;
   signal: NodeJS.Signals | null;
@@ -94,7 +96,7 @@ export class PiProcessManager {
     }
   }
 
-  send(value: Json) {
+  send(value: Json | PiRpcCommand) {
     if (!this.child?.stdin) {
       throw new Error("Runtime process is not running");
     }

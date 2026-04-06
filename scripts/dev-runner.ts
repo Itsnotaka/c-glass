@@ -155,10 +155,19 @@ function runDevRunnerWithInput(input: {
 
     const base = yield* Effect.try({
       try: () => resolveOffset(cfg),
-      catch: (cause) =>
+      catch: (err) =>
         new DevRunnerError({
-          message: cause instanceof Error ? cause.message : String(cause),
-          cause,
+          message: err instanceof Error ? err.message : String(err),
+          cause:
+            err instanceof Error
+              ? err
+              : err === null || err === undefined
+                ? null
+                : typeof err === "object" && err !== null
+                  ? err
+                  : typeof err === "string" || typeof err === "number" || typeof err === "boolean"
+                    ? err
+                    : String(err),
         }),
     });
 

@@ -204,7 +204,7 @@ function runDetached(command: string, args: readonly string[]) {
           });
           child.once("error", fail);
         } catch (err) {
-          fail(err);
+          fail(err instanceof Error ? err : new Error(String(err)));
         }
       }),
     catch: (err) => (err instanceof Error ? err : new Error(String(err))),

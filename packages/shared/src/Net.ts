@@ -9,10 +9,14 @@ export class NetError extends Data.TaggedError("NetError")<{
   readonly cause?: NetCause;
 }> {}
 
-function isErrnoExceptionWithCode(cause: { readonly code?: string } | null): cause is {
+function isErrnoExceptionWithCode(
+  cause: Error | null | undefined,
+): cause is NodeJS.ErrnoException & {
   readonly code: string;
 } {
-  return typeof cause?.code === "string";
+  if (cause == null) return false;
+  if (!("code" in cause)) return false;
+  return typeof Reflect.get(cause, "code") === "string";
 }
 
 const closeServer = (server: Net.Server) => {

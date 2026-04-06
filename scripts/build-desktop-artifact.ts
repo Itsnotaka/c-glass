@@ -449,27 +449,37 @@ function validateBundledClientAssets(clientDir: string) {
 
 function resolveDesktopRuntimeDependencies(
   dependencies: Record<string, unknown> | undefined,
-  catalog: Record<string, unknown>,
-): Record<string, unknown> {
+  catalog: Record<string, string>,
+): Record<string, string> {
   if (!dependencies || Object.keys(dependencies).length === 0) {
     return {};
   }
 
-  const runtimeDependencies = Object.fromEntries(
-    Object.entries(dependencies).filter(
-      ([dependencyName]) => dependencyName !== "electron" && dependencyName !== "electron-updater",
-    ),
-  );
+  const runtimeDependencies: Record<string, string> = {};
+  for (const [name, spec] of Object.entries(dependencies)) {
+    if (name === "electron" || name === "electron-updater") continue;
+    if (typeof spec !== "string") {
+      throw new Error(`Expected string dependency spec for '${name}'`);
+    }
+    runtimeDependencies[name] = spec;
+  }
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
 }
 
-function readCatalog(root: string): Record<string, unknown> {
+function readCatalog(root: string): Record<string, string> {
   const fp = join(root, "pnpm-workspace.yaml");
   const doc = parse(readFileSync(fp, "utf8")) as { catalog?: Record<string, unknown> };
-  const catalog = doc.catalog;
-  if (!catalog || typeof catalog !== "object") {
+  const raw = doc.catalog;
+  if (!raw || typeof raw !== "object") {
     throw new Error(`Missing catalog in ${fp}`);
+  }
+  const catalog: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v !== "string") {
+      throw new Error(`Catalog entry '${k}' in ${fp} must be a string`);
+    }
+    catalog[k] = v;
   }
   return catalog;
 }
