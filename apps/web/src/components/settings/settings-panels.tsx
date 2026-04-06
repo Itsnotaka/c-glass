@@ -1,5 +1,5 @@
 import type { PiConfig } from "@glass/contracts";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconArrowRotateCounterClockwise } from "central-icons";
 
 import { useGlassAppearance } from "../../hooks/use-glass-appearance";
@@ -36,11 +36,10 @@ import { Input } from "~/components/ui/input";
 import { GlassSelect } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
 import { GlassOpenPicker } from "../glass/glass-open-picker";
+import { GlassTintPopover } from "../glass/glass-tint-popover";
 import { PiModelPicker } from "../glass/pi-model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
-type Vars = CSSProperties & Record<`--${string}`, string>;
-
 function SettingsSection(props: { label: string; children: ReactNode }) {
   return (
     <div className="mt-8 first:mt-0">
@@ -128,15 +127,19 @@ function ToneSlider(props: {
 
   return (
     <div className={cn("flex min-w-[16rem] items-center gap-3", props.disabled && "opacity-50")}>
-      <div className="relative h-11 min-w-[14rem] flex-1 rounded-full focus-within:ring-2 focus-within:ring-ring/70">
+      <div className="relative flex h-10 min-w-[14rem] flex-1 items-center rounded-full">
         <div
           aria-hidden
-          className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full border border-glass-stroke/60 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-white)_18%,transparent)]"
+          className="absolute inset-x-0 top-1/2 h-[18px] -translate-y-1/2 rounded-full bg-foreground/10 dark:bg-foreground/12"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-1/2 h-[18px] -translate-y-1/2 rounded-full border border-glass-stroke/60 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-white)_18%,transparent)]"
           style={{ background: props.track }}
         />
         <div
           aria-hidden
-          className="absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-glass-border/60 bg-background shadow-[0_6px_18px_rgb(0_0_0_/_0.16)]"
+          className="absolute top-1/2 h-[18px] w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-glass-border/60 bg-background shadow-[0_4px_14px_rgb(0_0_0/0.14)] dark:shadow-[0_4px_14px_rgb(0_0_0/0.35)]"
           style={{ left: `${left}%` }}
         />
         <input
@@ -147,7 +150,7 @@ function ToneSlider(props: {
           value={props.value}
           disabled={props.disabled}
           aria-label={props.label}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 focus-visible:outline-none disabled:cursor-not-allowed"
           onChange={(event) => props.onChange(Number(event.target.value))}
         />
       </div>
@@ -159,54 +162,12 @@ function ToneSlider(props: {
   );
 }
 
-function TintPreview(props: {
-  palette: ColorPaletteId;
-  transparency: number;
-  hue: number;
-  saturation: number;
-}) {
-  const style: Vars = {
-    "--glass-transparency": String(props.transparency),
-  };
-
-  if (props.palette === "glass") {
-    style["--glass-user-hue"] = String(props.hue);
-    style["--glass-intensity"] = String(props.saturation);
-  }
-
-  return (
-    <div
-      className="w-full min-w-[18rem] rounded-glass-card border border-glass-border/60 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--color-white)_22%,transparent),transparent_56%),linear-gradient(135deg,color-mix(in_srgb,var(--color-black)_6%,transparent),transparent)] p-3 shadow-glass-card"
-      style={style}
-    >
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-glass-control border border-glass-border/60 bg-glass-sidebar px-3 py-2 text-detail font-medium text-foreground">
-          Sidebar
-        </div>
-        <div className="rounded-glass-control border border-glass-border/60 bg-glass-chat px-3 py-2 text-detail font-medium text-foreground">
-          Chat
-        </div>
-        <div className="rounded-glass-control border border-glass-border/60 bg-glass-editor px-3 py-2 text-detail font-medium text-foreground">
-          Editor
-        </div>
-      </div>
-      <div className="mt-2 flex items-center justify-between rounded-glass-control border border-glass-border/50 bg-glass-bubble px-3 py-2 text-detail text-muted-foreground">
-        <span>{props.palette === "glass" ? "Live Glass tint" : "Pierre palette active"}</span>
-        <span className="font-medium tabular-nums text-foreground/80">T {props.transparency}%</span>
-      </div>
-    </div>
-  );
-}
-
 function AppearancePage() {
   const theme = useTheme();
   const g = useGlassAppearance();
   const tintOff = g.palette !== "glass";
   const transparencyTrack =
     "linear-gradient(90deg, color-mix(in srgb, var(--glass-base-surface) 96%, var(--background)), color-mix(in srgb, var(--glass-base-surface) 54%, transparent))";
-  const hueTrack =
-    "linear-gradient(90deg, oklch(0.76 0.16 0), oklch(0.78 0.16 60), oklch(0.8 0.16 120), oklch(0.76 0.16 180), oklch(0.72 0.18 240), oklch(0.74 0.17 300), oklch(0.76 0.16 360))";
-  const saturationTrack = `linear-gradient(90deg, oklch(0.82 0 ${g.hue}), oklch(0.76 0.24 ${g.hue}))`;
 
   return (
     <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
@@ -258,7 +219,6 @@ function AppearancePage() {
               label="Window transparency"
               min={0}
               max={100}
-              suffix="%"
               track={transparencyTrack}
               value={g.transparency}
               onChange={setWindowTransparency}
@@ -266,54 +226,19 @@ function AppearancePage() {
           }
         />
         <SettingsRow
-          label="Hue"
+          label="Hue and saturation"
           description={
             tintOff
-              ? "Available when the Glass default palette is active."
-              : "Shift the Glass tint without changing light or dark mode."
+              ? "Available when the Glass default palette is active. Values are kept while you use Pierre."
+              : "Open the picker and drag in the field to shift hue and saturation without changing light or dark mode."
           }
           control={
-            <ToneSlider
-              label="Glass hue"
-              min={0}
-              max={360}
-              suffix="°"
+            <GlassTintPopover
               disabled={tintOff}
-              track={hueTrack}
-              value={g.hue}
-              onChange={setTintHue}
-            />
-          }
-        />
-        <SettingsRow
-          label="Saturation"
-          description={
-            tintOff
-              ? "Saved in the background and restored when you switch back to Glass default."
-              : "Controls how colorful the Glass tint feels across the window."
-          }
-          control={
-            <ToneSlider
-              label="Glass saturation"
-              min={0}
-              max={100}
-              suffix="%"
-              disabled={tintOff}
-              track={saturationTrack}
-              value={g.saturation}
-              onChange={setTintSaturation}
-            />
-          }
-        />
-        <SettingsRow
-          label="Preview"
-          description="Live sample of the sidebar, chat, and editor surfaces."
-          control={
-            <TintPreview
-              palette={g.palette}
-              transparency={g.transparency}
               hue={g.hue}
               saturation={g.saturation}
+              onHueChange={setTintHue}
+              onSatChange={setTintSaturation}
             />
           }
         />

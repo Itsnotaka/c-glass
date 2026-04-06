@@ -17,7 +17,6 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GlassDiffViewer } from "./diff-viewer";
 import {
   IconArrowRotateCounterClockwise,
@@ -389,14 +388,6 @@ function GitPanelInner(props: { git: GlassGitPanelModel }) {
             <span className="text-[var(--glass-diff-deletion)]">-{git.totalDel}</span>
           )}
         </div>
-        <SegmentedControl
-          value={git.diffStyle}
-          onChange={(v) => git.setDiffStyle(v as "unified" | "split")}
-          options={[
-            { value: "unified", label: "Stacked" },
-            { value: "split", label: "Split" },
-          ]}
-        />
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-row">
@@ -415,11 +406,7 @@ function GitPanelInner(props: { git: GlassGitPanelModel }) {
 
         <div className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden">
           {git.patch ? (
-            <GlassDiffViewer
-              fileDiff={git.patch}
-              diffStyle={git.diffStyle}
-              className="h-full min-h-0"
-            />
+            <GlassDiffViewer fileDiff={git.patch} className="h-full min-h-0" />
           ) : (
             <div className="flex h-full items-center justify-center px-4">
               <p className="text-body text-muted-foreground/60">Select a file to view changes</p>

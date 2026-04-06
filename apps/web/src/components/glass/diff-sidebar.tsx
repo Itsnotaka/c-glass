@@ -2,7 +2,6 @@ import { IconArrowCornerDownRight, IconFileBend } from "central-icons";
 import { memo, useMemo, useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Collapsible } from "~/components/ui/collapsible";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { cn } from "~/lib/utils";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
@@ -23,8 +22,6 @@ interface Props {
   files: DiffFile[];
   selectedFileId?: string | null;
   onSelectFile?: (id: string) => void;
-  diffStyle?: "unified" | "split";
-  onDiffStyleChange?: (style: "unified" | "split") => void;
   className?: string;
 }
 
@@ -149,18 +146,8 @@ export const GlassDiffSidebar = memo(function GlassDiffSidebar(props: Props) {
 
   return (
     <div className={cn("flex h-full min-w-0 flex-col", props.className)}>
-      {/* Header with title and toggle */}
-      <div className="flex shrink-0 items-center justify-between border-b border-glass-border/40 px-3 py-2">
+      <div className="flex shrink-0 items-center border-b border-glass-border/40 px-3 py-2">
         <h2 className="text-body/[1.2] font-semibold text-foreground/85">Changes</h2>
-        <SegmentedControl
-          value={props.diffStyle ?? "unified"}
-          onChange={(v) => props.onDiffStyleChange?.(v as "unified" | "split")}
-          options={[
-            { value: "unified", label: "Unified" },
-            { value: "split", label: "Split" },
-          ]}
-          size="sm"
-        />
       </div>
 
       {/* Stats summary */}

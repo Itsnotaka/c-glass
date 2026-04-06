@@ -153,10 +153,27 @@
     var(--background) 90%,
     oklch(0.35 calc(0.03 + var(--glass-intensity, 33) / 100 * 0.04) var(--glass-user-hue, 255)) 10%
   );
-  --glass-base-chat: color-mix(in srgb, var(--background) 91%, var(--color-white) 6%);
-  --glass-base-editor: color-mix(in srgb, var(--background) 96%, var(--color-white) 4%);
-  --glass-base-surface: color-mix(in srgb, var(--background) 93%, var(--color-white) 6%);
-  --glass-base-elevated: color-mix(in srgb, var(--background) 84%, var(--color-white) 12%);
+  --glass-base-chat: color-mix(
+    in srgb,
+    var(--background) 91%,
+    oklch(0.32 calc(0.02 + var(--glass-intensity, 33) / 100 * 0.03) var(--glass-user-hue, 255)) 9%
+  );
+  --glass-base-editor: color-mix(
+    in srgb,
+    var(--background) 96%,
+    oklch(0.34 calc(0.018 + var(--glass-intensity, 33) / 100 * 0.022) var(--glass-user-hue, 255)) 4%
+  );
+  --glass-base-surface: color-mix(
+    in srgb,
+    var(--background) 93%,
+    oklch(0.33 calc(0.02 + var(--glass-intensity, 33) / 100 * 0.028) var(--glass-user-hue, 255)) 7%
+  );
+  --glass-base-elevated: color-mix(
+    in srgb,
+    var(--background) 84%,
+    oklch(0.36 calc(0.022 + var(--glass-intensity, 33) / 100 * 0.032) var(--glass-user-hue, 255))
+      16%
+  );
   --glass-color-border: color-mix(in srgb, var(--color-white) 10%, transparent);
   --glass-color-hover: color-mix(in srgb, var(--color-white) 6%, transparent);
   --glass-color-active: color-mix(in srgb, var(--color-white) 10%, transparent);

@@ -289,12 +289,7 @@ export function GlassIconDemosPanel() {
 
       <DemoSection title="components/glass/diff-sidebar.tsx">
         <div className="h-72 max-w-md overflow-hidden rounded-lg border border-border">
-          <GlassDiffSidebar
-            files={diffFiles}
-            selectedFileId="d1"
-            diffStyle="unified"
-            className="h-full"
-          />
+          <GlassDiffSidebar files={diffFiles} selectedFileId="d1" className="h-full" />
         </div>
       </DemoSection>
 
