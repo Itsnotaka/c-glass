@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { IconArrowRotateCounterClockwise, IconSquareArrowTopRight } from "central-icons";
+import type { HarnessDescriptor } from "@glass/contracts";
 
 import { useGlassAppearance } from "../../hooks/use-glass-appearance";
-import { usePiDefaults } from "../../hooks/use-pi-models";
+import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
 
@@ -14,7 +15,7 @@ import {
   writePiApiKey,
   writePiDefaultModel,
   writePiDefaultThinkingLevel,
-} from "../../lib/pi-models";
+} from "../../lib/runtime-models";
 import {
   type ColorPaletteId,
   resetGlassAppearance,
@@ -28,7 +29,8 @@ import {
   setUiFontSize,
   setWindowTransparency,
 } from "../../lib/glass-appearance";
-import { usePiCfg, usePiCfgStatus, usePiStore } from "../../lib/pi-session-store";
+import { setDefaultHarness, setHarnessEnabled, useHarnessList } from "../../lib/harness-store";
+import { usePiCfg, usePiCfgStatus, useThreadSessionStore } from "../../lib/thread-session-store";
 import { cn } from "../../lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -36,7 +38,7 @@ import { GlassSelect } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
 import { GlassOpenPicker } from "../glass/open-picker";
 import { GlassTintPopover } from "../glass/tint-popover";
-import { PiModelPicker } from "../glass/pi-model-picker";
+import { GlassModelPicker } from "../glass/model-picker";
 
 const levels = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 function SettingsSection(props: { label: string; children: ReactNode }) {
@@ -380,7 +382,7 @@ function WorkspaceRows() {
 }
 
 function DefaultsSection() {
-  const defaults = usePiDefaults();
+  const defaults = useRuntimeDefaults();
   const hasReasoning = useMemo(
     () => defaults.items.some((item) => item.reasoning),
     [defaults.items],
@@ -393,7 +395,7 @@ function DefaultsSection() {
         description="Default model and reasoning for new sessions. Shown here so you do not need the hero picker."
         control={
           <div className="flex min-w-0 max-w-md flex-col items-end gap-2">
-            <PiModelPicker
+            <GlassModelPicker
               variant="settings"
               items={defaults.items}
               status={defaults.status}
@@ -635,21 +637,122 @@ function KeysSection() {
   );
 }
 
+function HarnessRow(props: {
+  descriptor: HarnessDescriptor;
+  isDefault: boolean;
+  onToggle: (enabled: boolean) => void;
+  onSetDefault: () => void;
+}) {
+  const { descriptor, isDefault, onToggle, onSetDefault } = props;
+
+  return (
+    <div className="flex min-h-14 flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <div className="font-medium text-foreground">{descriptor.label}</div>
+          {descriptor.version && (
+            <span className="text-xs text-muted-foreground">({descriptor.version})</span>
+          )}
+          {!descriptor.available && (
+            <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
+              Not installed
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 text-muted-foreground">
+          {descriptor.reason || (descriptor.available ? "Available" : "Unavailable")}
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name="default-harness"
+            checked={isDefault}
+            onChange={onSetDefault}
+            disabled={!descriptor.available || !descriptor.enabled}
+            className="h-4 w-4"
+          />
+          Default
+        </label>
+        <Switch
+          checked={descriptor.enabled}
+          onCheckedChange={onToggle}
+          disabled={!descriptor.available}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HarnessListSection() {
+  const { descriptors, defaultKind, loading, error } = useHarnessList();
+
+  if (loading) {
+    return (
+      <SettingsRow
+        label="Loading harnesses..."
+        description="Fetching available harnesses from the backend."
+      />
+    );
+  }
+
+  if (error) {
+    return <SettingsRow label="Error loading harnesses" description={error} />;
+  }
+
+  if (descriptors.length === 0) {
+    return (
+      <SettingsRow
+        label="No harnesses available"
+        description="No harness adapters are currently registered."
+      />
+    );
+  }
+
+  return (
+    <>
+      {descriptors.map((desc) => (
+        <HarnessRow
+          key={desc.kind}
+          descriptor={desc}
+          isDefault={defaultKind === desc.kind}
+          onToggle={(enabled) => setHarnessEnabled(desc.kind, enabled)}
+          onSetDefault={() => setDefaultHarness(desc.kind)}
+        />
+      ))}
+    </>
+  );
+}
+
+function PiDefaultsSection() {
+  const piDescriptor = useHarnessList().descriptors.find((d) => d.kind === "pi");
+  const hasModelPicker = piDescriptor?.capabilities.modelPicker ?? true;
+  const hasThinkingLevels = piDescriptor?.capabilities.thinkingLevels ?? true;
+
+  if (!hasModelPicker && !hasThinkingLevels) return null;
+
+  return (
+    <SettingsSection label="Pi defaults">{hasModelPicker && <DefaultsSection />}</SettingsSection>
+  );
+}
+
 export function AgentsSettingsPanel() {
   return (
     <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
       <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
-        Agents
+        Harnesses
       </h1>
       <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
-        Defaults and credentials for Pi.
+        Configure AI harnesses and their capabilities.
       </p>
+      <SettingsSection label="Installed harnesses">
+        <HarnessListSection />
+      </SettingsSection>
       <SettingsSection label="Workspace">
         <WorkspaceRows />
       </SettingsSection>
-      <SettingsSection label="Pi defaults">
-        <DefaultsSection />
-      </SettingsSection>
+      <PiDefaultsSection />
       <SettingsSection label="Provider keys">
         <KeysSection />
       </SettingsSection>
@@ -663,6 +766,9 @@ export function GeneralSettingsPanel() {
     <div className="space-y-6">
       <AppearancePage />
       <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+        <SettingsSection label="Installed harnesses">
+          <HarnessListSection />
+        </SettingsSection>
         <SettingsSection label="Workspace">
           <WorkspaceRows />
         </SettingsSection>
@@ -697,7 +803,7 @@ export function ArchivedThreadsPanel() {
 }
 
 export function useSettingsRestore(onRestore?: () => void) {
-  const defaults = usePiDefaults();
+  const defaults = useRuntimeDefaults();
   const theme = useTheme();
   const glass = useGlassAppearance();
 
@@ -764,7 +870,7 @@ export function ExtensionsSettingsPanel() {
   const cfg = usePiCfg();
   const status = usePiCfgStatus();
   const shell = useShellState();
-  const refetch = usePiStore((state) => state.refreshCfg);
+  const refetch = useThreadSessionStore((state) => state.refreshCfg);
   const [tab, setTab] = useState<"all" | "user" | "project">("all");
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const exts = useMemo(

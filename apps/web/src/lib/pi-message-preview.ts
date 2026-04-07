@@ -1,4 +1,4 @@
-import type { PiBlock, PiMessage } from "@glass/contracts";
+import type { GlassBlock, GlassMessage } from "@glass/contracts";
 
 const tag = /<file\s+name="([^"]+)"\s*>([\s\S]*?)<\/file>/g;
 
@@ -28,7 +28,7 @@ function parts(text: string) {
   };
 }
 
-function text(blocks: readonly PiBlock[]) {
+function text(blocks: readonly GlassBlock[]) {
   const out = blocks.reduce(
     (state, item) => {
       if (item.type === "text") {
@@ -75,24 +75,28 @@ function text(blocks: readonly PiBlock[]) {
     .join("\n");
 }
 
-export function previewAgentMessage(message: PiMessage) {
+export function previewAgentMessage(message: GlassMessage) {
   if (message.role === "user" || message.role === "user-with-attachments") {
     if (typeof message.content === "string") {
       const out = parts(message.content);
       return [out.text, ...out.files.map((item) => `[${item}]`)].filter(Boolean).join("\n");
     }
-    if (Array.isArray(message.content)) return text(message.content as readonly PiBlock[]);
+    if (Array.isArray(message.content)) return text(message.content as readonly GlassBlock[]);
     return "";
   }
   if (message.role === "assistant") {
-    const body = Array.isArray(message.content) ? text(message.content as readonly PiBlock[]) : "";
+    const body = Array.isArray(message.content)
+      ? text(message.content as readonly GlassBlock[])
+      : "";
     if (typeof message.errorMessage === "string" && message.errorMessage.trim()) {
       return `${body}${body ? "\n" : ""}(${message.errorMessage})`;
     }
     return body;
   }
   if (message.role === "toolResult") {
-    const body = Array.isArray(message.content) ? text(message.content as readonly PiBlock[]) : "";
+    const body = Array.isArray(message.content)
+      ? text(message.content as readonly GlassBlock[])
+      : "";
     if (body) return body;
     return typeof message.toolName === "string" ? `[${message.toolName}]` : "";
   }
@@ -100,7 +104,7 @@ export function previewAgentMessage(message: PiMessage) {
     if (typeof message.content === "string") {
       return parts(message.content).text;
     }
-    if (Array.isArray(message.content)) return text(message.content as readonly PiBlock[]);
+    if (Array.isArray(message.content)) return text(message.content as readonly GlassBlock[]);
     return "";
   }
   return "";

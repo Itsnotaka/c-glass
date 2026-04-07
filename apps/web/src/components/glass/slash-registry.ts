@@ -1,5 +1,5 @@
-import type { PiSlashCommand } from "@glass/contracts";
-import { rank } from "./pi-composer-search";
+import type { GlassSlashCommand } from "@glass/contracts";
+import { rank } from "./composer-search";
 import { recentBoost, type SlashRecentsSnapshot } from "./slash-recents";
 import type { GlassSlashItemKind } from "./slash-types";
 
@@ -23,8 +23,8 @@ export type GlassSlashItem = {
   };
 };
 
-type Cmd = Omit<PiSlashCommand, "source"> & {
-  source: PiSlashCommand["source"] | "app";
+type Cmd = Omit<GlassSlashCommand, "source"> & {
+  source: GlassSlashCommand["source"] | "app";
 };
 
 function kindFrom(cmd: Cmd): GlassSlashItemKind {
@@ -63,13 +63,13 @@ export function rankSlashItems(
   snap: SlashRecentsSnapshot,
 ): GlassSlashItem[] {
   const raw = query.trim().toLowerCase();
-  const base = raw ? rank(items, query, (item) => item.name) : items;
+  const base = raw ? rank<GlassSlashItem>(items, query, (item) => item.name) : items;
   const score = (item: GlassSlashItem) => {
     const b = recentBoost(item.id, item.kind, snap);
     const len = item.name.length;
     return b * 4 + (100 - Math.min(len, 64));
   };
-  return base.toSorted((left, right) => score(right) - score(left));
+  return base.toSorted((left: GlassSlashItem, right: GlassSlashItem) => score(right) - score(left));
 }
 
 export function mergeSlashItems(locals: Cmd[], remote: Cmd[]): GlassSlashItem[] {

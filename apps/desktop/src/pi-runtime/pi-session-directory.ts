@@ -1,7 +1,7 @@
-import type { PiSessionSummary } from "@glass/contracts";
+import type { GlassSessionSummary } from "@glass/contracts";
 
 export class PiSessionDirectory {
-  private sums = new Map<string, PiSessionSummary>();
+  private sums = new Map<string, GlassSessionSummary>();
 
   all() {
     const items = [...this.sums.values()];
@@ -24,7 +24,7 @@ export class PiSessionDirectory {
     return out;
   }
 
-  upsert(summary: PiSessionSummary) {
+  upsert(summary: GlassSessionSummary) {
     this.sums.set(summary.id, summary);
     return summary;
   }
@@ -33,7 +33,7 @@ export class PiSessionDirectory {
     this.sums.delete(sessionId);
   }
 
-  replace(items: PiSessionSummary[]) {
+  replace(items: GlassSessionSummary[]) {
     this.sums = new Map(items.map((item) => [item.id, item]));
     return this.all();
   }

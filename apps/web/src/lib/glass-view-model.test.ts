@@ -1,13 +1,14 @@
-import type { PiSessionSummary } from "@glass/contracts";
+import type { GlassSessionSummary } from "@glass/contracts";
 import { describe, expect, it } from "vitest";
 
 import { buildWorkspaceThreadSections } from "./glass-view-model";
 
 function sum(
-  item: Pick<PiSessionSummary, "id" | "cwd" | "modifiedAt"> & Partial<PiSessionSummary>,
-): PiSessionSummary {
+  item: Pick<GlassSessionSummary, "id" | "cwd" | "modifiedAt"> & Partial<GlassSessionSummary>,
+): GlassSessionSummary {
   return {
     id: item.id,
+    harness: item.harness ?? "pi",
     path: item.path ?? `/tmp/${item.id}.jsonl`,
     cwd: item.cwd,
     name: item.name ?? null,

@@ -2,14 +2,22 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   DesktopBootSnapshot,
   GlassBridge,
-  PiAskEvent,
-  PiAskReply,
-  PiAskState,
+  HarnessDescriptor,
+  HarnessKind,
+  HarnessRuntimeEvent,
+  GlassAskEvent,
+  GlassAskReply,
+  GlassAskState,
   PiExtensionScope,
-  PiPromptInput,
-  PiSessionActiveEvent,
-  PiSessionSummaryEvent,
-  PiThinkingLevel,
+  GlassPromptInput,
+  GlassSessionActiveEvent,
+  GlassSessionSummaryEvent,
+  ThinkingLevel,
+  ThreadActiveEvent,
+  ThreadInteractiveEvent,
+  ThreadInteractiveReply,
+  ThreadPromptInput,
+  ThreadSummaryEvent,
 } from "@glass/contracts";
 
 const CONFIRM_CHANNEL = "desktop:confirm";
@@ -45,6 +53,26 @@ const SESSION_ANSWER_ASK_CHANNEL = "glass:session.answer-ask";
 const SESSION_ASK_CHANNEL = "glass:session.ask";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
+const THREAD_LIST_CHANNEL = "glass:thread.list";
+const THREAD_LIST_ALL_CHANNEL = "glass:thread.list-all";
+const THREAD_CREATE_CHANNEL = "glass:thread.create";
+const THREAD_START_CHANNEL = "glass:thread.start";
+const THREAD_READ_CHANNEL = "glass:thread.read";
+const THREAD_WATCH_CHANNEL = "glass:thread.watch";
+const THREAD_UNWATCH_CHANNEL = "glass:thread.unwatch";
+const THREAD_PROMPT_CHANNEL = "glass:thread.prompt";
+const THREAD_ABORT_CHANNEL = "glass:thread.abort";
+const THREAD_READ_INTERACTIVE_CHANNEL = "glass:thread.read-interactive";
+const THREAD_ANSWER_INTERACTIVE_CHANNEL = "glass:thread.answer-interactive";
+const THREAD_SUMMARY_CHANNEL = "glass:thread.summary";
+const THREAD_ACTIVE_CHANNEL = "glass:thread.active";
+const THREAD_INTERACTIVE_CHANNEL = "glass:thread.interactive";
+const THREAD_RUNTIME_CHANNEL = "glass:thread.runtime";
+const HARNESS_LIST_CHANNEL = "glass:harness.list";
+const HARNESS_SET_ENABLED_CHANNEL = "glass:harness.set-enabled";
+const HARNESS_SET_DEFAULT_CHANNEL = "glass:harness.set-default";
+const HARNESS_GET_DEFAULT_CHANNEL = "glass:harness.get-default";
+const HARNESS_CHANGE_CHANNEL = "glass:harness.change";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
@@ -88,7 +116,7 @@ const piBridge = {
   setDefaultModel: (provider: string, model: string) =>
     ipcRenderer.invoke(PI_SET_DEFAULT_MODEL_CHANNEL, provider, model),
   clearDefaultModel: () => ipcRenderer.invoke(PI_CLEAR_DEFAULT_MODEL_CHANNEL),
-  setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) =>
+  setDefaultThinkingLevel: (thinkingLevel: ThinkingLevel) =>
     ipcRenderer.invoke(PI_SET_DEFAULT_THINKING_CHANNEL, thinkingLevel),
   setExtensionEnabled: (resolvedPath: string, scope: PiExtensionScope, enabled: boolean) =>
     ipcRenderer.invoke(PI_SET_EXTENSION_ENABLED_CHANNEL, resolvedPath, scope, enabled),
@@ -107,81 +135,123 @@ const sessionBridge = {
   read: (sessionId: string) => ipcRenderer.invoke(SESSION_READ_CHANNEL, sessionId),
   watch: (sessionId: string) => ipcRenderer.invoke(SESSION_WATCH_CHANNEL, sessionId),
   unwatch: () => ipcRenderer.invoke(SESSION_UNWATCH_CHANNEL),
-  prompt: (sessionId: string, input: string | PiPromptInput) =>
+  prompt: (sessionId: string, input: string | GlassPromptInput) =>
     ipcRenderer.invoke(SESSION_PROMPT_CHANNEL, sessionId, input),
   abort: (sessionId: string) => ipcRenderer.invoke(SESSION_ABORT_CHANNEL, sessionId),
   setModel: (sessionId: string, provider: string, model: string) =>
     ipcRenderer.invoke(SESSION_SET_MODEL_CHANNEL, sessionId, provider, model),
-  setThinkingLevel: (sessionId: string, thinkingLevel: PiThinkingLevel) =>
+  setThinkingLevel: (sessionId: string, thinkingLevel: ThinkingLevel) =>
     ipcRenderer.invoke(SESSION_SET_THINKING_LEVEL_CHANNEL, sessionId, thinkingLevel),
   commands: (sessionId: string) => ipcRenderer.invoke(SESSION_COMMANDS_CHANNEL, sessionId),
   readAsk: (sessionId: string) =>
-    ipcRenderer.invoke(SESSION_READ_ASK_CHANNEL, sessionId) as Promise<PiAskState | null>,
-  answerAsk: (sessionId: string, reply: PiAskReply) =>
+    ipcRenderer.invoke(SESSION_READ_ASK_CHANNEL, sessionId) as Promise<GlassAskState | null>,
+  answerAsk: (sessionId: string, reply: GlassAskReply) =>
     ipcRenderer.invoke(SESSION_ANSWER_ASK_CHANNEL, sessionId, reply),
-  onAsk: (listener: (event: PiAskEvent) => void) => {
+  onAsk: (listener: (event: GlassAskEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
-      fetch("http://localhost:60380/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: "preload-on-ask",
-          data: {
-            sessionId: (data as PiAskEvent).sessionId,
-            active: Boolean((data as PiAskEvent).state),
-            toolCallId: (data as PiAskEvent).state?.toolCallId ?? null,
-          },
-        }),
-      }).catch(() => {});
-      listener(data as PiAskEvent);
+      listener(data as GlassAskEvent);
     };
     ipcRenderer.on(SESSION_ASK_CHANNEL, wrapped);
     return () => {
       ipcRenderer.removeListener(SESSION_ASK_CHANNEL, wrapped);
     };
   },
-  onSummary: (listener: (event: PiSessionSummaryEvent) => void) => {
+  onSummary: (listener: (event: GlassSessionSummaryEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
-      fetch("http://localhost:60380/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: "preload-on-summary",
-          data: {
-            sessionId: (data as PiSessionSummaryEvent).sessionId,
-            type: (data as PiSessionSummaryEvent).type,
-          },
-        }),
-      }).catch(() => {});
-      listener(data as PiSessionSummaryEvent);
+      listener(data as GlassSessionSummaryEvent);
     };
     ipcRenderer.on(SESSION_SUMMARY_CHANNEL, wrapped);
     return () => {
       ipcRenderer.removeListener(SESSION_SUMMARY_CHANNEL, wrapped);
     };
   },
-  onActive: (listener: (event: PiSessionActiveEvent) => void) => {
+  onActive: (listener: (event: GlassSessionActiveEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
-      fetch("http://localhost:60380/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: "preload-on-active",
-          data: {
-            sessionId: (data as PiSessionActiveEvent).sessionId,
-            deltaType: (data as PiSessionActiveEvent).delta.type,
-          },
-        }),
-      }).catch(() => {});
-      listener(data as PiSessionActiveEvent);
+      listener(data as GlassSessionActiveEvent);
     };
     ipcRenderer.on(SESSION_ACTIVE_CHANNEL, wrapped);
     return () => {
       ipcRenderer.removeListener(SESSION_ACTIVE_CHANNEL, wrapped);
     };
+  },
+};
+
+const threadBridge = {
+  list: () => ipcRenderer.invoke(THREAD_LIST_CHANNEL),
+  listAll: () => ipcRenderer.invoke(THREAD_LIST_ALL_CHANNEL),
+  create: (harness?: HarnessKind) => ipcRenderer.invoke(THREAD_CREATE_CHANNEL, harness),
+  start: (harness: HarnessKind, input: string | ThreadPromptInput) =>
+    ipcRenderer.invoke(THREAD_START_CHANNEL, harness, input),
+  read: (threadId: string) => ipcRenderer.invoke(THREAD_READ_CHANNEL, threadId),
+  watch: (threadId: string) => ipcRenderer.invoke(THREAD_WATCH_CHANNEL, threadId),
+  unwatch: (threadId: string) => ipcRenderer.invoke(THREAD_UNWATCH_CHANNEL, threadId),
+  prompt: (threadId: string, input: string | ThreadPromptInput) =>
+    ipcRenderer.invoke(THREAD_PROMPT_CHANNEL, threadId, input),
+  abort: (threadId: string) => ipcRenderer.invoke(THREAD_ABORT_CHANNEL, threadId),
+  readInteractive: (threadId: string) =>
+    ipcRenderer.invoke(THREAD_READ_INTERACTIVE_CHANNEL, threadId),
+  answerInteractive: (threadId: string, reply: ThreadInteractiveReply) =>
+    ipcRenderer.invoke(THREAD_ANSWER_INTERACTIVE_CHANNEL, threadId, reply),
+  onSummary: (listener: (event: ThreadSummaryEvent) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+      if (typeof data !== "object" || data === null) return;
+      listener(data as ThreadSummaryEvent);
+    };
+    ipcRenderer.on(THREAD_SUMMARY_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(THREAD_SUMMARY_CHANNEL, wrapped);
+    };
+  },
+  onActive: (listener: (event: ThreadActiveEvent) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+      if (typeof data !== "object" || data === null) return;
+      listener(data as ThreadActiveEvent);
+    };
+    ipcRenderer.on(THREAD_ACTIVE_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(THREAD_ACTIVE_CHANNEL, wrapped);
+    };
+  },
+  onInteractive: (listener: (event: ThreadInteractiveEvent) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+      if (typeof data !== "object" || data === null) return;
+      listener(data as ThreadInteractiveEvent);
+    };
+    ipcRenderer.on(THREAD_INTERACTIVE_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(THREAD_INTERACTIVE_CHANNEL, wrapped);
+    };
+  },
+  onRuntime: (listener: (event: HarnessRuntimeEvent) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+      if (typeof data !== "object" || data === null) return;
+      listener(data as HarnessRuntimeEvent);
+    };
+    ipcRenderer.on(THREAD_RUNTIME_CHANNEL, wrapped);
+    return () => {
+      ipcRenderer.removeListener(THREAD_RUNTIME_CHANNEL, wrapped);
+    };
+  },
+};
+
+const harnessListeners = new Set<(descriptors: HarnessDescriptor[]) => void>();
+ipcRenderer.on(HARNESS_CHANGE_CHANNEL, (_event: Electron.IpcRendererEvent, data: unknown) => {
+  if (typeof data !== "object" || data === null || !Array.isArray(data)) return;
+  for (const cb of harnessListeners) cb(data as HarnessDescriptor[]);
+});
+
+const harnessBridge = {
+  list: () => ipcRenderer.invoke(HARNESS_LIST_CHANNEL),
+  setEnabled: (kind: HarnessKind, enabled: boolean) =>
+    ipcRenderer.invoke(HARNESS_SET_ENABLED_CHANNEL, kind, enabled),
+  setDefault: (kind: HarnessKind) => ipcRenderer.invoke(HARNESS_SET_DEFAULT_CHANNEL, kind),
+  getDefault: () => ipcRenderer.invoke(HARNESS_GET_DEFAULT_CHANNEL),
+  onChange: (listener: (descriptors: HarnessDescriptor[]) => void) => {
+    harnessListeners.add(listener);
+    return () => harnessListeners.delete(listener);
   },
 };
 
@@ -192,6 +262,8 @@ ipcRenderer.on(GLASS_BOOT_REFRESH_CHANNEL, () => {
 
 contextBridge.exposeInMainWorld("glass", {
   session: sessionBridge,
+  thread: threadBridge,
+  harness: harnessBridge,
   pi: piBridge,
   shell: {
     getState: () => ipcRenderer.invoke(SHELL_GET_STATE_CHANNEL),

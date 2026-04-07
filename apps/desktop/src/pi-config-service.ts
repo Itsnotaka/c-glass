@@ -4,7 +4,7 @@ import * as Path from "node:path";
 import * as Effect from "effect/Effect";
 import { supportsXhigh } from "@mariozechner/pi-ai";
 import type { OAuthLoginCallbacks } from "@mariozechner/pi-ai";
-import type { PiConfig, PiThinkingLevel } from "@glass/contracts";
+import type { PiConfig, ThinkingLevel } from "@glass/contracts";
 import {
   AuthStorage,
   ModelRegistry,
@@ -40,9 +40,9 @@ function save(file: string, data: JsonObj, mode?: number) {
 
 const LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 
-function level(value: string | undefined): PiThinkingLevel | null {
+function level(value: string | undefined): ThinkingLevel | null {
   if (!value) return null;
-  return LEVELS.includes(value as PiThinkingLevel) ? (value as PiThinkingLevel) : null;
+  return LEVELS.includes(value as ThinkingLevel) ? (value as ThinkingLevel) : null;
 }
 
 function key(provider: string, model: string) {

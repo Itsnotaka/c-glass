@@ -10,9 +10,9 @@ import { toast } from "sonner";
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
 import { readGlass } from "../host";
-import { PI_GLASS_EDITOR_SET_EVENT, PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
-import { peekComposerDraft } from "../lib/pi-composer-draft-mirror";
-import { usePiStore } from "../lib/pi-session-store";
+import { GLASS_EDITOR_SET_EVENT, GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
+import { peekComposerDraft } from "../lib/composer-draft-mirror";
+import { sumEventFromThread, useThreadSessionStore } from "../lib/thread-session-store";
 import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
@@ -106,7 +106,7 @@ function DesktopExtUiBridge() {
     });
 
     const offSet = glass.desktop.onExtensionSetEditor?.((item) => {
-      window.dispatchEvent(new CustomEvent(PI_GLASS_EDITOR_SET_EVENT, { detail: item.text }));
+      window.dispatchEvent(new CustomEvent(GLASS_EDITOR_SET_EVENT, { detail: item.text }));
     });
 
     return () => {
@@ -120,10 +120,10 @@ function DesktopExtUiBridge() {
 }
 
 function PiBootBridge() {
-  const boot = usePiStore((state) => state.boot);
-  const refreshSums = usePiStore((state) => state.refreshSums);
-  const reset = usePiStore((state) => state.resetForWorkspaceChange);
-  const applySummaryEvent = usePiStore((state) => state.applySummaryEvent);
+  const boot = useThreadSessionStore((state) => state.boot);
+  const refreshSums = useThreadSessionStore((state) => state.refreshSums);
+  const reset = useThreadSessionStore((state) => state.resetForWorkspaceChange);
+  const applySummaryEvent = useThreadSessionStore((state) => state.applySummaryEvent);
 
   useEffect(() => {
     void boot();
@@ -135,14 +135,6 @@ function PiBootBridge() {
 
     const sync = () => {
       if (document.visibilityState === "hidden") return;
-      fetch("http://localhost:60380/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: "ui-refresh-sums-sync",
-          data: { visibility: document.visibilityState },
-        }),
-      }).catch(() => {});
       void refreshSums();
     };
 
@@ -155,29 +147,22 @@ function PiBootBridge() {
       reload();
     };
 
-    const offSummary = glass.session.onSummary((event) => {
-      fetch("http://localhost:60380/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          label: "ui-on-summary",
-          data: { sessionId: event.sessionId, type: event.type },
-        }),
-      }).catch(() => {});
+    const offSummary = glass.thread.onSummary((event) => {
+      const next = sumEventFromThread(event);
       startTransition(() => {
-        applySummaryEvent(event);
+        applySummaryEvent(next);
       });
     });
     const offBoot = glass.desktop.onBootRefresh?.(reload) ?? (() => {});
 
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, shell);
+    window.addEventListener(GLASS_SHELL_CHANGED_EVENT, shell);
 
     return () => {
       window.removeEventListener("focus", sync);
       document.removeEventListener("visibilitychange", sync);
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, shell);
+      window.removeEventListener(GLASS_SHELL_CHANGED_EVENT, shell);
       offSummary();
       offBoot();
     };

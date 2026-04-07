@@ -1,6 +1,6 @@
 import { memo } from "react";
-import { buildPiSessionSidebarAgent, type GlassSidebarAgent } from "../../lib/glass-view-model";
-import { usePiSummary } from "../../lib/pi-session-store";
+import { buildThreadSidebarAgent, type GlassSidebarAgent } from "../../lib/glass-view-model";
+import { useThreadSummary } from "../../lib/thread-session-store";
 
 import { GlassRowButton } from "./row-button";
 
@@ -25,10 +25,10 @@ export const GlassAgentRow = memo(
     selectedId: string | null;
     onSelectAgent: (id: string) => void;
   }) {
-    const session = usePiSummary(props.id);
+    const session = useThreadSummary(props.id);
     if (!session) return null;
 
-    const agent = buildPiSessionSidebarAgent(session, props.selectedId);
+    const agent = buildThreadSidebarAgent(session, props.selectedId);
 
     return (
       <GlassRowButton

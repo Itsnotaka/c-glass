@@ -1,7 +1,7 @@
 import { useMatchRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { buildWorkspaceThreadSections, type GlassSidebarSection } from "../lib/glass-view-model";
-import { usePiSums, usePiSumsStatus } from "../lib/pi-session-store";
+import { useThreadSummaries, useThreadSummariesStatus } from "../lib/thread-session-store";
 
 const THREAD_ROUTE = "/$threadId";
 
@@ -15,8 +15,8 @@ function useShellThreadId() {
 }
 
 export function useGlassAgents(cwd: string | null, home: string | null) {
-  const sums = usePiSums();
-  const status = usePiSumsStatus();
+  const sums = useThreadSummaries();
+  const status = useThreadSummariesStatus();
   const routeThreadId = useShellThreadId();
 
   const sections = useMemo(

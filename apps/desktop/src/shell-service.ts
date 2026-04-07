@@ -81,7 +81,7 @@ function delimiter(platform: NodeJS.Platform) {
   return platform === "win32" ? ";" : ":";
 }
 
-function available(command: string, env: NodeJS.ProcessEnv = process.env) {
+export function commandAvailable(command: string, env: NodeJS.ProcessEnv = process.env) {
   const platform = process.platform;
   const ext = platform === "win32" ? pathExt(env) : [];
   const list = candidates(command, platform, ext);
@@ -126,7 +126,7 @@ function runner(editor: (typeof EDITORS)[number]) {
   if (!editor.command) {
     return { command: fileManager(), args: [] };
   }
-  if (available(editor.command)) {
+  if (commandAvailable(editor.command)) {
     return { command: editor.command, args: [] };
   }
   const file = bin(editor);
@@ -632,7 +632,7 @@ export class ShellService {
       if (!launch) {
         return yield* Effect.fail(new Error(`Editor command not found: ${editorId}`));
       }
-      if (!available(launch.command)) {
+      if (!commandAvailable(launch.command)) {
         return yield* Effect.fail(new Error(`Editor command not found: ${launch.command}`));
       }
       yield* runDetached(launch.command, launch.args);

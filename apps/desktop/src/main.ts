@@ -22,12 +22,15 @@ import type {
   DesktopTheme,
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
-  PiAskReply,
-  PiPromptInput,
+  HarnessKind,
+  GlassAskReply,
+  GlassPromptInput,
   DesktopUpdateState,
-  PiSessionActiveEvent,
-  PiSessionSummaryEvent,
-  PiThinkingLevel,
+  GlassSessionActiveEvent,
+  GlassSessionSummaryEvent,
+  ThinkingLevel,
+  ThreadInteractiveReply,
+  ThreadPromptInput,
 } from "@glass/contracts";
 import { autoUpdater } from "electron-updater";
 import { RotatingFileSink } from "@glass/shared/logging";
@@ -41,6 +44,13 @@ import {
   type ExtUiReply,
 } from "./ext-ui-bridge";
 import { GitService } from "./git-service";
+import {
+  ClaudeCodeHarnessAdapter,
+  CodexHarnessAdapter,
+  HarnessRegistry,
+  HarnessService,
+  PiHarnessAdapter,
+} from "./harness";
 import { PiConfigService } from "./pi-config-service";
 import { PiRuntimeService } from "./pi-runtime/pi-runtime-service";
 import { ShellService } from "./shell-service";
@@ -62,16 +72,6 @@ import {
 import { isArm64HostRunningIntelBuild, resolveDesktopRuntimeInfo } from "./runtimeArch";
 
 syncShellEnvironment();
-
-const dbgUrl = "http://localhost:60380/debug";
-
-function dbg(label: string, data: Record<string, unknown>) {
-  void fetch(dbgUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ label, data }),
-  }).catch(() => {});
-}
 
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
@@ -101,6 +101,26 @@ const SESSION_ANSWER_ASK_CHANNEL = "glass:session.answer-ask";
 const SESSION_ASK_CHANNEL = "glass:session.ask";
 const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
 const SESSION_ACTIVE_CHANNEL = "glass:session.active";
+const THREAD_LIST_CHANNEL = "glass:thread.list";
+const THREAD_LIST_ALL_CHANNEL = "glass:thread.list-all";
+const THREAD_CREATE_CHANNEL = "glass:thread.create";
+const THREAD_START_CHANNEL = "glass:thread.start";
+const THREAD_READ_CHANNEL = "glass:thread.read";
+const THREAD_WATCH_CHANNEL = "glass:thread.watch";
+const THREAD_UNWATCH_CHANNEL = "glass:thread.unwatch";
+const THREAD_PROMPT_CHANNEL = "glass:thread.prompt";
+const THREAD_ABORT_CHANNEL = "glass:thread.abort";
+const THREAD_READ_INTERACTIVE_CHANNEL = "glass:thread.read-interactive";
+const THREAD_ANSWER_INTERACTIVE_CHANNEL = "glass:thread.answer-interactive";
+const THREAD_SUMMARY_CHANNEL = "glass:thread.summary";
+const THREAD_ACTIVE_CHANNEL = "glass:thread.active";
+const THREAD_INTERACTIVE_CHANNEL = "glass:thread.interactive";
+const THREAD_RUNTIME_CHANNEL = "glass:thread.runtime";
+const HARNESS_LIST_CHANNEL = "glass:harness.list";
+const HARNESS_SET_ENABLED_CHANNEL = "glass:harness.set-enabled";
+const HARNESS_SET_DEFAULT_CHANNEL = "glass:harness.set-default";
+const HARNESS_GET_DEFAULT_CHANNEL = "glass:harness.get-default";
+const HARNESS_CHANGE_CHANNEL = "glass:harness.change";
 const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
@@ -158,6 +178,10 @@ let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
 let removeSessionEvents: (() => void) | null = null;
+let removeThreadEvents: (() => void) | null = null;
+let removeThreadActiveEvents: (() => void) | null = null;
+let removeThreadInteractiveEvents: (() => void) | null = null;
+let removeThreadRuntimeEvents: (() => void) | null = null;
 let removeAskEvents: (() => void) | null = null;
 let removeUiReqEvents: (() => void) | null = null;
 let removeUiNotifyEvents: (() => void) | null = null;
@@ -166,8 +190,8 @@ let removeGitEvents: (() => void) | null = null;
 let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
 let bootState: DesktopBootSnapshot | null = null;
 
-const pendingSessionSummaries = new Map<string, PiSessionSummaryEvent>();
-const pendingSessionActives = new Map<number, PiSessionActiveEvent[]>();
+const pendingSessionSummaries = new Map<string, GlassSessionSummaryEvent>();
+const pendingSessionActives = new Map<number, GlassSessionActiveEvent[]>();
 const watchedSessions = new Map<number, string>();
 const watchedSenders = new Set<number>();
 
@@ -182,7 +206,29 @@ function oauthPromptReplyHandler(_event: Electron.IpcMainEvent, value: unknown) 
 }
 const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
 const sessionService = new PiRuntimeService(shellService);
+const threadService = new HarnessService(
+  shellService,
+  Path.join(STATE_DIR, "harness", "threads.json"),
+  [
+    new PiHarnessAdapter(sessionService),
+    new CodexHarnessAdapter(shellService, Path.join(STATE_DIR, "harness", "codex-threads.json")),
+    new ClaudeCodeHarnessAdapter(
+      shellService,
+      Path.join(STATE_DIR, "harness", "claude-threads.json"),
+    ),
+  ],
+);
+const harnessRegistry = new HarnessRegistry(Path.join(STATE_DIR, "harness", "registry.json"), [
+  ...threadService.adapters.values(),
+]);
 const gitService = new GitService();
+
+function broadcastHarnessChange() {
+  const descs = harnessRegistry.list();
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send(HARNESS_CHANGE_CHANNEL, descs);
+  }
+}
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
 const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
@@ -490,6 +536,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
     isQuitting = true;
     dialog.showErrorBox("Glass failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
+  threadService.dispose();
   sessionService.dispose();
   restoreStdIoCapture?.();
   app.quit();
@@ -863,6 +910,7 @@ async function installDownloadedUpdate(): Promise<{ accepted: boolean; completed
   updateInstallInFlight = true;
   clearUpdatePollTimer();
   try {
+    threadService.dispose();
     sessionService.dispose();
     if (process.platform === "win32") {
       // Destroy all windows before launching the NSIS installer to avoid the installer finding live windows it needs to close.
@@ -1039,23 +1087,12 @@ function flushSessionEvents(): void {
 
   const sums = [...pendingSessionSummaries.values()];
   const acts = [...pendingSessionActives.entries()];
-  dbg("main-flush-session-events", {
-    summaryCount: sums.length,
-    activeWindowCount: acts.length,
-    activeCounts: acts.map(([id, events]) => ({ id, count: events.length })),
-  });
   pendingSessionSummaries.clear();
   pendingSessionActives.clear();
 
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue;
     for (const event of sums) {
-      dbg("main-send-summary", {
-        webContentsId: window.webContents.id,
-        sessionId: event.sessionId,
-        type: event.type,
-        messageCount: event.type === "upsert" ? event.summary.messageCount : null,
-      });
       window.webContents.send(SESSION_SUMMARY_CHANNEL, event);
     }
   }
@@ -1064,11 +1101,6 @@ function flushSessionEvents(): void {
     const window = BrowserWindow.getAllWindows().find((item) => item.webContents.id === id);
     if (!window || window.isDestroyed()) continue;
     for (const event of events) {
-      dbg("main-send-active", {
-        webContentsId: id,
-        sessionId: event.sessionId,
-        deltaType: event.delta.type,
-      });
       window.webContents.send(SESSION_ACTIVE_CHANNEL, event);
     }
   }
@@ -1076,21 +1108,11 @@ function flushSessionEvents(): void {
 
 function emitSessionEvent(event: unknown): void {
   if (!event || typeof event !== "object" || !("lane" in event)) return;
-  dbg("main-emit-session-event", {
-    lane: event.lane,
-    sessionId: "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null,
-    ...(event.lane === "active" &&
-    "delta" in event &&
-    typeof event.delta === "object" &&
-    event.delta !== null
-      ? { deltaType: (event.delta as { type?: unknown }).type ?? null }
-      : {}),
-  });
 
   if (event.lane === "summary") {
     const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
     if (!id) return;
-    pendingSessionSummaries.set(id, event as PiSessionSummaryEvent);
+    pendingSessionSummaries.set(id, event as GlassSessionSummaryEvent);
   }
 
   if (event.lane === "active") {
@@ -1099,9 +1121,8 @@ function emitSessionEvent(event: unknown): void {
     for (const [wid, sid] of watchedSessions) {
       if (sid !== id) continue;
       const list = pendingSessionActives.get(wid) ?? [];
-      list.push(event as PiSessionActiveEvent);
+      list.push(event as GlassSessionActiveEvent);
       pendingSessionActives.set(wid, list);
-      dbg("main-queue-active", { webContentsId: wid, sessionId: id, count: list.length });
     }
   }
 
@@ -1136,6 +1157,7 @@ function clearAllWatchedSessions(): void {
 
 async function readBootSnapshot(): Promise<DesktopBootSnapshot> {
   await Effect.runPromise(pi.prepare(shellService.cwd));
+  const boot = threadService.boot();
   return {
     electron: true,
     shell: Effect.runSync(shellService.getState()),
@@ -1143,6 +1165,8 @@ async function readBootSnapshot(): Promise<DesktopBootSnapshot> {
     sessions: sessionService.peek(),
     snapshots: sessionService.bootSnapshots(),
     asks: sessionService.bootAsks(),
+    threads: boot.threads,
+    threadSnaps: boot.snaps,
   };
 }
 
@@ -1183,6 +1207,34 @@ function registerIpcHandlers(): void {
   removeSessionEvents?.();
   removeSessionEvents = sessionService.listen((event) => {
     emitSessionEvent(event);
+  });
+  removeThreadEvents?.();
+  removeThreadEvents = threadService.listenSummary((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(THREAD_SUMMARY_CHANNEL, event);
+    }
+  });
+  removeThreadActiveEvents?.();
+  removeThreadActiveEvents = threadService.listenActive((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(THREAD_ACTIVE_CHANNEL, event);
+    }
+  });
+  removeThreadInteractiveEvents?.();
+  removeThreadInteractiveEvents = threadService.listenInteractive((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(THREAD_INTERACTIVE_CHANNEL, event);
+    }
+  });
+  removeThreadRuntimeEvents?.();
+  removeThreadRuntimeEvents = threadService.listenRuntime((event) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(THREAD_RUNTIME_CHANNEL, event);
+    }
   });
   removeAskEvents?.();
   removeAskEvents = sessionService.listenAsk((event) => {
@@ -1324,27 +1376,44 @@ function registerIpcHandlers(): void {
   ipcMain.removeHandler(SESSION_LIST_CHANNEL);
   ipcMain.handle(SESSION_LIST_CHANNEL, async () => Effect.runPromise(sessionService.list()));
 
+  ipcMain.removeHandler(THREAD_LIST_CHANNEL);
+  ipcMain.handle(THREAD_LIST_CHANNEL, async () => Effect.runPromise(threadService.list()));
+
   ipcMain.removeHandler(SESSION_LIST_ALL_CHANNEL);
   ipcMain.handle(SESSION_LIST_ALL_CHANNEL, async () => Effect.runPromise(sessionService.listAll()));
 
+  ipcMain.removeHandler(THREAD_LIST_ALL_CHANNEL);
+  ipcMain.handle(THREAD_LIST_ALL_CHANNEL, async () => Effect.runPromise(threadService.listAll()));
+
   ipcMain.removeHandler(SESSION_CREATE_CHANNEL);
   ipcMain.handle(SESSION_CREATE_CHANNEL, async () => {
-    dbg("ipc-session-create-start", {});
     try {
       const snap = await Effect.runPromise(sessionService.create());
-      dbg("ipc-session-create-success", {
-        id: snap.id,
-        cwd: snap.cwd,
-        file: snap.file,
-        messageCount: snap.messages.length,
-      });
       return snap;
     } catch (err) {
-      dbg("ipc-session-create-error", {
-        message: err instanceof Error ? err.message : String(err),
-      });
       throw err;
     }
+  });
+
+  ipcMain.removeHandler(THREAD_CREATE_CHANNEL);
+  ipcMain.handle(THREAD_CREATE_CHANNEL, async (_event, raw: unknown) => {
+    const kind =
+      raw === "pi" || raw === "codex" || raw === "claudeCode" ? (raw as HarnessKind) : undefined;
+    return Effect.runPromise(threadService.create(kind));
+  });
+
+  ipcMain.removeHandler(THREAD_START_CHANNEL);
+  ipcMain.handle(THREAD_START_CHANNEL, async (_event, kind: unknown, input: unknown) => {
+    if (typeof kind !== "string") throw new Error("Missing harness kind");
+    if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
+      throw new Error("Missing prompt input");
+    }
+    return Effect.runPromise(
+      threadService.start(
+        kind as HarnessKind,
+        input as string | import("@glass/contracts").ThreadPromptInput,
+      ),
+    );
   });
 
   ipcMain.removeHandler(SESSION_GET_CHANNEL);
@@ -1365,6 +1434,97 @@ function registerIpcHandlers(): void {
     return Effect.runPromise(sessionService.get(sessionId));
   });
 
+  ipcMain.removeHandler(THREAD_READ_CHANNEL);
+  ipcMain.handle(THREAD_READ_CHANNEL, async (_event, threadId: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    return Effect.runPromise(threadService.read(threadId));
+  });
+
+  ipcMain.removeHandler(THREAD_WATCH_CHANNEL);
+  ipcMain.handle(THREAD_WATCH_CHANNEL, async (_event, threadId: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    return Effect.runPromise(threadService.watch(threadId));
+  });
+
+  ipcMain.removeHandler(THREAD_UNWATCH_CHANNEL);
+  ipcMain.handle(THREAD_UNWATCH_CHANNEL, async (_event, threadId: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    return Effect.runPromise(threadService.unwatch(threadId));
+  });
+
+  ipcMain.removeHandler(THREAD_PROMPT_CHANNEL);
+  ipcMain.handle(THREAD_PROMPT_CHANNEL, async (_event, threadId: unknown, input: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
+      throw new Error("Missing prompt input");
+    }
+    return Effect.runPromise(threadService.prompt(threadId, input as string | ThreadPromptInput));
+  });
+
+  ipcMain.removeHandler(THREAD_ABORT_CHANNEL);
+  ipcMain.handle(THREAD_ABORT_CHANNEL, async (_event, threadId: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    return Effect.runPromise(threadService.abort(threadId));
+  });
+
+  ipcMain.removeHandler(THREAD_READ_INTERACTIVE_CHANNEL);
+  ipcMain.handle(THREAD_READ_INTERACTIVE_CHANNEL, async (_event, threadId: unknown) => {
+    if (typeof threadId !== "string" || !threadId.trim()) {
+      throw new Error("Missing thread id");
+    }
+    return Effect.runPromise(threadService.readInteractive(threadId));
+  });
+
+  ipcMain.removeHandler(THREAD_ANSWER_INTERACTIVE_CHANNEL);
+  ipcMain.handle(
+    THREAD_ANSWER_INTERACTIVE_CHANNEL,
+    async (_event, threadId: unknown, reply: unknown) => {
+      if (typeof threadId !== "string" || !threadId.trim()) {
+        throw new Error("Missing thread id");
+      }
+      if (typeof reply !== "object" || reply === null) {
+        throw new Error("Missing interactive reply");
+      }
+      return Effect.runPromise(
+        threadService.answerInteractive(threadId, reply as ThreadInteractiveReply),
+      );
+    },
+  );
+
+  ipcMain.removeHandler(HARNESS_LIST_CHANNEL);
+  ipcMain.handle(HARNESS_LIST_CHANNEL, async () => {
+    const descs = [...threadService.adapters.values()].map((adapter) => adapter.describe());
+    return descs;
+  });
+
+  ipcMain.removeHandler(HARNESS_SET_ENABLED_CHANNEL);
+  ipcMain.handle(HARNESS_SET_ENABLED_CHANNEL, async (_event, kind: unknown, enabled: unknown) => {
+    if (typeof kind !== "string") throw new Error("Missing harness kind");
+    if (typeof enabled !== "boolean") throw new Error("Missing enabled flag");
+    await harnessRegistry.setEnabled(kind as HarnessKind, enabled);
+    broadcastHarnessChange();
+  });
+
+  ipcMain.removeHandler(HARNESS_SET_DEFAULT_CHANNEL);
+  ipcMain.handle(HARNESS_SET_DEFAULT_CHANNEL, async (_event, kind: unknown) => {
+    if (typeof kind !== "string") throw new Error("Missing harness kind");
+    await harnessRegistry.setDefault(kind as HarnessKind);
+    broadcastHarnessChange();
+  });
+
+  ipcMain.removeHandler(HARNESS_GET_DEFAULT_CHANNEL);
+  ipcMain.handle(HARNESS_GET_DEFAULT_CHANNEL, async () => harnessRegistry.getDefault());
+
   ipcMain.removeHandler(SESSION_WATCH_CHANNEL);
   ipcMain.handle(SESSION_WATCH_CHANNEL, async (event, sessionId: unknown) => {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
@@ -1372,11 +1532,9 @@ function registerIpcHandlers(): void {
     }
 
     bindWatchedSession(event.sender);
-    dbg("ipc-session-watch-start", { webContentsId: event.sender.id, sessionId });
 
     const current = watchedSessions.get(event.sender.id);
     if (current === sessionId) {
-      dbg("ipc-session-watch-hit-current", { webContentsId: event.sender.id, sessionId });
       return Effect.runPromise(sessionService.get(sessionId));
     }
     if (current) {
@@ -1394,18 +1552,8 @@ function registerIpcHandlers(): void {
           ),
         ),
       );
-      dbg("ipc-session-watch-success", {
-        webContentsId: event.sender.id,
-        sessionId,
-        messageCount: snap.messages.length,
-      });
       return snap;
     } catch (err) {
-      dbg("ipc-session-watch-error", {
-        webContentsId: event.sender.id,
-        sessionId,
-        message: err instanceof Error ? err.message : String(err),
-      });
       throw err;
     }
   });
@@ -1423,25 +1571,10 @@ function registerIpcHandlers(): void {
     if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
       throw new Error("Missing prompt input");
     }
-    const item = input as string | PiPromptInput;
-    dbg("ipc-session-prompt-start", {
-      sessionId,
-      textLen: typeof item === "string" ? item.length : (item.text?.length ?? 0),
-      attachmentCount:
-        typeof item === "string"
-          ? 0
-          : Array.isArray(item.attachments)
-            ? item.attachments.length
-            : 0,
-    });
+    const item = input as string | GlassPromptInput;
     try {
       await Effect.runPromise(sessionService.prompt(sessionId, item));
-      dbg("ipc-session-prompt-success", { sessionId });
     } catch (err) {
-      dbg("ipc-session-prompt-error", {
-        sessionId,
-        message: err instanceof Error ? err.message : String(err),
-      });
       throw err;
     }
   });
@@ -1460,12 +1593,6 @@ function registerIpcHandlers(): void {
       throw new Error("Missing session id");
     }
     const state = sessionService.readAsk(sessionId);
-    dbg("ipc-session-read-ask", {
-      sessionId,
-      active: Boolean(state),
-      toolCallId: state?.toolCallId ?? null,
-      questionCount: state?.questions.length ?? 0,
-    });
     return state;
   });
 
@@ -1477,12 +1604,7 @@ function registerIpcHandlers(): void {
     if (!reply || typeof reply !== "object") {
       throw new Error("Missing ask reply");
     }
-    dbg("ipc-session-answer-ask", {
-      sessionId,
-      replyType: (reply as { type?: unknown }).type ?? null,
-      questionId: (reply as { questionId?: unknown }).questionId ?? null,
-    });
-    await Effect.runPromise(sessionService.answerAsk(sessionId, reply as PiAskReply));
+    await Effect.runPromise(sessionService.answerAsk(sessionId, reply as GlassAskReply));
   });
 
   ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
@@ -1510,7 +1632,7 @@ function registerIpcHandlers(): void {
     },
   );
 
-  const thinkingLevels = new Set<PiThinkingLevel>([
+  const thinkingLevels = new Set<ThinkingLevel>([
     "off",
     "minimal",
     "low",
@@ -1525,10 +1647,10 @@ function registerIpcHandlers(): void {
       if (typeof sessionId !== "string" || !sessionId.trim()) {
         throw new Error("Missing session id");
       }
-      if (typeof level !== "string" || !thinkingLevels.has(level as PiThinkingLevel)) {
+      if (typeof level !== "string" || !thinkingLevels.has(level as ThinkingLevel)) {
         throw new Error("Invalid thinking level");
       }
-      await Effect.runPromise(sessionService.setThinkingLevel(sessionId, level as PiThinkingLevel));
+      await Effect.runPromise(sessionService.setThinkingLevel(sessionId, level as ThinkingLevel));
     },
   );
 
@@ -1692,6 +1814,7 @@ function registerIpcHandlers(): void {
     if (next) {
       await pi.init(next.cwd);
       clearAllWatchedSessions();
+      threadService.dispose();
       sessionService.dispose();
       const state = await Effect.runPromise(gitService.refresh(next.cwd));
       restartGitWatch(state.gitRoot);
@@ -1958,6 +2081,7 @@ configureAppIdentity();
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
   await Effect.runPromise(pi.prepare(shellService.cwd));
+  await harnessRegistry.init();
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
   await Effect.runPromise(
@@ -1983,6 +2107,14 @@ app.on("before-quit", () => {
   removeGitEvents = null;
   removeSessionEvents?.();
   removeSessionEvents = null;
+  removeThreadEvents?.();
+  removeThreadEvents = null;
+  removeThreadActiveEvents?.();
+  removeThreadActiveEvents = null;
+  removeThreadInteractiveEvents?.();
+  removeThreadInteractiveEvents = null;
+  removeThreadRuntimeEvents?.();
+  removeThreadRuntimeEvents = null;
   removeAskEvents?.();
   removeAskEvents = null;
   removeUiReqEvents?.();
@@ -1991,6 +2123,7 @@ app.on("before-quit", () => {
   removeUiNotifyEvents = null;
   removeUiSetEditorEvents?.();
   removeUiSetEditorEvents = null;
+  threadService.dispose();
   sessionService.dispose();
   restoreStdIoCapture?.();
 });
@@ -2035,6 +2168,8 @@ if (process.platform !== "win32") {
     removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
+    removeThreadEvents?.();
+    removeThreadEvents = null;
     removeAskEvents?.();
     removeAskEvents = null;
     removeUiReqEvents?.();
@@ -2043,6 +2178,7 @@ if (process.platform !== "win32") {
     removeUiNotifyEvents = null;
     removeUiSetEditorEvents?.();
     removeUiSetEditorEvents = null;
+    threadService.dispose();
     sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();
@@ -2059,6 +2195,8 @@ if (process.platform !== "win32") {
     removeGitEvents = null;
     removeSessionEvents?.();
     removeSessionEvents = null;
+    removeThreadEvents?.();
+    removeThreadEvents = null;
     removeAskEvents?.();
     removeAskEvents = null;
     removeUiReqEvents?.();
@@ -2067,6 +2205,7 @@ if (process.platform !== "win32") {
     removeUiNotifyEvents = null;
     removeUiSetEditorEvents?.();
     removeUiSetEditorEvents = null;
+    threadService.dispose();
     sessionService.dispose();
     restoreStdIoCapture?.();
     app.quit();

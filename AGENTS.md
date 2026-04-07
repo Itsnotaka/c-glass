@@ -24,6 +24,10 @@ Imports:
 - Primitives: `~/components/ui/...`.
 - Dependency direction: domain code imports primitives; primitives do not import feature layers.
 
+### Canonical naming (Glass runtime)
+
+The renderer and shared IPC types use **Glass**, **thread**, and **harness** vocabulary (`@glass/contracts`: `GlassSessionSnapshot`, `ThreadSummary`, `HarnessKind`, …). Do not prefix shared UI or cross-package DTOs with `pi-` unless the value is strictly Pi-adapter internals. Pi subprocess code lives under `apps/desktop` adapter paths (e.g. `pi-runtime/`); the web app imports `thread-session-store`, `chat-composer`, `use-runtime-session`, and `runtime-models` — not `pi-session-store` / `pi-composer` for product chrome.
+
 ## Task Completion Requirements
 
 - All of `pnpm run fmt`, `pnpm run lint`, and `pnpm run typecheck` must pass before considering tasks completed.

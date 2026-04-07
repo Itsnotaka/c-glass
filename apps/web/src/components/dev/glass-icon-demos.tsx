@@ -1,4 +1,4 @@
-import type { PiAskState } from "@glass/contracts";
+import type { GlassAskState } from "@glass/contracts";
 import type { ShellFileHit } from "@glass/contracts";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -23,20 +23,20 @@ import { GlassAskTool } from "~/components/glass/ask-tool";
 import {
   GlassComposerAttachmentChipDemo,
   GlassComposerToolbarIconDemo,
-} from "~/components/glass/pi-composer";
+} from "~/components/glass/chat-composer";
 import { GlassComposerFilePreview } from "~/components/glass/composer-file-preview";
 import { GlassCommandPalette } from "~/components/glass/command-palette";
 import { GlassGitFileRow, GlassGitGroupHeader } from "~/components/glass/git-panel";
 import { GlassWorkbenchLayout } from "~/components/glass/layout";
 import { GlassOpenPicker } from "~/components/glass/open-picker";
-import { GlassPiChatRowsIconStripDemo } from "~/components/glass/pi-chat-rows";
+import { GlassChatRowsIconStripDemo } from "~/components/glass/chat-rows";
 import { GlassSettingsNavRail } from "~/components/glass/settings-nav-rail";
 import { GlassSidebarFooter } from "~/components/glass/sidebar-footer";
 import { GlassSidebarHeader } from "~/components/glass/sidebar-header";
 import { GlassComposerTokenMenu } from "~/components/glass/slash-menu";
 import { GlassUpdatePill } from "~/components/glass/update-pill";
 import type { GlassSlashItem, SlashMenuRow } from "~/components/glass/slash-registry";
-import { PiModelPicker } from "~/components/glass/pi-model-picker";
+import { GlassModelPicker } from "~/components/glass/model-picker";
 import {
   GlassCombobox,
   GlassComboboxItem,
@@ -47,7 +47,7 @@ import {
 } from "~/components/glass/combobox";
 import type { DiffRow } from "~/hooks/use-glass-git";
 import type { GlassSidebarSection } from "~/lib/glass-view-model";
-import type { PiModelItem } from "~/lib/pi-models";
+import type { PiModelItem } from "~/lib/runtime-models";
 
 function useDemoPanels(): GlassAppShellPanels {
   const [leftOpen, setLeftOpen] = useState(true);
@@ -152,9 +152,10 @@ const reasoningModel: PiModelItem = {
   reasoning: true,
 };
 
-const askDemo: PiAskState = {
+const askDemo: GlassAskState = {
   sessionId: "demo",
   toolCallId: "t1",
+  kind: "select",
   questions: [
     {
       id: "q1",
@@ -366,11 +367,11 @@ export function GlassIconDemosPanel() {
       </DemoSection>
 
       <DemoSection
-        title="components/glass/pi-model-picker.tsx"
+        title="components/glass/model-picker.tsx"
         hint="Open the model menu — Brain, Checkmark1Small, ChevronRight in list and thinking submenu."
       >
         <div className="max-w-sm rounded-lg border border-border p-2">
-          <PiModelPicker
+          <GlassModelPicker
             items={[reasoningModel]}
             status="ready"
             selection={{
@@ -398,16 +399,16 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/pi-composer.tsx (toolbar + chips)">
+      <DemoSection title="components/glass/chat-composer.tsx (toolbar + chips)">
         <div className="space-y-3">
           <GlassComposerToolbarIconDemo />
           <GlassComposerAttachmentChipDemo />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/pi-chat-rows.tsx">
+      <DemoSection title="components/glass/chat-rows.tsx">
         <div className="max-w-xl overflow-hidden rounded-lg border border-border">
-          <GlassPiChatRowsIconStripDemo />
+          <GlassChatRowsIconStripDemo />
         </div>
       </DemoSection>
 

@@ -1,4 +1,4 @@
-import type { PiAskReply, PiAskState } from "@glass/contracts";
+import type { GlassAskReply, GlassAskState } from "@glass/contracts";
 import {
   IconCheckmark1Small,
   IconChevronLeft,
@@ -11,8 +11,8 @@ import { ScrollArea } from "~/components/ui/scroll-area";
 import { cn } from "~/lib/utils";
 
 interface Props {
-  state: PiAskState;
-  onReply: (reply: PiAskReply) => void;
+  state: GlassAskState;
+  onReply: (reply: GlassAskReply) => void;
 }
 
 const vacant: string[] = [];
@@ -165,7 +165,7 @@ export function GlassAskTool(props: Props) {
   );
 
   const reply = useCallback(
-    (type: PiAskReply["type"]) => {
+    (type: GlassAskReply["type"]) => {
       if (!q) return;
       if (type === "abort") {
         props.onReply({ type });

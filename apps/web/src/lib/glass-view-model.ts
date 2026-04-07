@@ -1,16 +1,16 @@
-import type { PiSessionSummary } from "@glass/contracts";
+import type { GlassSessionSummary } from "@glass/contracts";
 
 import { shortWorkspacePathLabel } from "./glass-path-label";
 
 export function buildWorkspaceThreadSections(
-  sums: Record<string, PiSessionSummary>,
+  sums: Record<string, GlassSessionSummary>,
   cwd: string | null,
   home: string | null,
 ) {
   const list = Object.values(sums);
   if (list.length === 0) return [];
 
-  const by = new Map<string, PiSessionSummary[]>();
+  const by = new Map<string, GlassSessionSummary[]>();
   for (const s of list) {
     const key = s.cwd || "/";
     const cur = by.get(key);
@@ -76,8 +76,8 @@ function timeAgo(iso: string) {
   return `${day}d`;
 }
 
-export function buildPiSessionSidebarAgent(
-  session: PiSessionSummary,
+export function buildThreadSidebarAgent(
+  session: GlassSessionSummary,
   selectedSessionId: string | null,
 ) {
   return {

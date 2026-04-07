@@ -4,17 +4,18 @@ import { AnimatePresence } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-import { usePiStore, usePiSummary } from "../../lib/pi-session-store";
+import { useHarnessDescriptor } from "../../lib/harness-store";
+import { useThreadSessionStore, useThreadSummary } from "../../lib/thread-session-store";
 import { GlassAskTool } from "./ask-tool";
 import { GlassOpenPicker } from "./open-picker";
-import { GlassPiComposer, type GlassPiComposerHandle } from "./pi-composer";
-import { GlassPiMessages } from "./pi-messages";
+import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
+import { GlassChatMessages } from "./chat-messages";
 import { GlassShell } from "./shell";
-import { usePiSession } from "./use-pi-session";
+import { useRuntimeSession } from "./use-runtime-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
-  const sum = usePiSummary(props.sessionId);
-  const snap = usePiStore((state) => state.snaps[props.sessionId]);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
   const count = sum?.messageCount ?? snap?.messages.length ?? 0;
   const live = Boolean(snap?.live) || Boolean(snap?.isStreaming);
 
@@ -27,8 +28,12 @@ export function GlassChatSession(props: { sessionId: string }) {
 
 function HeroSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
-  const session = usePiSession(props.sessionId);
-  const composerRef = useRef<GlassPiComposerHandle>(null);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const kind = sum?.harness ?? snap?.harness ?? "pi";
+  const harnessDescriptor = useHarnessDescriptor(kind);
+  const session = useRuntimeSession(props.sessionId, kind);
+  const composerRef = useRef<GlassChatComposerHandle>(null);
   const prevSession = useRef(props.sessionId);
 
   useLayoutEffect(() => {
@@ -47,7 +52,7 @@ function HeroSession(props: { sessionId: string }) {
       <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
         <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
           <div className="relative w-full">
-            <GlassPiComposer
+            <GlassChatComposer
               ref={composerRef}
               sessionId={props.sessionId}
               draft={draft}
@@ -60,6 +65,8 @@ function HeroSession(props: { sessionId: string }) {
               onModel={session.setModel}
               onThinkingLevel={session.setThinkingLevel}
               onSend={session.send}
+              harness={kind}
+              harnessDescriptor={harnessDescriptor}
             />
             <AnimatePresence>
               {session.ask ? (
@@ -77,7 +84,11 @@ function HeroSession(props: { sessionId: string }) {
 function DockSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const session = usePiSession(props.sessionId);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const kind = sum?.harness ?? snap?.harness ?? "pi";
+  const harnessDescriptor = useHarnessDescriptor(kind);
+  const session = useRuntimeSession(props.sessionId, kind);
 
   useEffect(() => {
     setDraft("");
@@ -95,9 +106,9 @@ function DockSession(props: { sessionId: string }) {
 
   return (
     <GlassShell>
-      <GlassPiMessages messages={session.messages} live={session.live} expanded={expanded} />
+      <GlassChatMessages messages={session.messages} live={session.live} expanded={expanded} />
       <div className="relative">
-        <GlassPiComposer
+        <GlassChatComposer
           sessionId={props.sessionId}
           draft={draft}
           onDraft={setDraft}
@@ -109,6 +120,8 @@ function DockSession(props: { sessionId: string }) {
           onModel={session.setModel}
           onThinkingLevel={session.setThinkingLevel}
           onSend={session.send}
+          harness={kind}
+          harnessDescriptor={harnessDescriptor}
         />
         <AnimatePresence>
           {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}

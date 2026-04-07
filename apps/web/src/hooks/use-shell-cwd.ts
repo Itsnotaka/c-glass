@@ -2,7 +2,7 @@ import type { ShellState } from "@glass/contracts";
 import { useEffect, useState } from "react";
 
 import { readGlass, readGlassBoot } from "../host";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
 
 export function useShellState() {
   const [state, setState] = useState<ShellState | null>(() => readGlassBoot()?.shell ?? null);
@@ -26,11 +26,11 @@ export function useShellState() {
     };
 
     sync();
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, sync);
+    window.addEventListener(GLASS_SHELL_CHANGED_EVENT, sync);
 
     return () => {
       live = false;
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, sync);
+      window.removeEventListener(GLASS_SHELL_CHANGED_EVENT, sync);
     };
   }, []);
 

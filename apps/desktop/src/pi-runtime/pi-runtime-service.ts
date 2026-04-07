@@ -4,17 +4,17 @@ import * as Path from "node:path";
 
 import * as Effect from "effect/Effect";
 import type {
-  PiAskEvent,
-  PiAskReply,
-  PiAskState,
-  PiPromptAttachment,
-  PiPromptInput,
-  PiSessionActiveEvent,
-  PiSessionBridgeEvent,
-  PiSessionSnapshot,
-  PiSessionSummary,
-  PiSlashCommand,
-  PiThinkingLevel,
+  GlassAskEvent,
+  GlassAskReply,
+  GlassAskState,
+  GlassPromptAttachment,
+  GlassPromptInput,
+  GlassSessionActiveEvent,
+  GlassSessionBridgeEvent,
+  GlassSessionSnapshot,
+  GlassSessionSummary,
+  GlassSlashCommand,
+  ThinkingLevel,
 } from "@glass/contracts";
 import { CURRENT_SESSION_VERSION, SessionManager } from "@mariozechner/pi-coding-agent";
 import type { ExtUiReply, ExtUiReq } from "../ext-ui-bridge";
@@ -26,20 +26,12 @@ import { normalizePiRpcIntake } from "./pi-runtime-normalizer";
 import { PiRpcClient } from "./pi-rpc-client";
 import { PiSessionDirectory } from "./pi-session-directory";
 import { PiRuntimeStore } from "./pi-runtime-store";
+import type { PiRuntimeEvent } from "./pi-runtime-normalizer";
 
 const mention = /(^|[\s=])@("([^"]+)"|([^\s"=]+))/g;
 const other = "__other__";
 const idleMs = 15_000;
 const maxRuns = 8;
-const dbgUrl = "http://localhost:60380/debug";
-
-function dbg(label: string, data: Record<string, unknown>) {
-  void fetch(dbgUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ label, data }),
-  }).catch(() => {});
-}
 
 type UiPending = {
   sessionId: string;
@@ -57,7 +49,7 @@ type UiSetEditor = {
 };
 
 type AskBuilt = {
-  state: PiAskState;
+  state: GlassAskState;
   map: Map<string, string>;
 };
 
@@ -101,7 +93,7 @@ function parseMentions(text: string) {
   return { text: tidy(out), paths };
 }
 
-async function attach(cwd: string, att: PiPromptAttachment) {
+async function attach(cwd: string, att: GlassPromptAttachment) {
   if (att.type === "inline") {
     const buf = Buffer.from(att.data, "base64");
     if (att.mimeType.startsWith("image/")) {
@@ -142,11 +134,11 @@ async function attach(cwd: string, att: PiPromptAttachment) {
   };
 }
 
-async function buildInput(cwd: string, input: string | PiPromptInput) {
+async function buildInput(cwd: string, input: string | GlassPromptInput) {
   const base = typeof input === "string" ? { text: input, attachments: [] } : input;
   const found = parseMentions(base.text ?? "");
   const files = [
-    ...found.paths.map((path) => ({ type: "path", path }) satisfies PiPromptAttachment),
+    ...found.paths.map((path) => ({ type: "path", path }) satisfies GlassPromptAttachment),
     ...(base.attachments ?? []),
   ];
 
@@ -247,7 +239,7 @@ function summary(item: {
   messageCount: number;
   firstMessage: string;
   allMessagesText: string;
-}): PiSessionSummary {
+}): GlassSessionSummary {
   return {
     id: item.id,
     path: item.path,
@@ -275,6 +267,7 @@ function askState(sessionId: string, req: Exclude<ExtUiReq, { type: "get-editor"
       state: {
         sessionId,
         toolCallId: req.id,
+        kind: req.type,
         questions: [{ id: req.id, text: req.title, options }],
         current: 1,
         values: {},
@@ -291,6 +284,7 @@ function askState(sessionId: string, req: Exclude<ExtUiReq, { type: "get-editor"
       state: {
         sessionId,
         toolCallId: req.id,
+        kind: req.type,
         questions: [
           {
             id: req.id,
@@ -314,6 +308,7 @@ function askState(sessionId: string, req: Exclude<ExtUiReq, { type: "get-editor"
     state: {
       sessionId,
       toolCallId: req.id,
+      kind: req.type,
       questions: [
         {
           id: req.id,
@@ -391,24 +386,32 @@ export class PiRuntimeService {
   private cache = new PiReadCache();
   private runs = new Map<string, ReturnType<typeof createRun>>();
   private boot = new Map<string, Promise<ReturnType<typeof createRun>>>();
-  private listeners = new Set<(event: PiSessionBridgeEvent) => void>();
-  private askListeners = new Set<(event: PiAskEvent) => void>();
+  private listeners = new Set<(event: GlassSessionBridgeEvent) => void>();
+  private runtimeListeners = new Set<(event: PiRuntimeEvent) => void>();
+  private askListeners = new Set<(event: GlassAskEvent) => void>();
   private uiReq = new Set<(req: ExtUiReq) => void>();
   private uiNotify = new Set<(item: UiNotify) => void>();
   private uiSetEditor = new Set<(item: UiSetEditor) => void>();
-  private asks = new Map<string, PiAskState | null>();
+  private asks = new Map<string, GlassAskState | null>();
   private pend = new Map<string, UiPending>();
 
   constructor(private shell: ShellService) {}
 
-  listen(fn: (event: PiSessionBridgeEvent) => void) {
+  listen(fn: (event: GlassSessionBridgeEvent) => void) {
     this.listeners.add(fn);
     return () => {
       this.listeners.delete(fn);
     };
   }
 
-  listenAsk(fn: (event: PiAskEvent) => void) {
+  listenRuntime(fn: (event: PiRuntimeEvent) => void) {
+    this.runtimeListeners.add(fn);
+    return () => {
+      this.runtimeListeners.delete(fn);
+    };
+  }
+
+  listenAsk(fn: (event: GlassAskEvent) => void) {
     this.askListeners.add(fn);
     return () => {
       this.askListeners.delete(fn);
@@ -447,7 +450,7 @@ export class PiRuntimeService {
   }
 
   bootAsks() {
-    const out: Record<string, PiAskState> = {};
+    const out: Record<string, GlassAskState> = {};
     for (const [id, state] of this.asks.entries()) {
       if (!state) continue;
       out[id] = state;
@@ -455,34 +458,17 @@ export class PiRuntimeService {
     return out;
   }
 
-  answerAsk(sessionId: string, reply: PiAskReply) {
+  answerAsk(sessionId: string, reply: GlassAskReply) {
     return Effect.tryPromise({
       try: async () => {
         const ask = this.asks.get(sessionId);
         if (!ask) {
-          dbg("runtime-answer-ask-no-ask", { sessionId, replyType: reply.type });
           return;
         }
         const pending = this.pend.get(ask.toolCallId);
         if (!pending) {
-          dbg("runtime-answer-ask-no-pending", {
-            sessionId,
-            toolCallId: ask.toolCallId,
-            replyType: reply.type,
-          });
           return;
         }
-
-        dbg("runtime-answer-ask", {
-          sessionId,
-          toolCallId: ask.toolCallId,
-          replyType: reply.type,
-          replyValues: reply.type === "next" || reply.type === "back" ? reply.values : null,
-          replyCustom:
-            reply.type === "next" || reply.type === "back" ? (reply.custom ?? null) : null,
-          method: pending.method,
-          mapKeys: [...pending.map.keys()],
-        });
 
         if (reply.type === "abort") {
           await Effect.runPromise(
@@ -529,13 +515,6 @@ export class PiRuntimeService {
 
         const key = reply.type === "next" || reply.type === "back" ? (reply.values[0] ?? "") : "";
         const value = pending.map.get(key);
-        dbg("runtime-answer-ask-lookup", {
-          sessionId,
-          toolCallId: ask.toolCallId,
-          key,
-          value: value ?? null,
-          found: Boolean(value),
-        });
         await Effect.runPromise(
           this.replyUi(
             value
@@ -559,23 +538,12 @@ export class PiRuntimeService {
       try: async () => {
         const pending = this.pend.get(reply.id);
         if (!pending) {
-          dbg("runtime-reply-ui-no-pending", { id: reply.id });
           return;
         }
         const run = this.runs.get(pending.sessionId);
         if (!run) {
-          dbg("runtime-reply-ui-no-run", { id: reply.id, sessionId: pending.sessionId });
           return;
         }
-
-        dbg("runtime-reply-ui", {
-          id: reply.id,
-          sessionId: pending.sessionId,
-          method: pending.method,
-          cancelled: reply.cancelled ?? false,
-          valueType: typeof reply.value,
-          value: typeof reply.value === "string" ? reply.value : String(reply.value),
-        });
 
         if (reply.cancelled) {
           await Effect.runPromise(
@@ -619,7 +587,6 @@ export class PiRuntimeService {
   create() {
     return Effect.tryPromise({
       try: async () => {
-        dbg("runtime-session-create-start", { cwd: this.shell.cwd });
         const out = await seed(this.shell.cwd);
         const base = pick(this.shell.cwd);
         const store = new PiRuntimeStore({
@@ -686,7 +653,7 @@ export class PiRuntimeService {
     });
   }
 
-  read(sessionId: string): PiSessionSnapshot | null {
+  read(sessionId: string): GlassSessionSnapshot | null {
     const run = this.runs.get(sessionId);
     if (run) return run.store.snapshot();
 
@@ -740,13 +707,7 @@ export class PiRuntimeService {
     });
   }
 
-  prompt(sessionId: string, input: string | PiPromptInput) {
-    dbg("runtime-prompt-enter", {
-      sessionId,
-      inputType: typeof input,
-      textLen: typeof input === "string" ? input.length : input.text.length,
-      attachmentCount: typeof input === "string" ? 0 : (input.attachments?.length ?? 0),
-    });
+  prompt(sessionId: string, input: string | GlassPromptInput) {
     return this.attach(sessionId).pipe(
       Effect.flatMap((run) =>
         Effect.tryPromise({
@@ -756,11 +717,6 @@ export class PiRuntimeService {
             const shouldQueue = run.store.snapshot().isStreaming || Boolean(currentAsk);
 
             if (currentAsk && currentQuestion) {
-              dbg("runtime-prompt-skip-active-ask", {
-                sessionId,
-                toolCallId: currentAsk.toolCallId,
-                questionId: currentQuestion.id,
-              });
               await Effect.runPromise(
                 this.answerAsk(sessionId, {
                   type: "skip",
@@ -769,33 +725,12 @@ export class PiRuntimeService {
               );
             }
 
-            dbg("runtime-prompt-attached", {
-              sessionId,
-              cwd: run.store.snapshot().cwd,
-              file: run.store.snapshot().file,
-              shouldQueue,
-            });
             const out = await buildInput(run.store.snapshot().cwd, input);
-            dbg("runtime-prompt-built", {
-              sessionId,
-              cwd: run.store.snapshot().cwd,
-              textLen: out.text.length,
-              imageCount: out.images.length,
-              streamingBehavior: shouldQueue ? "followUp" : null,
-            });
             await Effect.runPromise(
               run.client.prompt(out.text, out.images, shouldQueue ? "followUp" : undefined),
             );
-            dbg("runtime-prompt-client-success", {
-              sessionId,
-              streamingBehavior: shouldQueue ? "followUp" : null,
-            });
           },
           catch: (err) => {
-            dbg("runtime-prompt-client-error", {
-              sessionId,
-              message: err instanceof Error ? err.message : String(err),
-            });
             return err instanceof Error ? err : new Error(String(err));
           },
         }),
@@ -816,7 +751,7 @@ export class PiRuntimeService {
             }))
             .toSorted((left, right) =>
               left.name.localeCompare(right.name),
-            ) satisfies PiSlashCommand[],
+            ) satisfies GlassSlashCommand[],
       ),
     );
   }
@@ -831,7 +766,7 @@ export class PiRuntimeService {
     );
   }
 
-  setThinkingLevel(sessionId: string, next: PiThinkingLevel) {
+  setThinkingLevel(sessionId: string, next: ThinkingLevel) {
     return this.attach(sessionId).pipe(Effect.flatMap((run) => run.client.setThinkingLevel(next)));
   }
 
@@ -882,14 +817,8 @@ export class PiRuntimeService {
   private attach(sessionId: string, watch = false) {
     return Effect.tryPromise({
       try: async () => {
-        dbg("runtime-attach-enter", { sessionId, watch });
         const run = this.runs.get(sessionId);
         if (run) {
-          dbg("runtime-attach-hit-run", {
-            sessionId,
-            cwd: run.store.snapshot().cwd,
-            file: run.store.snapshot().file,
-          });
           if (watch) run.refs += 1;
           this.touch(run);
           return run;
@@ -898,30 +827,14 @@ export class PiRuntimeService {
         const boot = this.boot.get(sessionId);
         if (boot) {
           const next = await boot;
-          dbg("runtime-attach-hit-boot", {
-            sessionId,
-            cwd: next.store.snapshot().cwd,
-            file: next.store.snapshot().file,
-          });
           if (watch) next.refs += 1;
           this.touch(next);
           return next;
         }
 
         const sum = this.dir.get(sessionId);
-        dbg("runtime-attach-hit-dir", {
-          sessionId,
-          found: Boolean(sum),
-          cwd: sum?.cwd ?? null,
-          path: sum?.path ?? null,
-        });
         if (!sum || !sum.path) throw new Error(`Unknown session: ${sessionId}`);
         const next = await Effect.runPromise(this.openRun({ sessionPath: sum.path, cwd: sum.cwd }));
-        dbg("runtime-attach-opened", {
-          sessionId,
-          cwd: next.store.snapshot().cwd,
-          file: next.store.snapshot().file,
-        });
         if (watch) next.refs += 1;
         this.touch(next);
         this.trim();
@@ -935,12 +848,6 @@ export class PiRuntimeService {
     if (this.runs.has(sessionId) || this.boot.has(sessionId)) return;
     const job = Effect.runPromise(this.openRun({ sessionPath, cwd }))
       .catch((err) => {
-        dbg("runtime-warm-error", {
-          sessionId,
-          sessionPath,
-          cwd,
-          message: err instanceof Error ? err.message : String(err),
-        });
         throw err;
       })
       .finally(() => {
@@ -1008,7 +915,6 @@ export class PiRuntimeService {
       try: async () => {
         const cwd = opts?.cwd ?? this.shell.cwd;
         const sessionPath = opts?.sessionPath;
-        dbg("runtime-open-run-start", { cwd, sessionPath: sessionPath ?? null });
         const client = new PiRpcClient({
           workerPath: this.workerPath(),
           cwd,
@@ -1019,13 +925,6 @@ export class PiRuntimeService {
           Effect.runPromise(client.getState()),
           Effect.runPromise(client.getMessages()),
         ]);
-        dbg("runtime-open-run-state", {
-          cwd,
-          sessionPath: sessionPath ?? null,
-          sessionId: state.sessionId,
-          sessionFile: state.sessionFile ?? null,
-          messageCount: state.messageCount,
-        });
         const id = state.sessionId;
 
         const existing = this.runs.get(id);
@@ -1076,7 +975,7 @@ export class PiRuntimeService {
     });
   }
 
-  private merge(list: PiSessionSummary[]) {
+  private merge(list: GlassSessionSummary[]) {
     const map = new Map(list.map((item) => [item.id, item]));
     for (const run of this.runs.values()) {
       map.set(run.id, run.store.summary());
@@ -1091,53 +990,27 @@ export class PiRuntimeService {
     intake: Parameters<typeof normalizePiRpcIntake>[0],
   ) {
     const list = normalizePiRpcIntake(intake);
-    dbg("runtime-consume-events", {
-      sessionId: run.id,
-      count: list.length,
-      types: list.map((evt) => evt.type),
-      refs: run.refs,
-    });
     for (const evt of list) {
+      for (const fn of this.runtimeListeners) fn(evt);
       if (evt.type === "user-input.requested") {
-        dbg("runtime-user-input-requested", {
-          sessionId: run.id,
-          method: evt.request.method,
-          id: evt.request.id,
-        });
         this.handleUiRequest(run.id, evt.request);
       }
       const out = run.store.apply(evt);
       this.cache.write(run.store.snapshot(), run.store.summary().modifiedAt);
       if (out.summary) {
         if (out.summary.type === "upsert") {
-          dbg("runtime-summary-produced", {
-            sessionId: run.id,
-            messageCount: out.summary.summary.messageCount,
-            modifiedAt: out.summary.summary.modifiedAt,
-            firstMessage: out.summary.summary.firstMessage,
-          });
           this.dir.upsert(out.summary.summary);
         }
         this.emit(out.summary);
       }
       if (out.delta && run.refs > 0) {
-        dbg("runtime-active-produced", {
-          sessionId: run.id,
-          refs: run.refs,
-          deltaType: out.delta.type,
-        });
         this.emit({
           lane: "active",
           sessionId: run.id,
           delta: out.delta,
           event: out.event,
-        } satisfies PiSessionActiveEvent);
+        } satisfies GlassSessionActiveEvent);
       } else if (out.delta) {
-        dbg("runtime-active-dropped", {
-          sessionId: run.id,
-          refs: run.refs,
-          deltaType: out.delta.type,
-        });
       }
     }
     this.retain(run.id);
@@ -1158,12 +1031,6 @@ export class PiRuntimeService {
       text?: string;
     },
   ) {
-    dbg("runtime-handle-ui-request", {
-      sessionId,
-      method: req.method,
-      id: req.id,
-      title: req.title ?? null,
-    });
     if (req.method === "notify" && typeof req.message === "string") {
       const item = { message: req.message, type: req.notifyType ?? "info" } satisfies UiNotify;
       for (const fn of this.uiNotify) fn(item);
@@ -1182,20 +1049,10 @@ export class PiRuntimeService {
 
     const next = toReq(req);
     if (!next) {
-      dbg("runtime-handle-ui-request-unrecognized", { sessionId, method: req.method });
       return;
     }
 
     const built = askState(sessionId, next);
-    dbg("runtime-ask-state-built", {
-      sessionId,
-      toolCallId: built.state.toolCallId,
-      questionCount: built.state.questions.length,
-      current: built.state.current,
-      type: next.type,
-      options: next.type === "select" ? next.options : null,
-      mapEntries: [...built.map.entries()],
-    });
     this.pend.set(req.id, { sessionId, method: next.type, map: built.map });
     this.asks.set(sessionId, built.state);
     this.emitAsk(sessionId, built.state);
@@ -1203,23 +1060,11 @@ export class PiRuntimeService {
     for (const fn of this.uiReq) fn(next);
   }
 
-  private emit(event: PiSessionBridgeEvent) {
-    dbg("runtime-emit-bridge-event", {
-      lane: event.lane,
-      sessionId: "sessionId" in event ? event.sessionId : null,
-      ...(event.lane === "active" ? { deltaType: event.delta.type } : {}),
-    });
+  private emit(event: GlassSessionBridgeEvent) {
     for (const fn of this.listeners) fn(event);
   }
 
-  private emitAsk(sessionId: string, state: PiAskState | null) {
-    dbg("runtime-emit-ask", {
-      sessionId,
-      active: Boolean(state),
-      toolCallId: state?.toolCallId ?? null,
-      questionCount: state?.questions.length ?? 0,
-      current: state?.current ?? null,
-    });
+  private emitAsk(sessionId: string, state: GlassAskState | null) {
     for (const fn of this.askListeners) fn({ sessionId, state });
   }
 }

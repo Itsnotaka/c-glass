@@ -2,36 +2,36 @@ import { statSync } from "node:fs";
 import * as Path from "node:path";
 
 import type {
-  PiBlock,
-  PiMessage,
-  PiModelRef,
-  PiSessionDelta,
-  PiSessionEvent,
-  PiSessionItem,
-  PiSessionMeta,
-  PiSessionPending,
-  PiSessionSnapshot,
-  PiSessionSummary,
-  PiSessionSummaryEvent,
-  PiThinkingLevel,
+  GlassBlock,
+  GlassMessage,
+  HarnessModelRef,
+  GlassSessionDelta,
+  GlassSessionEvent,
+  GlassSessionItem,
+  GlassSessionMeta,
+  GlassSessionPending,
+  GlassSessionSnapshot,
+  GlassSessionSummary,
+  GlassSessionSummaryEvent,
+  ThinkingLevel,
 } from "@glass/contracts";
 import type { PiRuntimeEvent } from "./pi-runtime-normalizer";
 
-const levels = new Set<PiThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const levels = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh"]);
 const fileTag = /<file\s+name="([^"]+)"\s*>([\s\S]*?)<\/file>/g;
 
 type ApplyOut = {
-  event: PiSessionEvent;
-  delta: PiSessionDelta | null;
-  summary: PiSessionSummaryEvent | null;
+  event: GlassSessionEvent;
+  delta: GlassSessionDelta | null;
+  summary: GlassSessionSummaryEvent | null;
 };
 
-export function level(value: unknown): PiThinkingLevel {
+export function level(value: unknown): ThinkingLevel {
   if (typeof value !== "string") return "off";
-  return levels.has(value as PiThinkingLevel) ? (value as PiThinkingLevel) : "off";
+  return levels.has(value as ThinkingLevel) ? (value as ThinkingLevel) : "off";
 }
 
-function model(value: unknown): PiModelRef | null {
+function model(value: unknown): HarnessModelRef | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   if (typeof item.provider !== "string" || typeof item.id !== "string") return null;
@@ -165,7 +165,7 @@ function preview(
   return "";
 }
 
-function toBlock(value: unknown): PiBlock | null {
+function toBlock(value: unknown): GlassBlock | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   if (typeof item.type !== "string") return null;
@@ -197,7 +197,7 @@ function toContent(value: unknown) {
   });
 }
 
-export function toMessage(value: unknown): PiMessage {
+export function toMessage(value: unknown): GlassMessage {
   if (!value || typeof value !== "object") {
     return { role: "unknown", value };
   }
@@ -303,16 +303,17 @@ function times(file: string | undefined) {
   }
 }
 
-function textAll(messages: PiSessionItem[]) {
+function textAll(messages: GlassSessionItem[]) {
   return messages
     .flatMap((item) => (item?.message ? [preview(item.message)] : []))
     .filter(Boolean)
     .join("\n\n");
 }
 
-function sameSummary(left: PiSessionSummary, right: PiSessionSummary) {
+function sameSummary(left: GlassSessionSummary, right: GlassSessionSummary) {
   return (
     left.id === right.id &&
+    left.harness === right.harness &&
     left.path === right.path &&
     left.cwd === right.cwd &&
     left.name === right.name &&
@@ -325,11 +326,11 @@ function sameSummary(left: PiSessionSummary, right: PiSessionSummary) {
   );
 }
 
-function toPending(): PiSessionPending {
+function toPending(): GlassSessionPending {
   return { steering: [], followUp: [] };
 }
 
-function toMeta(snap: PiSessionSnapshot): PiSessionMeta {
+function toMeta(snap: GlassSessionSnapshot): GlassSessionMeta {
   return {
     model: snap.model,
     thinkingLevel: snap.thinkingLevel,
@@ -338,7 +339,7 @@ function toMeta(snap: PiSessionSnapshot): PiSessionMeta {
   };
 }
 
-function bridge(evt: PiRuntimeEvent): PiSessionEvent {
+function bridge(evt: PiRuntimeEvent): GlassSessionEvent {
   return {
     type: evt.type,
     rawType: evt.rawType,
@@ -348,8 +349,8 @@ function bridge(evt: PiRuntimeEvent): PiSessionEvent {
 }
 
 export class PiRuntimeStore {
-  private snap: PiSessionSnapshot;
-  private sum: PiSessionSummary;
+  private snap: GlassSessionSnapshot;
+  private sum: GlassSessionSummary;
 
   constructor(opts: { id: string; cwd: string; file: string | null }) {
     this.snap = {
@@ -378,7 +379,7 @@ export class PiRuntimeStore {
 
   apply(evt: PiRuntimeEvent): ApplyOut {
     const event = bridge(evt);
-    let delta: PiSessionDelta | null = null;
+    let delta: GlassSessionDelta | null = null;
 
     if (evt.type === "session.started") {
       this.snap = { ...this.snap, isStreaming: true };
@@ -443,7 +444,7 @@ export class PiRuntimeStore {
         const item = {
           id: msgId(evt.event.message, `${this.snap.id}:${this.snap.messages.length + 1}`),
           message: toMessage(evt.event.message),
-        } satisfies PiSessionItem;
+        } satisfies GlassSessionItem;
         this.snap = {
           ...this.snap,
           messages: [...this.snap.messages, item],
@@ -477,7 +478,7 @@ export class PiRuntimeStore {
     };
   }
 
-  private makeSummary(): PiSessionSummary {
+  private makeSummary(): GlassSessionSummary {
     const time = times(this.snap.file ?? undefined);
     const first = this.snap.messages.find((item) => item?.message)?.message;
     return {

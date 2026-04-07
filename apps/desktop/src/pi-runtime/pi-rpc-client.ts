@@ -28,16 +28,6 @@ function data<T>(res: PiRpcResponse): T {
   return undefined as T;
 }
 
-const dbgUrl = "http://localhost:60380/debug";
-
-function dbg(label: string, data: Record<string, unknown>) {
-  void fetch(dbgUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ label, data }),
-  }).catch(() => {});
-}
-
 export class PiRpcClient {
   private proc: PiProcessManager;
   private offs: Array<() => void> = [];
@@ -174,19 +164,6 @@ export class PiRpcClient {
       try: async () => {
         const id = `rpc_${++this.seq}`;
         const full = { ...command, id };
-        if (command.type === "prompt" || command.type === "get_state") {
-          dbg("rpc-call-start", {
-            id,
-            type: command.type,
-            ...(command.type === "prompt"
-              ? {
-                  textLen: command.message.length,
-                  imageCount: command.images?.length ?? 0,
-                  streamingBehavior: command.streamingBehavior ?? null,
-                }
-              : {}),
-          });
-        }
         const res = await new Promise<PiRpcResponse>((done, fail) => {
           const timer = setTimeout(() => {
             this.waits.delete(id);
@@ -195,47 +172,12 @@ export class PiRpcClient {
           this.waits.set(id, { done, fail, type: command.type, timer });
           this.proc.send(full);
         });
-        const state =
-          command.type === "get_state" && res.success
-            ? data<{
-                model?: Model<Api>;
-                thinkingLevel: string;
-                isStreaming: boolean;
-                isCompacting: boolean;
-                steeringMode: "all" | "one-at-a-time";
-                followUpMode: "all" | "one-at-a-time";
-                sessionFile?: string;
-                sessionId: string;
-                sessionName?: string;
-                autoCompactionEnabled: boolean;
-                messageCount: number;
-                pendingMessageCount: number;
-              }>(res)
-            : null;
-        if (command.type === "prompt" || command.type === "get_state") {
-          dbg("rpc-call-response", {
-            id,
-            type: command.type,
-            success: res.success,
-            ...(state
-              ? {
-                  sessionId: state.sessionId,
-                  sessionFile: state.sessionFile ?? null,
-                  messageCount: state.messageCount,
-                }
-              : {}),
-          });
-        }
         const text = failText(res);
         if (text) throw new Error(text);
         return res;
       },
       catch: (err) => {
         if (command.type === "prompt" || command.type === "get_state") {
-          dbg("rpc-call-error", {
-            type: command.type,
-            message: err instanceof Error ? err.message : String(err),
-          });
         }
         return err instanceof Error ? err : new Error(String(err));
       },

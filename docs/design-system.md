@@ -130,12 +130,12 @@ Glass uses a **4px fixed grid** with tighter defaults.
 
 ### Composer Components
 
-| File                    | Before           | After                      |
-| ----------------------- | ---------------- | -------------------------- |
-| `glass-pi-composer.tsx` | `rounded-2xl`    | `rounded` (4px)            |
-| `glass-pi-composer.tsx` | `px-2.5`         | `px-2`                     |
-| `glass-pi-composer.tsx` | `py-1.5`         | `py-1`                     |
-| `glass-slash-menu.tsx`  | `rounded-[18px]` | `rounded-glass-card` (6px) |
-| `glass-slash-menu.tsx`  | `rounded-2xl`    | `rounded` (4px)            |
-| `glass-slash-menu.tsx`  | `px-2.5`         | `px-2`                     |
-| `glass-slash-menu.tsx`  | `size-4.5`       | `size-4`                   |
+| File                      | Before           | After                      |
+| ------------------------- | ---------------- | -------------------------- |
+| `glass-chat-composer.tsx` | `rounded-2xl`    | `rounded` (4px)            |
+| `glass-chat-composer.tsx` | `px-2.5`         | `px-2`                     |
+| `glass-chat-composer.tsx` | `py-1.5`         | `py-1`                     |
+| `glass-slash-menu.tsx`    | `rounded-[18px]` | `rounded-glass-card` (6px) |
+| `glass-slash-menu.tsx`    | `rounded-2xl`    | `rounded` (4px)            |
+| `glass-slash-menu.tsx`    | `px-2.5`         | `px-2`                     |
+| `glass-slash-menu.tsx`    | `size-4.5`       | `size-4`                   |

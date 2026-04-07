@@ -1,6 +1,7 @@
 import type { PiConfig } from "./pi";
-import type { PiAskState, PiSessionSnapshot, PiSessionSummary } from "./session";
+import type { GlassAskState, GlassSessionSnapshot, GlassSessionSummary } from "./session";
 import type { ShellState } from "./shell";
+import type { ThreadSnapshot, ThreadSummary } from "./thread";
 
 export interface ContextMenuItem<T extends string = string> {
   id: T;
@@ -99,9 +100,11 @@ export interface DesktopBootSnapshot {
   electron: boolean;
   shell: ShellState | null;
   pi: PiConfig | null;
-  sessions: PiSessionSummary[];
-  snapshots: Record<string, PiSessionSnapshot>;
-  asks: Record<string, PiAskState>;
+  sessions: GlassSessionSummary[];
+  snapshots: Record<string, GlassSessionSnapshot>;
+  asks: Record<string, GlassAskState>;
+  threads: ThreadSummary[];
+  threadSnaps: Record<string, ThreadSnapshot>;
 }
 
 export interface DesktopBridge {

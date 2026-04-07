@@ -1,4 +1,4 @@
-import type { Json, PiToolCallBlock } from "@glass/contracts";
+import type { Json, GlassToolCallBlock } from "@glass/contracts";
 import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
 import { memo } from "react";
 import { ChatMarkdown } from "./chat-markdown";
@@ -6,7 +6,7 @@ import { cn } from "./utils";
 
 interface ToolData {
   name: string;
-  call: PiToolCallBlock | null;
+  call: GlassToolCallBlock | null;
   args: string;
   result: string;
   error: boolean;
@@ -74,7 +74,10 @@ function toolDetailsRecord(details: Json | null): Record<string, Json> | null {
   return details as Record<string, Json>;
 }
 
-export function toolFileDiff(name: string, call: PiToolCallBlock | null): FileDiffMetadata | null {
+export function toolFileDiff(
+  name: string,
+  call: GlassToolCallBlock | null,
+): FileDiffMetadata | null {
   const r = resolvedToolName(name);
   const raw = (call?.arguments ?? {}) as Record<string, Json>;
   const path = editPath(raw);
@@ -122,7 +125,7 @@ export function isFileTool(name: string) {
   return r === "edit" || r === "write";
 }
 
-export function isShellTool(name: string, call: PiToolCallBlock | null, argsJson?: string) {
+export function isShellTool(name: string, call: GlassToolCallBlock | null, argsJson?: string) {
   if (resolvedToolName(name) === "bash") return true;
   const args = call?.arguments;
   if (
@@ -147,7 +150,7 @@ export function isShellTool(name: string, call: PiToolCallBlock | null, argsJson
   return false;
 }
 
-export function toolHint(call: PiToolCallBlock | null): string | null {
+export function toolHint(call: GlassToolCallBlock | null): string | null {
   const args = call?.arguments;
   if (!args || typeof args !== "object") return null;
 
@@ -175,7 +178,10 @@ function editPath(args: Record<string, Json>) {
   return "";
 }
 
-export function toolPathFromCall(call: PiToolCallBlock | null, argsJson?: string): string | null {
+export function toolPathFromCall(
+  call: GlassToolCallBlock | null,
+  argsJson?: string,
+): string | null {
   const raw = call?.arguments;
   if (raw && typeof raw === "object") {
     const p = editPath(raw as Record<string, Json>).trim();
@@ -192,7 +198,7 @@ export function toolPathFromCall(call: PiToolCallBlock | null, argsJson?: string
   return null;
 }
 
-export function toolLabel(name: string, call: PiToolCallBlock | null): string | null {
+export function toolLabel(name: string, call: GlassToolCallBlock | null): string | null {
   const args = call?.arguments;
   if (!args || typeof args !== "object") return null;
   const r = resolvedToolName(name);
@@ -226,7 +232,7 @@ function lineDelta(oldText: string, newText: string) {
 
 export function toolStats(
   name: string,
-  call: PiToolCallBlock | null,
+  call: GlassToolCallBlock | null,
 ): { add: number; del: number } | null {
   if (resolvedToolName(name) !== "edit") return null;
   const args = (call?.arguments ?? {}) as EditArgs;

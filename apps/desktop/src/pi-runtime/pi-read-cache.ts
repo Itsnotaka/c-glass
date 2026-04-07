@@ -1,4 +1,4 @@
-import type { PiSessionSnapshot, PiSessionSummary } from "@glass/contracts";
+import type { GlassSessionSnapshot, GlassSessionSummary } from "@glass/contracts";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { level, msgId, toMessage } from "./pi-runtime-store";
 
@@ -14,7 +14,7 @@ function model(value: { provider: string; modelId: string } | null) {
   };
 }
 
-function empty(sum: PiSessionSummary) {
+function empty(sum: GlassSessionSummary) {
   return {
     id: sum.id,
     file: sum.path || null,
@@ -27,10 +27,10 @@ function empty(sum: PiSessionSummary) {
     tree: [],
     isStreaming: sum.isStreaming,
     pending: pending(),
-  } satisfies PiSessionSnapshot;
+  } satisfies GlassSessionSnapshot;
 }
 
-function build(sum: PiSessionSummary) {
+function build(sum: GlassSessionSummary) {
   if (!sum.path) return empty(sum);
 
   try {
@@ -51,7 +51,7 @@ function build(sum: PiSessionSummary) {
       tree: [],
       isStreaming: sum.isStreaming,
       pending: pending(),
-    } satisfies PiSessionSnapshot;
+    } satisfies GlassSessionSnapshot;
   } catch {
     return empty(sum);
   }
@@ -63,11 +63,11 @@ export class PiReadCache {
     {
       file: string | null;
       modifiedAt: string;
-      snap: PiSessionSnapshot;
+      snap: GlassSessionSnapshot;
     }
   >();
 
-  read(sum: PiSessionSummary) {
+  read(sum: GlassSessionSummary) {
     const row = this.rows.get(sum.id);
     if (row && row.file === (sum.path || null) && row.modifiedAt >= sum.modifiedAt) {
       return row.snap;
@@ -82,7 +82,7 @@ export class PiReadCache {
     return snap;
   }
 
-  write(snap: PiSessionSnapshot, modifiedAt = new Date().toISOString()) {
+  write(snap: GlassSessionSnapshot, modifiedAt = new Date().toISOString()) {
     this.rows.set(snap.id, {
       file: snap.file,
       modifiedAt,
@@ -92,7 +92,7 @@ export class PiReadCache {
   }
 
   boot() {
-    const out: Record<string, PiSessionSnapshot> = {};
+    const out: Record<string, GlassSessionSnapshot> = {};
     for (const [id, item] of this.rows.entries()) {
       out[id] = item.snap;
     }
