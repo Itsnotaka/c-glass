@@ -1,4 +1,4 @@
-import type { PiSessionItem } from "@glass/contracts";
+import type { Json, PiSessionItem } from "@glass/contracts";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { Collapsible } from "~/components/ui/collapsible";
@@ -80,7 +80,7 @@ function ToolSubtitle(props: { row: Extract<PiRow, { kind: "tool" } | { kind: "b
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 text-body leading-snug",
+        "inline-flex shrink-0 items-center gap-1 text-body/[1.375]",
         s === "errored"
           ? "rounded bg-destructive/10 px-1.5 py-0.5 text-destructive/90"
           : "text-foreground/48",
@@ -242,7 +242,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
             "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8",
           )}
         >
-          <span className="min-w-0 flex-1 truncate text-body leading-snug text-foreground/[0.7]">
+          <span className="min-w-0 flex-1 truncate text-body/[1.375] text-foreground/[0.7]">
             Thinking
           </span>
           <IconChevronBottom
@@ -253,7 +253,7 @@ const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: b
           />
         </Collapsible.Trigger>
         <Collapsible.Panel>
-          <div className="mt-1 rounded-glass-control border border-glass-border/35 bg-muted/20 px-3 py-2 text-body leading-relaxed whitespace-pre-wrap break-words italic text-foreground/[0.7]">
+          <div className="mt-1 rounded-glass-control border border-glass-border/35 bg-muted/20 px-3 py-2 text-body/[1.625] whitespace-pre-wrap break-words italic text-foreground/[0.7]">
             {props.text}
           </div>
         </Collapsible.Panel>
@@ -270,7 +270,11 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   );
 });
 
-function renderValue(value: unknown, depth: number): React.ReactNode {
+function linkRowKey(l: { url: string; title?: string; snippet?: string }) {
+  return `${l.url}\0${l.title ?? ""}\0${l.snippet ?? ""}`;
+}
+
+function renderValue(value: Json | undefined, depth: number, path = "$"): React.ReactNode {
   if (value === null) return <span className="text-destructive/80">null</span>;
   if (value === undefined) return <span className="text-muted-foreground/60">undefined</span>;
   if (typeof value === "boolean")
@@ -292,29 +296,32 @@ function renderValue(value: unknown, depth: number): React.ReactNode {
       <span>
         <span className="text-muted-foreground/50">[</span>
         <div className="pl-4">
-          {value.map((item, i) => (
-            <div key={i}>
-              {renderValue(item, depth + 1)}
-              {i < value.length - 1 && <span className="text-muted-foreground/50">,</span>}
-            </div>
-          ))}
+          {value.map((item, i) => {
+            const childPath = `${path}[${String(i)}]`;
+            return (
+              <div key={childPath}>
+                {renderValue(item, depth + 1, childPath)}
+                {i < value.length - 1 && <span className="text-muted-foreground/50">,</span>}
+              </div>
+            );
+          })}
         </div>
         <span className="text-muted-foreground/50">]</span>
       </span>
     );
   }
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>);
+    const entries = Object.entries(value as Record<string, Json>);
     if (entries.length === 0) return <span className="text-muted-foreground/50">{"{}"}</span>;
     return (
       <span>
         <span className="text-muted-foreground/50">{"{"}</span>
         <div className="grid grid-cols-[auto_1fr] gap-x-3 pl-4">
           {entries.map(([key, val], i) => (
-            <React.Fragment key={key}>
+            <React.Fragment key={`${path}.${key}`}>
               <span className="text-primary/80 font-medium">{key}</span>
               <span className="text-muted-foreground/40">:</span>
-              <span className="min-w-0">{renderValue(val, depth + 1)}</span>
+              <span className="min-w-0">{renderValue(val, depth + 1, `${path}.${key}`)}</span>
               {i < entries.length - 1 && <span className="text-muted-foreground/50">,</span>}
             </React.Fragment>
           ))}
@@ -327,10 +334,10 @@ function renderValue(value: unknown, depth: number): React.ReactNode {
 }
 
 function extractLinksFromPayload(
-  data: unknown,
+  data: Json | undefined,
 ): Array<{ url: string; title?: string; snippet?: string }> {
   const out: Array<{ url: string; title?: string; snippet?: string }> = [];
-  const add = (u: unknown, t?: unknown, s?: unknown) => {
+  const add = (u: Json | undefined, t?: Json, s?: Json) => {
     if (typeof u !== "string" || !u.startsWith("http")) return;
     const item: { url: string; title?: string; snippet?: string } = { url: u };
     if (typeof t === "string") item.title = t;
@@ -340,14 +347,14 @@ function extractLinksFromPayload(
   if (Array.isArray(data)) {
     for (const item of data) {
       if (item && typeof item === "object") {
-        const o = item as Record<string, unknown>;
+        const o = item as Record<string, Json>;
         add(o.url ?? o.href ?? o.link, o.title ?? o.name, o.snippet ?? o.description);
       }
     }
     if (out.length) return out;
   }
   if (data && typeof data === "object") {
-    const o = data as Record<string, unknown>;
+    const o = data as Record<string, Json>;
     const nested = o.results ?? o.links ?? o.items ?? o.visited ?? o.sources;
     if (Array.isArray(nested)) return extractLinksFromPayload(nested);
     add(o.url, o.title, o.snippet);
@@ -370,8 +377,8 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   if (links.length > 0) {
     return (
       <ul className="flex flex-col gap-2">
-        {links.map((l, i) => (
-          <li key={`${l.url}-${String(i)}`} className="text-body leading-snug">
+        {links.map((l) => (
+          <li key={linkRowKey(l)} className="text-body/[1.375]">
             <a
               href={l.url}
               target="_blank"
@@ -392,7 +399,7 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   if (parsed !== null) {
     return (
       <div className="max-h-[min(24rem,50vh)] overflow-auto px-0.5 py-1">
-        <div className="font-glass-mono text-detail leading-relaxed [&_span]:leading-[inherit]">
+        <div className="font-glass-mono text-detail/[1.625] [&_span]:leading-[inherit]">
           {renderValue(parsed, 0)}
         </div>
       </div>
@@ -402,7 +409,7 @@ function BashOutputRich(props: { text: string; error: boolean }) {
   return (
     <pre
       className={cn(
-        "tool-terminal max-h-[min(24rem,50vh)] overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail leading-relaxed",
+        "tool-terminal max-h-[min(24rem,50vh)] overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail/[1.625]",
         props.error ? "text-destructive/90" : "text-foreground/80",
       )}
     >
@@ -441,7 +448,7 @@ function JsonSection(props: { label: string; text: string }) {
         </button>
       </div>
       {parsed !== null ? (
-        <div className="tool-output-surface font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
+        <div className="tool-output-surface font-glass-mono text-detail/[1.5]">
           {renderValue(parsed, 0)}
         </div>
       ) : (
@@ -474,7 +481,7 @@ function ToolRailCard(props: {
             {props.icon}
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate text-body font-medium leading-snug text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate text-body/[1.375] font-medium text-foreground/[0.94]">
               {props.title}
             </span>
             <span className="shrink-0">{props.subtitle}</span>
@@ -513,7 +520,7 @@ const AssistantErrorBlock = memo(function AssistantErrorBlock(props: {
       icon={<IconCrossSmall className="size-3 shrink-0 text-destructive/80" />}
       title={title}
       subtitle={
-        <span className="inline-flex shrink-0 items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-body leading-snug text-destructive/90">
+        <span className="inline-flex shrink-0 items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-body/[1.375] text-destructive/90">
           Error
         </span>
       }
@@ -548,12 +555,12 @@ function embedToolDiffOptions(opts: {
   };
 }
 
-function toolArgs(row: Extract<PiRow, { kind: "tool" }>): Record<string, unknown> | null {
+function toolArgs(row: Extract<PiRow, { kind: "tool" }>): Record<string, Json> | null {
   const fromCall = row.call?.arguments;
-  if (fromCall && typeof fromCall === "object") return fromCall as Record<string, unknown>;
+  if (fromCall && typeof fromCall === "object") return fromCall as Record<string, Json>;
   try {
-    const o = JSON.parse(row.args) as unknown;
-    if (o && typeof o === "object") return o as Record<string, unknown>;
+    const o = JSON.parse(row.args) as Json;
+    if (o && typeof o === "object") return o as Record<string, Json>;
   } catch {}
   return null;
 }
@@ -571,7 +578,7 @@ function toolTitle(row: Extract<PiRow, { kind: "tool" }>): string {
   if (typeof args.query === "string" && args.query.trim()) return args.query;
   if (typeof args.command === "string" && args.command.trim()) return args.command;
   if (row.name === "ask" && Array.isArray(args.questions) && args.questions[0]) {
-    const text = (args.questions[0] as { question?: unknown }).question;
+    const text = (args.questions[0] as { question?: Json }).question;
     if (typeof text === "string" && text.trim()) return text.trim();
     return "Questions";
   }
@@ -612,7 +619,7 @@ const FileEditToolCard = memo(function FileEditToolCard(props: {
           <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground/48 [&>svg]:size-3">
             <VsFileIcon path={props.path} errored={props.toolState === "errored"} />
           </span>
-          <span className="min-w-0 flex-1 truncate font-glass text-body font-medium leading-snug text-foreground/[0.94]">
+          <span className="min-w-0 flex-1 truncate font-glass text-body/[1.375] font-medium text-foreground/[0.94]">
             {base}
           </span>
           <span className="flex shrink-0 items-baseline gap-2 font-glass-mono text-detail tabular-nums">
@@ -793,9 +800,9 @@ const ToolCard = memo(function ToolCard(props: {
 
 function exploredSummary(tool: Extract<PiRow, { kind: "tool" }>): string {
   const name = tool.name.toLowerCase();
-  let args: Record<string, unknown> = {};
+  let args: Record<string, Json> = {};
   try {
-    args = JSON.parse(tool.args);
+    args = JSON.parse(tool.args) as Record<string, Json>;
   } catch {}
 
   const label = name.includes("read")
@@ -854,9 +861,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
   if (!hasContent) {
     return (
       <div className="flex h-8 max-h-8 min-w-0 items-center">
-        <div className="min-w-0 truncate text-body leading-snug text-foreground/[0.94]">
-          {summary}
-        </div>
+        <div className="min-w-0 truncate text-body/[1.375] text-foreground/[0.94]">{summary}</div>
       </div>
     );
   }
@@ -869,7 +874,7 @@ const ExploredToolItem = memo(function ExploredToolItem(props: {
           "flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 text-left",
         )}
       >
-        <div className="min-w-0 flex-1 truncate text-body leading-snug text-foreground/[0.94]">
+        <div className="min-w-0 flex-1 truncate text-body/[1.375] text-foreground/[0.94]">
           {summary}
         </div>
         <IconChevronBottom
@@ -901,7 +906,7 @@ const ExploredCard = memo(function ExploredCard(props: {
     parts.push(`${props.row.searches} ${props.row.searches === 1 ? "search" : "searches"}`);
 
   return (
-    <li className={cn(toolPanelShell, "text-body leading-normal")}>
+    <li className={cn(toolPanelShell, "text-body/[1.5]")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
           className={cn(
@@ -956,7 +961,7 @@ const BashCard = memo(function BashCard(props: {
             <IconConsole className="size-3 shrink-0" />
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-            <span className="min-w-0 flex-1 truncate font-glass-mono text-body font-medium leading-snug text-foreground/[0.94]">
+            <span className="min-w-0 flex-1 truncate font-glass-mono text-body/[1.375] font-medium text-foreground/[0.94]">
               {props.row.command}
             </span>
             <span className="shrink-0">
@@ -994,13 +999,13 @@ const TextCard = memo(function TextCard(props: {
     if (!t) return null;
     if (t.startsWith("{") || t.startsWith("[")) {
       try {
-        const j = JSON.parse(t) as unknown;
+        const j = JSON.parse(t) as Json;
         const links = extractLinksFromPayload(j);
         if (links.length > 0) {
           return (
             <ul className="flex flex-col gap-2">
-              {links.map((l, i) => (
-                <li key={`${l.url}-${String(i)}`} className="text-body leading-snug">
+              {links.map((l) => (
+                <li key={linkRowKey(l)} className="text-body/[1.375]">
                   <a
                     href={l.url}
                     target="_blank"
@@ -1019,9 +1024,7 @@ const TextCard = memo(function TextCard(props: {
         }
         return (
           <div className="max-h-[min(24rem,50vh)] overflow-auto">
-            <div className="font-glass-mono text-detail/[1.45] [&_span]:leading-[1.5]">
-              {renderValue(j, 0)}
-            </div>
+            <div className="font-glass-mono text-detail/[1.5]">{renderValue(j, 0)}</div>
           </div>
         );
       } catch {
@@ -1035,7 +1038,7 @@ const TextCard = memo(function TextCard(props: {
     <ToolRailCard
       icon={<IconToolbox className="text-foreground/48" />}
       title={props.label}
-      subtitle={<span className="text-body leading-snug text-foreground/48">Completed</span>}
+      subtitle={<span className="text-body/[1.375] text-foreground/48">Completed</span>}
       expanded={props.expanded}
     >
       {body ? (

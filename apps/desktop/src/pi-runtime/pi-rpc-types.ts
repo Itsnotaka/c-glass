@@ -1,7 +1,8 @@
+import type { Json } from "@glass/contracts";
 import type { AgentEvent, AgentMessage, ThinkingLevel } from "@mariozechner/pi-agent-core";
 import type { Api, ImageContent, Model } from "@mariozechner/pi-ai";
 
-type Obj = Record<string, unknown>;
+type Obj = Record<string, Json>;
 
 type PiRpcResponseMap = {
   prompt: undefined;
@@ -212,7 +213,7 @@ const agentEvents = new Set<AgentEvent["type"]>([
 ]);
 
 function rec(value: unknown): Obj | null {
-  if (!value || typeof value !== "object") return null;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Obj;
 }
 

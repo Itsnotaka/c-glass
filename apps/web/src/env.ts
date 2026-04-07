@@ -3,9 +3,7 @@ function userAgent() {
   return navigator.userAgent;
 }
 
-export function isElectronHost() {
-  return /Electron/i.test(userAgent());
-}
+export const isElectronHost = () => /Electron/i.test(userAgent());
 
 export function applyHostMarkers() {
   if (typeof document === "undefined") return;

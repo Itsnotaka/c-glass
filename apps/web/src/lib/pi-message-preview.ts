@@ -81,18 +81,18 @@ export function previewAgentMessage(message: PiMessage) {
       const out = parts(message.content);
       return [out.text, ...out.files.map((item) => `[${item}]`)].filter(Boolean).join("\n");
     }
-    if (Array.isArray(message.content)) return text(message.content);
+    if (Array.isArray(message.content)) return text(message.content as readonly PiBlock[]);
     return "";
   }
   if (message.role === "assistant") {
-    const body = Array.isArray(message.content) ? text(message.content) : "";
+    const body = Array.isArray(message.content) ? text(message.content as readonly PiBlock[]) : "";
     if (typeof message.errorMessage === "string" && message.errorMessage.trim()) {
       return `${body}${body ? "\n" : ""}(${message.errorMessage})`;
     }
     return body;
   }
   if (message.role === "toolResult") {
-    const body = Array.isArray(message.content) ? text(message.content) : "";
+    const body = Array.isArray(message.content) ? text(message.content as readonly PiBlock[]) : "";
     if (body) return body;
     return typeof message.toolName === "string" ? `[${message.toolName}]` : "";
   }
@@ -100,7 +100,7 @@ export function previewAgentMessage(message: PiMessage) {
     if (typeof message.content === "string") {
       return parts(message.content).text;
     }
-    if (Array.isArray(message.content)) return text(message.content);
+    if (Array.isArray(message.content)) return text(message.content as readonly PiBlock[]);
     return "";
   }
   return "";

@@ -1,4 +1,4 @@
-import type { PiToolCallBlock } from "@glass/contracts";
+import type { Json, PiToolCallBlock } from "@glass/contracts";
 import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs";
 import { memo } from "react";
 import { ChatMarkdown } from "./chat-markdown";
@@ -10,7 +10,7 @@ interface ToolData {
   args: string;
   result: string;
   error: boolean;
-  details: Record<string, unknown> | null;
+  details: Json | null;
   expanded: boolean;
   embedded?: boolean;
 }
@@ -60,9 +60,14 @@ export function toolBodyEmbedded(data: Omit<ToolData, "embedded">): React.ReactN
 
 export { type FileDiffMetadata };
 
+function toolDetailsRecord(details: Json | null): Record<string, Json> | null {
+  if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
+  return details as Record<string, Json>;
+}
+
 export function toolFileDiff(name: string, call: PiToolCallBlock | null): FileDiffMetadata | null {
   const r = resolvedToolName(name);
-  const raw = (call?.arguments ?? {}) as Record<string, unknown>;
+  const raw = (call?.arguments ?? {}) as Record<string, Json>;
   const path = editPath(raw);
   if (!path) return null;
 
@@ -114,18 +119,18 @@ export function isShellTool(name: string, call: PiToolCallBlock | null, argsJson
   if (
     args &&
     typeof args === "object" &&
-    typeof (args as { command?: unknown }).command === "string"
+    typeof (args as { command?: Json }).command === "string"
   ) {
     return true;
   }
   if (!argsJson?.trim()) return false;
   try {
-    const o = JSON.parse(argsJson) as unknown;
+    const o = JSON.parse(argsJson) as Json;
     if (
       o &&
       typeof o === "object" &&
       "command" in o &&
-      typeof (o as { command: unknown }).command === "string"
+      typeof (o as { command: Json }).command === "string"
     ) {
       return true;
     }
@@ -150,7 +155,7 @@ export function toolHint(call: PiToolCallBlock | null): string | null {
   return `${keys.length} arg${keys.length === 1 ? "" : "s"}`;
 }
 
-function editPath(args: Record<string, unknown>) {
+function editPath(args: Record<string, Json>) {
   const path = args.path ?? args.file ?? args.target_file ?? args.file_path;
   if (typeof path === "string" && path.trim()) return path;
   const multi = args.multi;
@@ -164,14 +169,14 @@ function editPath(args: Record<string, unknown>) {
 export function toolPathFromCall(call: PiToolCallBlock | null, argsJson?: string): string | null {
   const raw = call?.arguments;
   if (raw && typeof raw === "object") {
-    const p = editPath(raw as Record<string, unknown>).trim();
+    const p = editPath(raw as Record<string, Json>).trim();
     if (p) return p;
   }
   if (!argsJson?.trim()) return null;
   try {
-    const o = JSON.parse(argsJson) as unknown;
+    const o = JSON.parse(argsJson) as Json;
     if (o && typeof o === "object") {
-      const p = editPath(o as Record<string, unknown>).trim();
+      const p = editPath(o as Record<string, Json>).trim();
       return p || null;
     }
   } catch {}
@@ -184,7 +189,7 @@ export function toolLabel(name: string, call: PiToolCallBlock | null): string | 
   const r = resolvedToolName(name);
 
   if (r === "edit" || r === "write") {
-    const path = editPath(args);
+    const path = editPath(args as Record<string, Json>);
     if (path.trim()) return basename(path);
     return null;
   }
@@ -284,7 +289,7 @@ const ToolTerminal = memo(function ToolTerminal(props: { text: string; error?: b
   return (
     <pre
       className={cn(
-        "tool-terminal max-h-[min(24rem,50vh)] w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail leading-relaxed",
+        "tool-terminal max-h-[min(24rem,50vh)] w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail/[1.625]",
         props.error ? "text-destructive/90" : "text-foreground/85",
       )}
     >
@@ -342,7 +347,7 @@ function Result(props: { text: string; error: boolean; lang?: string }) {
   );
 }
 
-function Truncation(props: { truncated: boolean; limit?: unknown; noun: string }) {
+function Truncation(props: { truncated: boolean; limit?: number; noun: string }) {
   if (!props.truncated && props.limit == null) return null;
   return (
     <div className="text-caption/[1.2] text-muted-foreground/50">
@@ -449,7 +454,7 @@ function Diff(props: { entries: EditEntry[] }) {
 }
 
 function edit(data: ToolData): React.ReactNode {
-  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, unknown>;
+  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, Json>;
   const args = raw as EditArgs;
   const entries = edits(args);
 
@@ -525,12 +530,13 @@ function grep(data: ToolData): React.ReactNode {
     return <Code text={text} lang="text" error={data.error} />;
   }
 
+  const dr = toolDetailsRecord(data.details);
   return (
     <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
       <Truncation
-        truncated={data.details?.truncation != null}
-        limit={data.details?.matchLimitReached}
+        truncated={dr?.truncation != null}
+        {...(typeof dr?.matchLimitReached === "number" ? { limit: dr.matchLimitReached } : {})}
         noun="match"
       />
     </div>
@@ -544,12 +550,13 @@ function find(data: ToolData): React.ReactNode {
     return <Code text={text} lang="text" error={data.error} />;
   }
 
+  const dr = toolDetailsRecord(data.details);
   return (
     <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
       <Truncation
-        truncated={data.details?.truncation != null}
-        limit={data.details?.resultLimitReached}
+        truncated={dr?.truncation != null}
+        {...(typeof dr?.resultLimitReached === "number" ? { limit: dr.resultLimitReached } : {})}
         noun="results"
       />
     </div>
@@ -568,12 +575,13 @@ function ls(data: ToolData): React.ReactNode {
     return <Code text={text} lang="text" error={data.error} />;
   }
 
+  const dr = toolDetailsRecord(data.details);
   return (
     <div className="flex flex-col gap-1">
       <Result text={data.result} error={data.error} lang="text" />
       <Truncation
-        truncated={data.details?.truncation != null}
-        limit={data.details?.entryLimitReached}
+        truncated={dr?.truncation != null}
+        {...(typeof dr?.entryLimitReached === "number" ? { limit: dr.entryLimitReached } : {})}
         noun="entries"
       />
     </div>
@@ -638,7 +646,7 @@ function readEmbedded(data: ToolData): React.ReactNode {
 }
 
 function editEmbedded(data: ToolData): React.ReactNode {
-  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, unknown>;
+  const raw = (data.call?.arguments ?? {}) as EditArgs & Record<string, Json>;
   const args = raw as EditArgs;
   const entries = edits(args);
 

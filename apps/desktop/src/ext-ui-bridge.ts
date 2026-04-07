@@ -94,12 +94,8 @@ type SendData =
       text: string;
     };
 
-function win() {
-  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
-}
-
 function send(channel: string, data: SendData) {
-  const cur = win();
+  const cur = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
   if (!cur || cur.isDestroyed()) return false;
   cur.webContents.send(channel, data);
   return true;
@@ -131,7 +127,7 @@ export class ExtUiBridge {
   }
 
   private req(input: ReqIn) {
-    const cur = win();
+    const cur = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
     if (!cur || cur.isDestroyed()) {
       return Promise.resolve({ id: "", cancelled: true } satisfies ExtUiReply);
     }

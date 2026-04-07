@@ -297,6 +297,8 @@ export const GlassPiComposer = memo(
     const area = useRef<HTMLTextAreaElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const nextCursor = useRef<number | null>(null);
+    const draftSink = useRef(props.onDraft);
+    draftSink.current = props.onDraft;
     const [cursor, setCursor] = useState(0);
     const [composing, setComposing] = useState(false);
     const [files, setFiles] = useState<Pick[]>([]);
@@ -420,14 +422,14 @@ export const GlassPiComposer = memo(
       const set = (event: Event) => {
         const next = (event as CustomEvent<string>).detail;
         if (typeof next !== "string") return;
-        props.onDraft(next);
+        draftSink.current(next);
         nextCursor.current = next.length;
       };
       window.addEventListener(PI_GLASS_EDITOR_SET_EVENT, set as EventListener);
       return () => {
         window.removeEventListener(PI_GLASS_EDITOR_SET_EVENT, set as EventListener);
       };
-    }, [props.onDraft]);
+    }, []);
 
     useEffect(() => {
       pushComposerDraft(props.draft);

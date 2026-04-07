@@ -38,6 +38,34 @@
       "rules": {
         "glass/no-tiny-wrapper-function": "off"
       }
+    },
+    {
+      "files": [
+        "**/apps/desktop/src/pi-runtime/pi-rpc-client.ts",
+        "**/apps/desktop/src/pi-runtime/pi-runtime-service.ts"
+      ],
+      "rules": {
+        "glass/no-tiny-wrapper-function": "off"
+      }
+    },
+    {
+      "files": [
+        "**/packages/contracts/src/session.ts",
+        "**/apps/desktop/src/main.ts",
+        "**/apps/desktop/src/preload.ts",
+        "**/apps/desktop/src/cursor-provider.ts",
+        "**/apps/desktop/src/pi-runtime/pi-rpc-types.ts",
+        "**/apps/desktop/src/pi-runtime/pi-runtime-normalizer.ts",
+        "**/apps/desktop/src/pi-runtime/pi-runtime-store.ts",
+        "**/apps/desktop/src/pi-runtime/pi-read-cache.ts",
+        "**/apps/desktop/src/pi-runtime/pi-runtime-service.ts",
+        "**/build-desktop-artifact.ts",
+        "**/update-release-package-versions.ts"
+      ],
+      "rules": {
+        "typescript/no-restricted-types": "off",
+        "glass/no-unknown-function-type": "off"
+      }
     }
   ]
 }

@@ -1,4 +1,5 @@
 export * from "./baseSchemas";
+export * from "./json";
 export * from "./desktop";
 export * from "./editor";
 export * from "./git";

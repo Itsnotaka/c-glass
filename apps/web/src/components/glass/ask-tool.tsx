@@ -15,6 +15,8 @@ interface Props {
   onReply: (reply: PiAskReply) => void;
 }
 
+const vacant: string[] = [];
+
 const MotionCard = motion.create("div");
 
 function ShortcutBadge(props: { char: string }) {
@@ -118,10 +120,13 @@ function Pagination(props: {
 
 export function GlassAskTool(props: Props) {
   const q = props.state.questions[props.state.current - 1];
-  const baseVals = q ? (props.state.values[q.id] ?? []) : [];
+  const baseVals = useMemo(() => {
+    if (!q) return vacant;
+    return props.state.values[q.id] ?? vacant;
+  }, [q, props.state.values]);
   const baseCustom = q ? (props.state.custom[q.id] ?? "") : "";
   const other = q?.options.find((item) => item.other) ?? null;
-  const picks = q?.options.filter((item) => !item.other) ?? [];
+  const picks = useMemo(() => q?.options.filter((item) => !item.other) ?? [], [q]);
   const [vals, setVals] = useState(baseVals);
   const [custom, setCustom] = useState(baseCustom);
   const [mode, setMode] = useState<"options" | "custom">(baseCustom ? "custom" : "options");

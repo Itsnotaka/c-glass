@@ -50,6 +50,10 @@ export type PiModelPickerSelection = {
   thinkingLevel?: PiThinkingLevel;
 };
 
+function stopMenuSearchBubbling(e: React.KeyboardEvent) {
+  e.stopPropagation();
+}
+
 export function PiModelPicker(props: {
   items: readonly PiModelItem[];
   selection: PiModelPickerSelection;
@@ -113,11 +117,6 @@ export function PiModelPicker(props: {
   const align = props.variant === "settings" ? "start" : "end";
   const settings = props.variant === "settings";
 
-  // Prevent menu typeahead from intercepting search input
-  function handleInputKeyDown(e: React.KeyboardEvent) {
-    e.stopPropagation();
-  }
-
   return (
     <Menu.Root
       open={open}
@@ -135,7 +134,7 @@ export function PiModelPicker(props: {
         aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}`}
         disabled={!idle}
         className={cn(
-          "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body leading-none text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
+          "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body/1 text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
           settings
             ? "h-auto min-h-6 flex-col items-start gap-0.5 py-1 pl-2 pr-1"
             : "h-6 items-center pl-2 pr-1",
@@ -194,7 +193,7 @@ export function PiModelPicker(props: {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleInputKeyDown}
+                onKeyDown={stopMenuSearchBubbling}
                 placeholder="Search models"
                 className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-body text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               />

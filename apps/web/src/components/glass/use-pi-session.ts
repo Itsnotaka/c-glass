@@ -1,9 +1,11 @@
 import type {
   PiAskReply,
   PiAskState,
+  PiBlock,
   PiPromptInput,
   PiSessionItem,
   PiThinkingLevel,
+  PiToolCallBlock,
 } from "@glass/contracts";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -33,16 +35,17 @@ function paths(item: PiSessionItem | null) {
   const msg = item?.message;
   if (!msg || msg.role !== "assistant" || !Array.isArray(msg.content)) return [];
 
-  return msg.content.reduce<string[]>((out, part) => {
+  return (msg.content as readonly PiBlock[]).reduce<string[]>((out, part) => {
     if (part.type !== "toolCall") return out;
     if (part.name !== "edit" && part.name !== "write") return out;
 
-    const args = part.arguments;
+    const tool = part as PiToolCallBlock;
+    const args = tool.arguments;
     const path = args?.path;
     if (typeof path === "string" && path.trim()) out.push(path);
     if (part.name !== "edit" || !Array.isArray(args?.multi)) return out;
 
-    const list: Array<{ path?: string } | null> = args.multi;
+    const list = args.multi as Array<{ path?: string } | null>;
     list.reduce<string[]>((next, item) => {
       if (!item || typeof item !== "object") return next;
       const path = item.path;

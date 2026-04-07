@@ -1,4 +1,4 @@
-import type { PiBlock, PiSessionItem, PiToolCallBlock } from "@glass/contracts";
+import type { Json, PiBlock, PiSessionItem, PiToolCallBlock } from "@glass/contracts";
 
 const tag = /<file\s+name="([^"]+)"\s*>([\s\S]*?)<\/file>/g;
 const imgs = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
@@ -49,7 +49,7 @@ export type PiRow =
       result: string;
       error: boolean;
       call: PiToolCallBlock | null;
-      details: Record<string, unknown> | null;
+      details: Json | null;
     }
   | {
       id: string;
@@ -144,11 +144,12 @@ function group(rows: PiRow[]): PiRow[] {
   return out;
 }
 
-function list(value: unknown) {
+function list(value: Json) {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
-    if (typeof (item as { type?: unknown }).type !== "string") return [];
+    const rec = item as Record<string, Json>;
+    if (typeof rec.type !== "string") return [];
     return [item as PiBlock];
   });
 }
@@ -176,7 +177,8 @@ function parts(text: string) {
   return { text: clean(body), files };
 }
 
-function plain(value: unknown) {
+function plain(value: Json | undefined) {
+  if (value === undefined) return "";
   if (typeof value === "string") return clean(value);
   return list(value)
     .flatMap((item) => {
@@ -189,7 +191,8 @@ function plain(value: unknown) {
     .join("");
 }
 
-function user(value: unknown) {
+function user(value: Json | undefined) {
+  if (value === undefined) return { text: "", attachments: [] as PiUserAttachment[] };
   if (typeof value === "string") {
     const next = parts(value);
     return {
@@ -260,7 +263,7 @@ function user(value: unknown) {
   };
 }
 
-function pretty(value: unknown) {
+function pretty(value: Json | undefined) {
   if (value === undefined) return "";
   if (typeof value === "string") return value;
   const out = JSON.stringify(value, null, 2);
@@ -272,7 +275,7 @@ export function buildPiRows(items: PiSessionItem[]) {
   const map = new Map<string, number>();
 
   for (const entry of items) {
-    const msg = entry.message as Record<string, unknown>;
+    const msg = entry.message as Record<string, Json>;
     const role = typeof msg.role === "string" ? msg.role : "unknown";
 
     if (role === "user" || role === "user-with-attachments") {
@@ -282,7 +285,7 @@ export function buildPiRows(items: PiSessionItem[]) {
     }
 
     if (role === "assistant") {
-      const items = list(msg.content);
+      const items = list(msg.content ?? null);
       const call = items.some((part) => part.type === "toolCall");
       const errText =
         typeof msg.errorMessage === "string" && msg.errorMessage.trim()
@@ -316,7 +319,7 @@ export function buildPiRows(items: PiSessionItem[]) {
             id: `${entry.id}:tool:${key}`,
             kind: "tool",
             name: String(part.name ?? "tool"),
-            args: pretty(part.arguments),
+            args: pretty(part.arguments as Json | undefined),
             result: "",
             error: false,
             call: part as PiToolCallBlock,
@@ -355,7 +358,7 @@ export function buildPiRows(items: PiSessionItem[]) {
           name: typeof msg.toolName === "string" ? msg.toolName : row.name,
           result: out,
           error: Boolean(msg.isError),
-          details: msg.details === undefined ? null : (msg.details as Record<string, unknown>),
+          details: msg.details === undefined ? null : msg.details,
         };
         continue;
       }
@@ -367,7 +370,7 @@ export function buildPiRows(items: PiSessionItem[]) {
         result: out,
         error: Boolean(msg.isError),
         call: null,
-        details: msg.details === undefined ? null : (msg.details as Record<string, unknown>),
+        details: msg.details === undefined ? null : msg.details,
       });
       continue;
     }

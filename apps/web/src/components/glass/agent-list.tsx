@@ -1,10 +1,23 @@
-import { IconChevronBottom } from "central-icons";
-import { useState } from "react";
+import { IconChevronBottom, IconDotGrid1x3HorizontalTight } from "central-icons";
+import { useEffect, useMemo, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 
 import type { GlassSidebarSection } from "../../lib/glass-view-model";
 import { cn } from "../../lib/utils";
 import { GlassAgentRow } from "./agent-row";
+
+/** Matches Cursor `workbench.desktop.main.js`: `E$i=5,H_l=8` (SidebarPaginatedMenu). */
+const initialMaxVisible = 5;
+const pageStep = 8;
+
+function minVisibleForSelection(ids: readonly string[], selectedId: string | null) {
+  if (ids.length === 0) return 0;
+  const firstPage = Math.min(ids.length, initialMaxVisible);
+  if (!selectedId) return firstPage;
+  const i = ids.indexOf(selectedId);
+  if (i < 0) return firstPage;
+  return Math.min(ids.length, Math.max(firstPage, i + 1));
+}
 
 function Section(props: {
   section: GlassSidebarSection;
@@ -12,6 +25,28 @@ function Section(props: {
   onSelectAgent: (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const ids = props.section.ids;
+  const minVisible = useMemo(
+    () => minVisibleForSelection(ids, props.selectedId),
+    [ids, props.selectedId],
+  );
+  const [extra, setExtra] = useState(0);
+
+  useEffect(() => {
+    setExtra((b) => {
+      const need = Math.max(0, minVisible - initialMaxVisible);
+      const minB = need === 0 ? 0 : Math.ceil(need / pageStep);
+      return Math.max(b, minB);
+    });
+  }, [minVisible]);
+
+  const firstPage = Math.min(ids.length, initialMaxVisible);
+  const rawVisible = Math.min(ids.length, initialMaxVisible + extra * pageStep);
+  let visible = Math.max(rawVisible, minVisible);
+  if (ids.length - visible === 1 && visible < ids.length) visible = ids.length;
+
+  const shouldPaginate = ids.length > firstPage;
+  const showMore = shouldPaginate && visible < ids.length;
 
   return (
     <section className="min-w-0 w-full">
@@ -31,7 +66,7 @@ function Section(props: {
       </button>
       {open && (
         <div className="flex flex-col">
-          {props.section.ids.map((id) => (
+          {ids.slice(0, visible).map((id) => (
             <GlassAgentRow
               key={id}
               id={id}
@@ -39,6 +74,19 @@ function Section(props: {
               onSelectAgent={props.onSelectAgent}
             />
           ))}
+          {showMore ? (
+            <button
+              type="button"
+              onClick={() => setExtra((b) => b + 1)}
+              className={cn(
+                "font-glass flex min-h-7.5 w-full items-center justify-start gap-2 rounded-glass-control px-2 py-1 text-left text-detail/4 text-muted-foreground/70 transition-colors",
+                "hover:bg-glass-hover hover:text-muted-foreground",
+              )}
+            >
+              <IconDotGrid1x3HorizontalTight className="size-3 shrink-0 opacity-55" aria-hidden />
+              <span className="min-w-0">More</span>
+            </button>
+          ) : null}
         </div>
       )}
     </section>

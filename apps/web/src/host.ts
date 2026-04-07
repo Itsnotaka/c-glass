@@ -5,9 +5,8 @@ export function readGlass(): GlassBridge | undefined {
   return window.glass;
 }
 
-export function readGlassBoot(): DesktopBootSnapshot | null {
-  return readGlass()?.desktop.readBootSnapshot?.() ?? null;
-}
+export const readGlassBoot = (): DesktopBootSnapshot | null =>
+  readGlass()?.desktop.readBootSnapshot?.() ?? null;
 
 export function getGlass(): GlassBridge {
   const glass = readGlass();

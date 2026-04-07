@@ -1,3 +1,4 @@
+import type { Json } from "@glass/contracts";
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import type { PiRpcExtensionError, PiRpcExtensionUiRequest, PiRpcResponse } from "./pi-rpc-types";
 import {
@@ -7,37 +8,37 @@ import {
   isPiRpcResponse,
 } from "./pi-rpc-types";
 
-type Obj = Record<string, unknown>;
+type Obj = Record<string, Json>;
 
 export type PiRpcIntake =
   | {
       kind: "response";
       response: PiRpcResponse;
       rawType: string;
-      rawPayload: unknown;
+      rawPayload: Json;
     }
   | {
       kind: "agent_event";
       event: AgentEvent;
       rawType: string;
-      rawPayload: unknown;
+      rawPayload: Json;
     }
   | {
       kind: "ui_request";
       request: PiRpcExtensionUiRequest;
       rawType: string;
-      rawPayload: unknown;
+      rawPayload: Json;
     }
   | {
       kind: "extension_error";
       error: PiRpcExtensionError;
       rawType: string;
-      rawPayload: unknown;
+      rawPayload: Json;
     }
   | {
       kind: "unknown";
       rawType: string | null;
-      rawPayload: unknown;
+      rawPayload: Json;
     }
   | {
       kind: "parse_error";
@@ -45,12 +46,12 @@ export type PiRpcIntake =
       error: string;
     };
 
-function rec(value: unknown): Obj | null {
-  if (!value || typeof value !== "object") return null;
+function rec(value: Json): Obj | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Obj;
 }
 
-function typeOf(value: unknown): string | null {
+function typeOf(value: Json): string | null {
   const item = rec(value);
   if (!item) return null;
   return typeof item.type === "string" ? item.type : null;
@@ -58,7 +59,7 @@ function typeOf(value: unknown): string | null {
 
 export function parsePiRpcLine(line: string): PiRpcIntake {
   try {
-    const parsed = JSON.parse(line) as unknown;
+    const parsed = JSON.parse(line) as Json;
     const rawType = typeOf(parsed);
 
     if (isPiRpcResponse(parsed) && rawType) {

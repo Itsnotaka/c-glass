@@ -182,12 +182,12 @@ function NotFoundView() {
         <p className="text-caption font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
           {APP_DISPLAY_NAME}
         </p>
-        <p className="mt-8 font-mono text-[8rem] leading-none font-bold tracking-tighter text-foreground/4 sm:text-[10rem] select-none">
+        <p className="mt-8 font-mono text-[8rem]/1 font-bold tracking-tighter text-foreground/4 sm:text-[10rem] select-none">
           404
         </p>
         <div className="-mt-16 sm:-mt-20">
           <h1 className="text-lg font-medium tracking-tight text-foreground/90">Page not found</h1>
-          <p className="mt-2 text-body leading-relaxed text-muted-foreground/70">
+          <p className="mt-2 text-body/[1.625] text-muted-foreground/70">
             This path doesn&rsquo;t exist. It may have been moved or removed.
           </p>
         </div>
@@ -208,7 +208,8 @@ function NotFoundView() {
 }
 
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
-  const message = errorMessage(error);
+  const message =
+    error.message.trim().length > 0 ? error.message : "An unexpected router error occurred.";
   const details = errorDetails(error);
   const report = formatErrorReport(error);
   const href = typeof window !== "undefined" ? window.location.href : "";
@@ -232,7 +233,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
           <h1 className="mt-6 text-lg font-medium tracking-tight text-foreground sm:text-xl">
             Something went wrong
           </h1>
-          <p className="mt-2 text-body leading-relaxed text-foreground/90">{message}</p>
+          <p className="mt-2 text-body/[1.625] text-foreground/90">{message}</p>
 
           {href ? (
             <p className="mt-3 break-all font-mono text-detail text-muted-foreground">{href}</p>
@@ -265,7 +266,7 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
             <p className="text-caption font-semibold uppercase tracking-[0.15em] text-muted-foreground">
               Stack trace
             </p>
-            <pre className="mt-3 max-h-[min(28rem,55vh)] overflow-auto font-mono text-detail leading-relaxed whitespace-pre-wrap text-muted-foreground">
+            <pre className="mt-3 max-h-[min(28rem,55vh)] overflow-auto font-mono text-detail/[1.625] whitespace-pre-wrap text-muted-foreground">
               {details}
             </pre>
           </div>
@@ -275,10 +276,6 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   );
 }
 
-function errorMessage(error: ErrorComponentProps["error"]) {
-  return error.message.trim().length > 0 ? error.message : "An unexpected router error occurred.";
-}
-
 function errorDetails(error: ErrorComponentProps["error"]) {
   return error.stack ?? error.message;
 }
@@ -286,6 +283,8 @@ function errorDetails(error: ErrorComponentProps["error"]) {
 function formatErrorReport(error: ErrorComponentProps["error"]) {
   const lines: string[] = [APP_DISPLAY_NAME];
   if (typeof window !== "undefined") lines.push(window.location.href);
-  lines.push("", errorMessage(error), "", errorDetails(error));
+  const msg =
+    error.message.trim().length > 0 ? error.message : "An unexpected router error occurred.";
+  lines.push("", msg, "", errorDetails(error));
   return lines.join("\n");
 }

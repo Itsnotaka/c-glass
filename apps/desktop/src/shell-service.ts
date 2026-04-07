@@ -4,7 +4,6 @@ import {
   constants,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -19,9 +18,19 @@ import { dialog, nativeImage, shell } from "electron";
 import * as Effect from "effect/Effect";
 import { image, mime, readText, resolveFile, short, text } from "./files";
 
-const skip = new Set([".git"]);
-const max = 40_000;
-const ttl = 10_000;
+const skip = new Set([
+  ".git",
+  ".convex",
+  "node_modules",
+  ".next",
+  ".turbo",
+  "dist",
+  "build",
+  "out",
+  ".cache",
+]);
+const max = 25_000;
+const ttl = 15_000;
 
 type Row = ShellFileHit;
 
@@ -103,39 +112,6 @@ function bundle(editor: (typeof EDITORS)[number]) {
       Path.join(OS.homedir(), "Applications", `${editor.app}.app`),
     ].find((item) => existsSync(item)) ?? null
   );
-}
-
-function iconPath(appPath: string): string | null {
-  const resources = Path.join(appPath, "Contents/Resources");
-  if (!existsSync(resources)) return null;
-
-  const files = readdirResources(resources);
-
-  const patterns = [
-    /^AppIcon.*\.icns$/i,
-    /^app.*\.icns$/i,
-    /Icon.*\.icns$/i,
-    /Logo.*\.icns$/i,
-    /^.*\.icns$/i,
-    /^AppIcon.*\.png$/i,
-    /^app.*\.png$/i,
-    /^.*\.png$/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = files.find((f) => pattern.test(f));
-    if (match) return Path.join(resources, match);
-  }
-
-  return null;
-}
-
-function readdirResources(dir: string): string[] {
-  try {
-    return readdirSync(dir);
-  } catch {
-    return [];
-  }
 }
 
 function bin(editor: (typeof EDITORS)[number]) {
@@ -247,51 +223,106 @@ function clean(query: string) {
   return raw;
 }
 
-function parts(query: string) {
-  const raw = clean(query);
-  const cut = raw.lastIndexOf("/");
-  if (cut < 0) return { dir: "", key: raw.toLowerCase() };
-  return {
-    dir: raw.slice(0, cut + 1),
-    key: raw.slice(cut + 1).toLowerCase(),
-  };
+function norm(query: string) {
+  return clean(query)
+    .trim()
+    .replace(/^[@./]+/, "")
+    .toLowerCase();
 }
 
-function seq(text: string, key: string) {
+function fuzz(text: string, key: string) {
+  if (!key) return 0;
+
   let pos = 0;
-  for (const char of key) {
-    pos = text.indexOf(char, pos);
-    if (pos < 0) return false;
+  let first = -1;
+  let last = -1;
+  let gap = 0;
+
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] !== key[pos]) continue;
+    if (first < 0) first = i;
+    if (last >= 0) {
+      gap += i - last - 1;
+    }
+    last = i;
     pos += 1;
+    if (pos === key.length) {
+      const span = i - first + 1 - key.length;
+      const len = Math.min(64, text.length - key.length);
+      return first * 2 + gap * 3 + span + len;
+    }
   }
-  return true;
+
+  return null;
 }
 
 function score(row: Row, raw: string) {
-  const query = clean(raw).toLowerCase();
-  if (!query) return row.kind === "dir" ? 11 : 1;
-
-  const pick = parts(query);
-  if (pick.dir && !row.path.toLowerCase().startsWith(pick.dir)) return -1;
+  const query = norm(raw);
+  if (!query) return row.kind === "dir" ? 0 : 1;
 
   const path = row.path.toLowerCase();
   const name = row.name.toLowerCase();
-  const key = pick.key;
-  const full = pick.dir ? `${pick.dir}${key}` : key;
-  let out = 0;
 
-  if (!key) out = 10;
-  if (key && name === key) out = 120;
-  if (key && name.startsWith(key)) out = Math.max(out, 100 - name.length);
-  if (full && path === full) out = Math.max(out, 96);
-  if (full && path.startsWith(full)) out = Math.max(out, 88 - path.length / 64);
-  if (key && name.includes(key)) out = Math.max(out, 72 - name.indexOf(key));
-  if (full && path.includes(full)) out = Math.max(out, 60 - path.indexOf(full) / 8);
-  if (key && seq(name, key)) out = Math.max(out, 48 - name.length / 64);
-  if (key && seq(path, key)) out = Math.max(out, 36 - path.length / 96);
-  if (row.kind === "dir" && out > 0) out += 8;
-  if (row.kind === "image" && out > 0) out += 2;
+  if (name === query) return 0;
+  if (path === query) return 1;
+  if (name.startsWith(query)) return 2;
+  if (path.startsWith(query)) return 3;
+  if (path.includes(`/${query}`)) return 4;
+  if (name.includes(query)) return 5;
+  if (path.includes(query)) return 6;
+
+  const byName = fuzz(name, query);
+  if (byName !== null) return 100 + byName;
+
+  const byPath = fuzz(path, query);
+  if (byPath !== null) return 200 + byPath;
+
+  return null;
+}
+
+function base(path: string) {
+  const cut = path.lastIndexOf("/");
+  if (cut < 0) return path;
+  return path.slice(cut + 1);
+}
+
+function ignored(path: string) {
+  const head = path.split("/")[0];
+  if (!head) return false;
+  return skip.has(head);
+}
+
+function parents(path: string) {
+  const list = path.split("/").filter(Boolean);
+  if (list.length <= 1) return [];
+
+  const out: string[] = [];
+  for (let i = 1; i < list.length; i += 1) {
+    out.push(list.slice(0, i).join("/"));
+  }
   return out;
+}
+
+function run(cwd: string, args: string[], input?: string) {
+  return new Promise<{ code: number | null; out: string }>((resolve) => {
+    let out = "";
+    const child = spawn("git", args, {
+      cwd,
+      stdio: ["pipe", "pipe", "ignore"],
+      env: process.env,
+    });
+
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      out += chunk.toString();
+    });
+    child.once("error", () => {
+      resolve({ code: null, out: "" });
+    });
+    child.once("close", (code) => {
+      resolve({ code, out });
+    });
+    child.stdin?.end(input);
+  });
 }
 
 async function inspectPath(cwd: string, path: string): Promise<ShellPickedFile | null> {
@@ -337,6 +368,44 @@ export class ShellService {
   private clear() {
     this.cache = null;
     this.walk = null;
+  }
+
+  private async gitRows() {
+    const list = await run(this.cwd, ["ls-files", "--cached", "--others", "--exclude-standard"]);
+    if (list.code !== 0) return null;
+
+    const raw = list.out
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0 && !ignored(item));
+    if (raw.length === 0) return [];
+
+    const check = await run(
+      this.cwd,
+      ["check-ignore", "--stdin", "--no-index"],
+      `${raw.join("\n")}\n`,
+    );
+    const seen =
+      check.code === 0 || check.code === 1
+        ? new Set(
+            check.out
+              .split(/\r?\n/)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          )
+        : new Set<string>();
+    const files = raw.filter((item) => !seen.has(item));
+    const dirs = [...new Set(files.flatMap((item) => parents(item)))]
+      .toSorted((left, right) => left.localeCompare(right))
+      .map((path) => ({ path, name: base(path), kind: "dir" as const })) satisfies Row[];
+    const rows = files
+      .toSorted((left, right) => left.localeCompare(right))
+      .map((path) => ({
+        path,
+        name: base(path),
+        kind: image(path) ? ("image" as const) : ("file" as const),
+      })) satisfies Row[];
+    return [...dirs, ...rows].slice(0, max);
   }
 
   private async scanDir(root: string, dir: string, rows: Row[]) {
@@ -391,8 +460,11 @@ export class ShellService {
     if (this.walk) return this.walk;
 
     const job = (async () => {
-      const rows: Row[] = [];
-      await this.scanDir(this.cwd, this.cwd, rows);
+      const git = await this.gitRows();
+      const rows = git ?? [];
+      if (!git) {
+        await this.scanDir(this.cwd, this.cwd, rows);
+      }
       this.cache = { cwd: this.cwd, at: Date.now(), rows };
       this.walk = null;
       return rows;
@@ -472,13 +544,9 @@ export class ShellService {
         const rows = await this.rows();
         return rows
           .map((row) => ({ row, score: score(row, query) }))
-          .filter((item) => item.score > 0)
+          .filter((item): item is { row: Row; score: number } => item.score !== null)
           .toSorted((left, right) => {
-            if (left.score !== right.score) return right.score - left.score;
-            if (left.row.kind !== right.row.kind) {
-              if (left.row.kind === "dir") return -1;
-              if (right.row.kind === "dir") return 1;
-            }
+            if (left.score !== right.score) return left.score - right.score;
             return left.row.path.localeCompare(right.row.path);
           })
           .slice(0, 24)

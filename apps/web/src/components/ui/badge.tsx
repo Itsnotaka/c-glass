@@ -29,8 +29,8 @@ interface Props extends VariantProps<typeof variants> {
   children?: ReactNode;
 }
 
-function Badge({ variant, className, children }: Props) {
-  return <span className={cn(variants({ variant }), className)}>{children}</span>;
-}
+const Badge = ({ variant, className, children }: Props) => (
+  <span className={cn(variants({ variant }), className)}>{children}</span>
+);
 
 export { Badge };

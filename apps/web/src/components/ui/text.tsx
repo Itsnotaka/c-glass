@@ -37,8 +37,8 @@ interface Props extends VariantProps<typeof variants> {
   children?: ReactNode;
 }
 
-function Text({ as: Tag = "span", size, weight, color, className, children }: Props) {
-  return <Tag className={cn(variants({ size, weight, color }), className)}>{children}</Tag>;
-}
+const Text = ({ as: Tag = "span", size, weight, color, className, children }: Props) => (
+  <Tag className={cn(variants({ size, weight, color }), className)}>{children}</Tag>
+);
 
 export { Text };
