@@ -61,6 +61,7 @@ export const PiExtension = Schema.Struct({
   path: Schema.String,
   resolvedPath: Schema.String,
   scope: PiExtensionScope,
+  enabled: Schema.Boolean,
 });
 export type PiExtension = typeof PiExtension.Type;
 
@@ -120,8 +121,14 @@ export interface PiBridge {
   setDefaultModel: (provider: string, model: string) => Promise<void>;
   clearDefaultModel: () => Promise<void>;
   setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) => Promise<void>;
+  setExtensionEnabled: (
+    resolvedPath: string,
+    scope: PiExtensionScope,
+    enabled: boolean,
+  ) => Promise<void>;
   getApiKey: (provider: string) => Promise<string | null>;
   setApiKey: (provider: string, key: string) => Promise<void>;
+  clearAuth: (provider: string) => Promise<void>;
   /** Desktop: run Pi OAuth login for a provider (opens browser / prompts as needed). */
   startOAuthLogin: (provider: string) => Promise<void>;
 }

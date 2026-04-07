@@ -236,6 +236,7 @@ function SlashAndFileMenus() {
         anchor={slashRef}
         variant="hero"
         mode="slash"
+        query=""
         slashRows={slashRows}
         slashActive={0}
         onSlashHover={() => {}}
@@ -255,6 +256,7 @@ function SlashAndFileMenus() {
         anchor={fileRef}
         variant="hero"
         mode="file"
+        query=""
         slashRows={slashRows}
         slashActive={0}
         onSlashHover={() => {}}

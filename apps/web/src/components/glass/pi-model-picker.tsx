@@ -187,7 +187,7 @@ export function PiModelPicker(props: {
               "flex max-h-[min(var(--available-height),20rem)] w-[min(16rem,var(--available-width))] min-w-[12rem] max-w-[16rem] flex-col overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-xl focus:outline-none focus-visible:outline-none",
             )}
           >
-            <div className="shrink-0 border-b border-glass-stroke/50 px-4 pt-2 pb-2">
+            <div className="shrink-0 border-b border-glass-stroke/50 px-2 py-1.5">
               <input
                 ref={inputRef}
                 type="search"
@@ -195,7 +195,7 @@ export function PiModelPicker(props: {
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={stopMenuSearchBubbling}
                 placeholder="Search models"
-                className="flex min-h-0 w-full rounded border-0 bg-glass-hover/50 p-0 text-body text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+                className="flex h-7 w-full rounded-glass-control border-0 bg-glass-hover/50 px-2 text-body text-foreground outline-none ring-0 placeholder:text-muted-foreground/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               />
             </div>
             {list.length === 0 ? (
@@ -221,7 +221,7 @@ export function PiModelPicker(props: {
                   return (
                     <Menu.Item
                       key={item.key}
-                      label={displayModelName(item.name || item.id)}
+                      label={`${displayModelName(item.name || item.id)} ${item.provider}`}
                       closeOnClick={false}
                       onClick={() => {
                         props.onSelect(item);
@@ -239,6 +239,9 @@ export function PiModelPicker(props: {
                             text={displayModelName(item.name || item.id)}
                             className="block w-full min-w-0 text-left text-body text-foreground"
                           />
+                        </span>
+                        <span className="max-w-[5rem] shrink-0 truncate text-detail text-muted-foreground/70">
+                          {item.provider}
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
                           {item.reasoning ? (

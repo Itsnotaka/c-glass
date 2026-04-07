@@ -252,6 +252,10 @@ export async function writePiApiKey(provider: string, key: string) {
   await getGlass().pi.setApiKey(provider, key);
 }
 
+export async function clearPiAuth(provider: string) {
+  await getGlass().pi.clearAuth(provider);
+}
+
 export async function startPiOAuthLogin(provider: string) {
   await getGlass().pi.startOAuthLogin(provider);
 }

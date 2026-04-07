@@ -8,8 +8,8 @@ import { useGlassAgents } from "../../hooks/use-glass-agents";
 import { useGlassGitPanel } from "../../hooks/use-glass-git";
 import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
 import { useShellState } from "../../hooks/use-shell-cwd";
+import { readGlass } from "../../host";
 import { switchWorkspace } from "../../lib/glass-workspace";
-import { useGlassNewChatStore } from "../../lib/glass-new-chat-store";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore, usePiSumsStatus } from "../../lib/pi-session-store";
 import { GlassAppShell } from "./app-shell";
@@ -23,11 +23,11 @@ export function GlassChatShell() {
   const navigate = useNavigate();
   const { cwd, home } = useShellState();
   const p = useGlassShellPanels(cwd);
+  const putSnap = usePiStore((state) => state.putSnap);
+  const refreshSums = usePiStore((state) => state.refreshSums);
   const sums = usePiStore((state) => state.sums);
-  const reset = usePiStore((state) => state.resetForWorkspaceChange);
   const sumsStatus = usePiSumsStatus();
   const clear = useGlassShellStore((state) => state.clear);
-  const bump = useGlassNewChatStore((state) => state.bump);
   const mute = useGlassShellStore((state) => state.mute);
   const unmute = useGlassShellStore((state) => state.unmute);
   const muted = useGlassShellStore((state) => (cwd ? Boolean(state.mutes[cwd]) : false));
@@ -45,8 +45,8 @@ export function GlassChatShell() {
     if (!sum?.cwd) return;
     if (cwd !== null && sum.cwd === cwd) return;
 
-    void switchWorkspace(sum.cwd, reset);
-  }, [cwd, reset, sum?.cwd]);
+    void switchWorkspace(sum.cwd);
+  }, [cwd, sum?.cwd]);
 
   useEffect(() => {
     if (!routeThreadId) return;
@@ -65,20 +65,29 @@ export function GlassChatShell() {
           : sum?.name?.trim() || sum?.firstMessage?.trim()?.slice(0, 48) || "Untitled";
 
   const create = useCallback(() => {
-    bump();
-    void navigate({ to: "/" });
-  }, [bump, navigate]);
+    const glass = readGlass();
+    if (!glass) {
+      void navigate({ to: "/" });
+      return;
+    }
+
+    void glass.session
+      .create()
+      .then((next) => {
+        putSnap(next);
+        void refreshSums();
+        void navigate({ to: "/$threadId", params: { threadId: next.id } });
+      })
+      .catch(() => {
+        void navigate({ to: "/" });
+      });
+  }, [navigate, putSnap, refreshSums]);
 
   const select = useCallback(
-    async (id: string) => {
-      const next = sums[id];
-      if (next?.cwd && next.cwd !== cwd) {
-        const ok = await switchWorkspace(next.cwd, reset);
-        if (!ok) return;
-      }
+    (id: string) => {
       void navigate({ to: "/$threadId", params: { threadId: id } });
     },
-    [cwd, navigate, reset, sums],
+    [navigate],
   );
 
   return (

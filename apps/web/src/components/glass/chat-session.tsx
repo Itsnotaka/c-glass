@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-import { usePiSummary } from "../../lib/pi-session-store";
+import { usePiStore, usePiSummary } from "../../lib/pi-session-store";
 import { GlassOpenPicker } from "./open-picker";
-import { GlassPiComposer } from "./pi-composer";
+import { GlassPiComposer, type GlassPiComposerHandle } from "./pi-composer";
 import { GlassPiMessages } from "./pi-messages";
 import { GlassShell } from "./shell";
 import { usePiSession } from "./use-pi-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
   const sum = usePiSummary(props.sessionId);
+  const snap = usePiStore((state) => state.snaps[props.sessionId]);
+  const count = sum?.messageCount ?? snap?.messages.length ?? 0;
 
-  if (sum?.messageCount === 0) {
+  if (count === 0) {
     return <HeroSession sessionId={props.sessionId} />;
   }
 
@@ -23,9 +25,18 @@ export function GlassChatSession(props: { sessionId: string }) {
 function HeroSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
   const session = usePiSession(props.sessionId);
+  const composerRef = useRef<GlassPiComposerHandle>(null);
+  const prevSession = useRef(props.sessionId);
 
   useLayoutEffect(() => {
     setDraft("");
+  }, [props.sessionId]);
+
+  useEffect(() => {
+    if (prevSession.current !== props.sessionId) {
+      prevSession.current = props.sessionId;
+      composerRef.current?.focus();
+    }
   }, [props.sessionId]);
 
   return (
@@ -33,6 +44,7 @@ function HeroSession(props: { sessionId: string }) {
       <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
         <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
           <GlassPiComposer
+            ref={composerRef}
             sessionId={props.sessionId}
             draft={draft}
             onDraft={setDraft}

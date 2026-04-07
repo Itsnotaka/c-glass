@@ -232,14 +232,8 @@ export const usePiStore = create<State>()((set, get) => ({
   },
   resetForWorkspaceChange: () => {
     cfgSeq++;
-    sumsSeq++;
     cfgRun = null;
-    sumsRun = null;
-    set((state) => {
-      let next = setCfg(state, state.cfg, "loading", null);
-      next = setSums(next, Object.values(state.sums), "loading", null);
-      return next;
-    });
+    set((state) => setCfg(state, state.cfg, "loading", null));
   },
   applySummaryEvent: (event) => {
     set((state) => {

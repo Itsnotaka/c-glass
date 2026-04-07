@@ -109,13 +109,16 @@ export function usePiSession(sessionId: string | null) {
   const frame = useRef<number | null>(null);
 
   useEffect(() => {
+    const glass = readGlass();
     const reload = () => {
       setTick((value) => value + 1);
     };
 
+    const off = glass?.desktop.onBootRefresh?.(reload) ?? (() => {});
     window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, reload);
     return () => {
       window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, reload);
+      off();
     };
   }, []);
 

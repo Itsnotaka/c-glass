@@ -119,6 +119,8 @@
   --glass-shell-saturate: 160%;
   --glass-shell-sidebar-bg: var(--glass-color-sidebar);
   --glass-shell-surface-bg: var(--glass-color-surface);
+  /* Cursor: `rgba(var(--cursor-action-icon-primary-rgb,129,161,193),.2)` — ring on drag/focus */
+  --glass-ring: oklch(0.68 0.04 240 / 0.2);
 }
 
 [data-electron] {
@@ -148,6 +150,7 @@
 }
 
 .dark {
+  --glass-ring: oklch(0.68 0.04 240 / 0.2);
   --glass-base-sidebar: color-mix(
     in srgb,
     var(--background) 90%,

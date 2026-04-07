@@ -508,7 +508,7 @@ export class PiRuntimeService {
   }
 
   create() {
-    return this.openRun().pipe(Effect.map((run) => run.store.snapshot()));
+    return this.openRun({ cwd: this.shell.cwd }).pipe(Effect.map((run) => run.store.snapshot()));
   }
 
   list() {
@@ -625,6 +625,23 @@ export class PiRuntimeService {
     return this.attach(sessionId).pipe(Effect.flatMap((run) => run.client.setThinkingLevel(next)));
   }
 
+  reload() {
+    return Effect.tryPromise({
+      try: async () => {
+        const jobs = [...this.runs.values()].map(async (run) => {
+          if (run.timer) clearTimeout(run.timer);
+          run.off();
+          await Effect.runPromise(run.client.stop());
+        });
+        this.runs.clear();
+        this.pend.clear();
+        this.asks.clear();
+        await Promise.all(jobs);
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   dispose() {
     for (const run of this.runs.values()) {
       if (run.timer) clearTimeout(run.timer);
@@ -662,7 +679,7 @@ export class PiRuntimeService {
 
         const sum = this.dir.get(sessionId);
         if (!sum || !sum.path) throw new Error(`Unknown session: ${sessionId}`);
-        const next = await Effect.runPromise(this.openRun(sum.path));
+        const next = await Effect.runPromise(this.openRun({ sessionPath: sum.path, cwd: sum.cwd }));
         if (watch) next.refs += 1;
         this.touch(next);
         this.trim();
@@ -725,12 +742,14 @@ export class PiRuntimeService {
     }
   }
 
-  private openRun(sessionPath?: string) {
+  private openRun(opts?: { sessionPath?: string; cwd?: string }) {
     return Effect.tryPromise({
       try: async () => {
+        const cwd = opts?.cwd ?? this.shell.cwd;
+        const sessionPath = opts?.sessionPath;
         const client = new PiRpcClient({
           workerPath: this.workerPath(),
-          cwd: this.shell.cwd,
+          cwd,
           ...(sessionPath ? { sessionPath } : {}),
         });
         await Effect.runPromise(client.start());
@@ -746,7 +765,7 @@ export class PiRuntimeService {
 
         const store = new PiRuntimeStore({
           id,
-          cwd: this.shell.cwd,
+          cwd,
           file: state.sessionFile ?? sessionPath ?? null,
         });
         store.apply({

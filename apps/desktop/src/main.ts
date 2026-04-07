@@ -95,8 +95,10 @@ const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
+const PI_SET_EXTENSION_ENABLED_CHANNEL = "glass:pi.set-extension-enabled";
 const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
+const PI_CLEAR_AUTH_CHANNEL = "glass:pi.clear-auth";
 const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
 const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
 const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
@@ -1463,6 +1465,26 @@ function registerIpcHandlers(): void {
     await publishGlassBootRefresh();
   });
 
+  ipcMain.removeHandler(PI_SET_EXTENSION_ENABLED_CHANNEL);
+  ipcMain.handle(
+    PI_SET_EXTENSION_ENABLED_CHANNEL,
+    async (_event, path: unknown, scope: unknown, enabled: unknown) => {
+      if (typeof path !== "string" || !path.trim()) {
+        throw new Error("Missing extension path");
+      }
+      if (scope !== "user" && scope !== "project") {
+        throw new Error("Invalid extension scope");
+      }
+      if (typeof enabled !== "boolean") {
+        throw new Error("Missing enabled state");
+      }
+      await Effect.runPromise(pi.setExtensionEnabled(shellService.cwd, path, scope, enabled));
+      clearAllWatchedSessions();
+      await Effect.runPromise(sessionService.reload());
+      await publishGlassBootRefresh();
+    },
+  );
+
   ipcMain.removeHandler(PI_GET_API_KEY_CHANNEL);
   ipcMain.handle(PI_GET_API_KEY_CHANNEL, async (_event, provider: unknown) => {
     if (typeof provider !== "string" || !provider.trim()) {
@@ -1480,6 +1502,15 @@ function registerIpcHandlers(): void {
       throw new Error("Missing key");
     }
     await Effect.runPromise(pi.setApiKey(provider, key));
+    await publishGlassBootRefresh();
+  });
+
+  ipcMain.removeHandler(PI_CLEAR_AUTH_CHANNEL);
+  ipcMain.handle(PI_CLEAR_AUTH_CHANNEL, async (_event, provider: unknown) => {
+    if (typeof provider !== "string" || !provider.trim()) {
+      throw new Error("Missing provider");
+    }
+    await Effect.runPromise(pi.clearAuth(provider));
     await publishGlassBootRefresh();
   });
 

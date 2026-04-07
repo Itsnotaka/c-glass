@@ -5,6 +5,7 @@ import type {
   PiAskEvent,
   PiAskReply,
   PiAskState,
+  PiExtensionScope,
   PiPromptInput,
   PiSessionActiveEvent,
   PiSessionSummaryEvent,
@@ -48,8 +49,10 @@ const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
 const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
 const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
 const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
+const PI_SET_EXTENSION_ENABLED_CHANNEL = "glass:pi.set-extension-enabled";
 const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
 const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
+const PI_CLEAR_AUTH_CHANNEL = "glass:pi.clear-auth";
 const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
 const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
 const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
@@ -87,9 +90,12 @@ const piBridge = {
   clearDefaultModel: () => ipcRenderer.invoke(PI_CLEAR_DEFAULT_MODEL_CHANNEL),
   setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) =>
     ipcRenderer.invoke(PI_SET_DEFAULT_THINKING_CHANNEL, thinkingLevel),
+  setExtensionEnabled: (resolvedPath: string, scope: PiExtensionScope, enabled: boolean) =>
+    ipcRenderer.invoke(PI_SET_EXTENSION_ENABLED_CHANNEL, resolvedPath, scope, enabled),
   getApiKey: (provider: string) => ipcRenderer.invoke(PI_GET_API_KEY_CHANNEL, provider),
   setApiKey: (provider: string, key: string) =>
     ipcRenderer.invoke(PI_SET_API_KEY_CHANNEL, provider, key),
+  clearAuth: (provider: string) => ipcRenderer.invoke(PI_CLEAR_AUTH_CHANNEL, provider),
   startOAuthLogin: (provider: string) => ipcRenderer.invoke(PI_START_OAUTH_LOGIN_CHANNEL, provider),
 };
 

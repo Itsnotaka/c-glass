@@ -1,11 +1,6 @@
 import * as Effect from "effect/Effect";
-import {
-  DefaultResourceLoader,
-  SessionManager,
-  createAgentSession,
-  runRpcMode,
-} from "@mariozechner/pi-coding-agent";
 import { setCursorSessionCwd } from "../cursor-provider";
+import { loadPi } from "../pi-imports";
 import { PiConfigService } from "../pi-config-service";
 
 function readArg(args: string[], key: string) {
@@ -29,16 +24,19 @@ async function run() {
   const cfg = new PiConfigService();
   await Effect.runPromise(cfg.prepare(argv.cwd));
 
+  const pi = await loadPi();
   const settings = cfg.settings(argv.cwd);
-  const loader = new DefaultResourceLoader({
+  const loader = new pi.DefaultResourceLoader({
     cwd: argv.cwd,
     agentDir: cfg.paths(argv.cwd).agent,
     settingsManager: settings,
   });
   await loader.reload();
 
-  const mgr = argv.session ? SessionManager.open(argv.session) : SessionManager.create(argv.cwd);
-  const out = await createAgentSession({
+  const mgr = argv.session
+    ? pi.SessionManager.open(argv.session)
+    : pi.SessionManager.create(argv.cwd);
+  const out = await pi.createAgentSession({
     cwd: argv.cwd,
     authStorage: cfg.auth,
     modelRegistry: cfg.reg,
@@ -48,7 +46,7 @@ async function run() {
   });
 
   setCursorSessionCwd(out.session.sessionId, out.session.sessionManager.getCwd());
-  await runRpcMode(out.session);
+  await pi.runRpcMode(out.session);
 }
 
 void run().catch((err) => {

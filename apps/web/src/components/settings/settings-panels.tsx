@@ -1,15 +1,15 @@
-import type { PiConfig } from "@glass/contracts";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { IconArrowRotateCounterClockwise } from "central-icons";
+import { IconArrowRotateCounterClockwise, IconSquareArrowTopRight } from "central-icons";
 
 import { useGlassAppearance } from "../../hooks/use-glass-appearance";
 import { usePiDefaults } from "../../hooks/use-pi-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
+
 import { pickWorkspace } from "../../lib/glass-workspace";
 import {
+  clearPiAuth,
   clearPiDefaultModel,
-  readPiApiKey,
   startPiOAuthLogin,
   writePiApiKey,
   writePiDefaultModel,
@@ -66,6 +66,12 @@ function SettingsRow(props: { label: string; description: string; control?: Reac
       ) : null}
     </div>
   );
+}
+
+function scopeLabel(scope: "user" | "project" | "other") {
+  if (scope === "project") return "Workspace";
+  if (scope === "user") return "User";
+  return "Other";
 }
 
 function FontInput(props: {
@@ -340,7 +346,6 @@ function AppearancePage() {
 
 function WorkspaceRows() {
   const shell = useShellState();
-  const reset = usePiStore((item) => item.resetForWorkspaceChange);
 
   return (
     <>
@@ -360,9 +365,9 @@ function WorkspaceRows() {
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"
-              size="sm"
+              size="default"
               variant="outline"
-              onClick={() => void pickWorkspace(reset)}
+              onClick={() => void pickWorkspace()}
             >
               Choose workspace
             </Button>
@@ -442,11 +447,11 @@ function DefaultsSection() {
 function KeysSection() {
   const cfg = usePiCfg();
   const status = usePiCfgStatus();
-  const [active, setActive] = useState("");
   const [query, setQuery] = useState("");
-  const [value, setValue] = useState("");
-  const [stored, setStored] = useState(false);
   const [oauthBusy, setOauthBusy] = useState("");
+  const [wipe, setWipe] = useState("");
+  const [addKey, setAddKey] = useState<string | null>(null);
+  const [keyValue, setKeyValue] = useState("");
 
   const providers = useMemo(
     () =>
@@ -470,40 +475,19 @@ function KeysSection() {
     return discover.filter((item) => item.provider.toLowerCase().includes(q));
   }, [discover, query]);
 
-  useEffect(() => {
-    if (active && providers.some((item) => item.provider === active)) return;
-    if (connected[0]) {
-      setActive(connected[0].provider);
-      return;
-    }
-    if (discover[0]) {
-      setActive(discover[0].provider);
-      return;
-    }
-    setActive("");
-  }, [active, connected, discover, providers]);
+  const drop = (provider: string) => {
+    if (wipe) return;
+    setWipe(provider);
+    void clearPiAuth(provider).finally(() => setWipe(""));
+  };
 
-  const cur = providers.find((item) => item.provider === active) ?? null;
-
-  useEffect(() => {
-    if (!active || status !== "ready") {
-      setStored(false);
-      return;
-    }
-    let live = true;
-    void readPiApiKey(active).then((key) => {
-      if (!live) return;
-      setStored(Boolean(key));
-      setValue("");
+  const saveKey = (provider: string) => {
+    if (!keyValue.trim()) return;
+    void writePiApiKey(provider, keyValue.trim()).then(() => {
+      setAddKey(null);
+      setKeyValue("");
     });
-    return () => {
-      live = false;
-    };
-  }, [active, status]);
-
-  const oauthBlock =
-    cur?.credentialType === "oauth" ||
-    (cur != null && cur.oauthSupported && cur.credentialType !== "api_key");
+  };
 
   return (
     <>
@@ -526,22 +510,25 @@ function KeysSection() {
           ) : (
             <ul className="flex w-full max-w-md flex-col gap-1">
               {connected.map((item) => (
-                <li key={item.provider}>
+                <li key={item.provider} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 rounded-glass-control border border-border/80 bg-background px-3 py-2">
+                    <span className="min-w-0 truncate font-medium text-body">{item.provider}</span>
+                  </div>
                   <Button
                     type="button"
-                    variant="ghost"
-                    onClick={() => setActive(item.provider)}
-                    className={cn(
-                      "flex h-auto w-full items-center justify-between gap-2 rounded-glass-control border px-3 py-2 text-left text-body font-normal",
-                      active === item.provider
-                        ? "border-primary/40 bg-primary/5"
-                        : "border-border/80 bg-background hover:bg-muted/40",
-                    )}
+                    size="sm"
+                    variant="outline"
+                    className="min-w-[5.5rem] justify-center"
+                    disabled={Boolean(wipe)}
+                    onClick={() => drop(item.provider)}
                   >
-                    <span className="min-w-0 truncate font-medium">{item.provider}</span>
-                    <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
-                      {item.credentialType === "oauth" ? "OAuth" : "API key"}
-                    </span>
+                    {wipe === item.provider
+                      ? item.credentialType === "oauth"
+                        ? "Logging out…"
+                        : "Clearing…"
+                      : item.credentialType === "oauth"
+                        ? "Logout"
+                        : "Clear"}
                   </Button>
                 </li>
               ))}
@@ -549,50 +536,29 @@ function KeysSection() {
           )
         }
       />
-      {cur && active && status === "ready" ? (
-        oauthBlock ? (
-          <SettingsRow
-            label={`${active} · auth`}
-            description="OAuth-managed in Pi."
-            control={
-              <p className="max-w-sm text-right text-muted-foreground text-body">
-                {cur.oauthSupported
-                  ? `Uses OAuth${stored ? " and is signed in." : "."} You can re-authenticate from “Add a provider” if needed.`
-                  : `Uses OAuth-style credentials from your local Pi config.`}
-              </p>
-            }
-          />
-        ) : (
-          <SettingsRow
-            label={`${active} · API key`}
-            description={stored ? "A key is stored locally." : "No key stored yet."}
-            control={
-              <div className="flex w-full min-w-[min(100%,20rem)] max-w-md flex-col gap-2 sm:flex-row sm:items-center">
-                <Input
-                  type="password"
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  placeholder={`Set key for ${active}`}
-                  className="min-w-0 flex-1"
-                />
-                <Button
-                  type="button"
-                  disabled={!value.trim()}
-                  onClick={() => {
-                    if (!value.trim()) return;
-                    void writePiApiKey(active, value.trim()).then(() => {
-                      setStored(true);
-                      setValue("");
-                    });
-                  }}
-                >
-                  Save
-                </Button>
-              </div>
-            }
-          />
-        )
-      ) : null}
+      {addKey && (
+        <SettingsRow
+          label={`${addKey} · API key`}
+          description="Enter the API key for this provider."
+          control={
+            <div className="flex w-full min-w-[min(100%,20rem)] max-w-md flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                type="password"
+                value={keyValue}
+                onChange={(event) => setKeyValue(event.target.value)}
+                placeholder={`API key for ${addKey}`}
+                className="min-w-0 flex-1"
+              />
+              <Button type="button" disabled={!keyValue.trim()} onClick={() => saveKey(addKey)}>
+                Save
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setAddKey(null)}>
+                Cancel
+              </Button>
+            </div>
+          }
+        />
+      )}
       <SettingsRow
         label="Add a provider"
         description="Search providers you have not connected yet. OAuth opens your browser; API keys are saved locally."
@@ -617,15 +583,18 @@ function KeysSection() {
                   filteredDiscover.map((item) => (
                     <li
                       key={item.provider}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-glass-control border border-border/70 bg-background px-3 py-2"
+                      className="flex items-center justify-between gap-2 rounded-glass-control border border-border/70 bg-background px-3 py-2"
                     >
-                      <span className="min-w-0 truncate font-mono text-body">{item.provider}</span>
-                      <div className="flex shrink-0 flex-wrap gap-2">
+                      <span className="min-w-0 flex-1 truncate font-mono text-body">
+                        {item.provider}
+                      </span>
+                      <div className="flex shrink-0 justify-end">
                         {item.oauthSupported ? (
                           <Button
                             type="button"
                             size="sm"
-                            variant="secondary"
+                            variant="outline"
+                            className="min-w-[8.5rem] justify-center"
                             disabled={oauthBusy === item.provider}
                             onClick={() => {
                               setOauthBusy(item.provider);
@@ -634,14 +603,21 @@ function KeysSection() {
                                 .finally(() => setOauthBusy(""));
                             }}
                           >
-                            {oauthBusy === item.provider ? "Signing in…" : "Connect with OAuth"}
+                            {oauthBusy === item.provider ? (
+                              "Signing in…"
+                            ) : (
+                              <>
+                                Connect <IconSquareArrowTopRight className="size-3.5" />
+                              </>
+                            )}
                           </Button>
                         ) : (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() => setActive(item.provider)}
+                            className="min-w-[8.5rem] justify-center"
+                            onClick={() => setAddKey(item.provider)}
                           >
                             Add API key
                           </Button>
@@ -657,111 +633,6 @@ function KeysSection() {
       />
     </>
   );
-}
-
-function scopeLabel(scope: PiConfig["extensions"][number]["scope"]) {
-  if (scope === "project") return "Workspace";
-  if (scope === "user") return "User";
-  return "Other";
-}
-
-export function ExtensionsSettingsPanel() {
-  const cfg = usePiCfg();
-  const status = usePiCfgStatus();
-  const exts = useMemo(
-    () =>
-      cfg?.extensions.toSorted(
-        (left, right) =>
-          left.name.localeCompare(right.name) ||
-          left.resolvedPath.localeCompare(right.resolvedPath),
-      ) ?? [],
-    [cfg],
-  );
-  const errs = useMemo(
-    () =>
-      cfg?.extensionErrors.toSorted(
-        (left, right) =>
-          left.path.localeCompare(right.path) || left.error.localeCompare(right.error),
-      ) ?? [],
-    [cfg],
-  );
-
-  return (
-    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
-      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
-        Extensions
-      </h1>
-      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
-        Extensions Pi discovers from the workspace and user agent directories.
-      </p>
-      <SettingsSection label="Discovery">
-        <SettingsRow
-          label="Sources"
-          description="Glass now follows Pi's standard extension discovery. Workspace `.pi/extensions` and user `~/.pi/agent/extensions` folders are loaded directly by the runtime."
-        />
-      </SettingsSection>
-      <SettingsSection label="Loaded">
-        {status === "loading" ? (
-          <div className="py-3 text-muted-foreground text-body">Loading extensions…</div>
-        ) : status === "error" ? (
-          <div className="py-3 text-muted-foreground text-body">Unable to load extensions.</div>
-        ) : exts.length === 0 ? (
-          <div className="py-3 text-muted-foreground text-body">No extensions discovered.</div>
-        ) : (
-          <ul className="space-y-2 py-3">
-            {exts.map((item) => (
-              <li
-                key={item.resolvedPath}
-                className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
-              >
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-body">{item.name}</div>
-                    <div
-                      className="mt-1 truncate font-mono text-detail text-muted-foreground"
-                      title={item.path}
-                    >
-                      {item.path}
-                    </div>
-                    <div
-                      className="mt-1 truncate text-muted-foreground/80 text-detail"
-                      title={item.resolvedPath}
-                    >
-                      {item.resolvedPath}
-                    </div>
-                  </div>
-                  <span className="shrink-0 rounded-glass-control bg-muted px-2 py-0.5 text-muted-foreground text-detail">
-                    {scopeLabel(item.scope)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SettingsSection>
-      {errs.length > 0 ? (
-        <SettingsSection label="Load issues">
-          <ul className="space-y-2 py-3">
-            {errs.map((item) => (
-              <li
-                key={`${item.path}:${item.error}`}
-                className="rounded-glass-control border border-border/70 bg-background px-3 py-2"
-              >
-                <div className="truncate font-mono text-detail text-foreground" title={item.path}>
-                  {item.path}
-                </div>
-                <div className="mt-1 text-muted-foreground text-body">{item.error}</div>
-              </li>
-            ))}
-          </ul>
-        </SettingsSection>
-      ) : null}
-    </div>
-  );
-}
-
-export function AppearanceSettingsPanel() {
-  return <AppearancePage />;
 }
 
 export function AgentsSettingsPanel() {
@@ -871,4 +742,234 @@ export function useSettingsRestore(onRestore?: () => void) {
   };
 
   return { changedSettingLabels, restoreDefaults };
+}
+
+function mark(name: string) {
+  const head = name.trim()[0]?.toUpperCase() ?? "?";
+  const num = name.match(/\d+/u)?.[0] ?? "";
+  return `${head}${num}`.slice(0, 2);
+}
+
+function showPath(path: string, agent: string, cwd: string | null) {
+  if (cwd && path.startsWith(`${cwd}/`)) return path.slice(cwd.length + 1);
+  if (!agent) return path;
+  if (path.startsWith(`${agent}/`)) return `~/.pi/agent/${path.slice(agent.length + 1)}`;
+  if (!agent.endsWith("/.pi/agent")) return path;
+  const home = agent.slice(0, -"/.pi/agent".length);
+  if (path.startsWith(`${home}/`)) return `~/${path.slice(home.length + 1)}`;
+  return path;
+}
+
+export function ExtensionsSettingsPanel() {
+  const cfg = usePiCfg();
+  const status = usePiCfgStatus();
+  const shell = useShellState();
+  const refetch = usePiStore((state) => state.refreshCfg);
+  const [tab, setTab] = useState<"all" | "user" | "project">("all");
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const exts = useMemo(
+    () =>
+      cfg?.extensions.toSorted(
+        (left, right) =>
+          left.name.localeCompare(right.name) ||
+          left.scope.localeCompare(right.scope) ||
+          left.resolvedPath.localeCompare(right.resolvedPath),
+      ) ?? [],
+    [cfg],
+  );
+  const rows = useMemo(() => {
+    if (tab === "all") return exts;
+    return exts.filter((item) => item.scope === tab);
+  }, [exts, tab]);
+  const sums = useMemo(
+    () => ({
+      all: exts.length,
+      user: exts.filter((item) => item.scope === "user").length,
+      project: exts.filter((item) => item.scope === "project").length,
+    }),
+    [exts],
+  );
+  const errs = useMemo(
+    () =>
+      cfg?.extensionErrors.toSorted(
+        (left, right) =>
+          left.path.localeCompare(right.path) || left.error.localeCompare(right.error),
+      ) ?? [],
+    [cfg],
+  );
+
+  function toggle(item: (typeof exts)[number], next: boolean) {
+    const glass = typeof window !== "undefined" ? window.glass : undefined;
+    if (!glass) return;
+    if (item.scope !== "user" && item.scope !== "project") return;
+    const key = item.resolvedPath;
+    setBusy((state) => ({ ...state, [key]: true }));
+    void glass.pi
+      .setExtensionEnabled(item.resolvedPath, item.scope, next)
+      .then(() => refetch())
+      .catch(() => {})
+      .finally(() => {
+        setBusy((state) => {
+          const nextState = { ...state };
+          delete nextState[key];
+          return nextState;
+        });
+      });
+  }
+
+  return (
+    <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
+      <h1 className="font-semibold text-foreground tracking-tight" data-glass-settings-title>
+        Extensions
+      </h1>
+      <p className="mt-1 text-muted-foreground" data-glass-settings-lead>
+        Extensions Pi discovers from the workspace and user agent directories.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-1">
+        {[
+          { id: "all" as const, label: "All", count: sums.all },
+          { id: "user" as const, label: "User", count: sums.user },
+          { id: "project" as const, label: "Workspace", count: sums.project },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={cn(
+              "inline-flex min-h-7 items-center gap-1 rounded-glass-control px-2 py-1 text-body transition-colors",
+              tab === item.id
+                ? "bg-glass-active text-foreground"
+                : "text-muted-foreground hover:bg-glass-hover hover:text-foreground",
+            )}
+            onClick={() => setTab(item.id)}
+          >
+            <span>{item.label}</span>
+            <span className="rounded-glass-pill bg-muted/70 px-1.5 py-0.5 text-caption text-muted-foreground">
+              {item.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6">
+        <div data-glass-settings-section className="mb-2 font-medium text-muted-foreground">
+          Discovery
+        </div>
+        <div className="overflow-hidden rounded-glass-card border border-glass-border/40 bg-glass-bubble/55">
+          <div className="px-3 py-2.5 text-body text-muted-foreground">
+            Glass follows Pi&apos;s standard extension discovery. Workspace{" "}
+            <code className="rounded bg-glass-hover/45 px-1 py-0.5 font-mono text-detail text-foreground/88">
+              .pi/extensions
+            </code>{" "}
+            and user{" "}
+            <code className="rounded bg-glass-hover/45 px-1 py-0.5 font-mono text-detail text-foreground/88">
+              ~/.pi/agent/extensions
+            </code>{" "}
+            folders are loaded directly by the runtime.
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div data-glass-settings-section className="font-medium text-muted-foreground">
+            Discovered
+          </div>
+          <div className="text-detail text-muted-foreground">{rows.length} shown</div>
+        </div>
+        {status === "loading" ? (
+          <div className="py-3 text-muted-foreground text-body">Loading extensions…</div>
+        ) : status === "error" ? (
+          <div className="py-3 text-muted-foreground text-body">Unable to load extensions.</div>
+        ) : rows.length === 0 ? (
+          <div className="py-3 text-muted-foreground text-body">
+            {tab === "all" ? "No extensions discovered." : "No extensions in this scope."}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-glass-card border border-glass-border/40 bg-glass-bubble/55">
+            {rows.map((item, i) => {
+              const key = item.resolvedPath;
+              const off = item.scope === "other" || Boolean(busy[key]);
+
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "flex min-w-0 items-center gap-3 px-3 py-2.5",
+                    i > 0 && "border-glass-border/35 border-t",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full border text-detail font-medium",
+                      item.enabled
+                        ? "border-emerald-500/22 bg-emerald-500/10 text-emerald-300"
+                        : "border-glass-border/45 bg-muted/30 text-muted-foreground/70",
+                    )}
+                  >
+                    {mark(item.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 truncate text-body font-medium text-foreground">
+                        {item.name}
+                      </div>
+                      <span className="shrink-0 rounded-glass-pill bg-muted/70 px-1.5 py-0.5 text-caption text-muted-foreground">
+                        {scopeLabel(item.scope)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2 text-detail text-muted-foreground">
+                      <span className="inline-flex shrink-0 items-center gap-1">
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            item.enabled ? "bg-emerald-400" : "bg-muted-foreground/40",
+                          )}
+                        />
+                        {item.enabled ? "Active" : "Disabled"}
+                      </span>
+                      <span
+                        className="min-w-0 truncate font-mono text-muted-foreground/78"
+                        title={item.resolvedPath}
+                      >
+                        {showPath(item.resolvedPath, cfg?.agentDir ?? "", shell.cwd)}
+                      </span>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={item.enabled}
+                    disabled={off}
+                    onCheckedChange={(next) => toggle(item, next)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {errs.length > 0 ? (
+        <div className="mt-6">
+          <div data-glass-settings-section className="mb-2 font-medium text-muted-foreground">
+            Load issues
+          </div>
+          <div className="overflow-hidden rounded-glass-card border border-glass-border/40 bg-glass-bubble/55">
+            {errs.map((item, i) => (
+              <div
+                key={`${item.path}:${item.error}`}
+                className={cn("px-3 py-2.5", i > 0 && "border-glass-border/35 border-t")}
+              >
+                <div className="truncate font-mono text-detail text-foreground" title={item.path}>
+                  {item.path}
+                </div>
+                <div className="mt-1 text-body text-muted-foreground">{item.error}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function AppearanceSettingsPanel() {
+  return <AppearancePage />;
 }

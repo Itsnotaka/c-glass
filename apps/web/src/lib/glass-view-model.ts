@@ -7,7 +7,7 @@ export function buildWorkspaceThreadSections(
   cwd: string | null,
   home: string | null,
 ) {
-  const list = Object.values(sums).filter((item) => item.messageCount > 0);
+  const list = Object.values(sums);
   if (list.length === 0) return [];
 
   const by = new Map<string, PiSessionSummary[]>();

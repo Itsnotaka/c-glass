@@ -7,14 +7,12 @@ import type { OAuthLoginCallbacks } from "@mariozechner/pi-ai";
 import type { PiConfig, PiThinkingLevel } from "@glass/contracts";
 import {
   AuthStorage,
-  DefaultResourceLoader,
-  ExtensionRunner,
   ModelRegistry,
-  SessionManager,
   SettingsManager,
   getAgentDir,
 } from "@mariozechner/pi-coding-agent";
 import { registerCursorProvider, syncCursorProvider } from "./cursor-provider";
+import { loadPi } from "./pi-imports";
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 type JsonObj = { [k: string]: Json };
@@ -56,6 +54,43 @@ function errDto(item: { path: string; error: string }) {
     path: item.path,
     error: item.error,
   };
+}
+
+function stem(file: string) {
+  const base = Path.basename(file);
+  if (base === "index.ts" || base === "index.js") return Path.basename(Path.dirname(file));
+  const next = base.replace(/\.(ts|js)$/u, "");
+  return next || base;
+}
+
+function kind(value: string) {
+  if (value === "user") return "user" as const;
+  if (value === "project") return "project" as const;
+  return "other" as const;
+}
+
+function clean(text: string) {
+  const next = text.startsWith("./") || text.startsWith(".\\") ? text.slice(2) : text;
+  return next.split(Path.sep).join("/");
+}
+
+function rel(file: string, root: string) {
+  const next = Path.relative(root, file);
+  if (!next || next.startsWith("..") || Path.isAbsolute(next)) {
+    return file.split(Path.sep).join("/");
+  }
+  return next.split(Path.sep).join("/");
+}
+
+function strip(list: string[], file: string, root: string) {
+  const key = clean(rel(file, root));
+  const abs = clean(file);
+  return list.filter((item) => {
+    const cur = item.trim();
+    if (!cur.startsWith("+") && !cur.startsWith("-")) return true;
+    const next = clean(cur.slice(1));
+    return next !== key && next !== abs;
+  });
 }
 
 function modelDto(model: ReturnType<ModelRegistry["getAll"]>[number]) {
@@ -157,6 +192,13 @@ export class PiConfigService {
     registerCursorProvider(this.reg);
   }
 
+  invalidate() {
+    this.initp = null;
+    this.initcwd = null;
+    this.exts = [];
+    this.xerrs = [];
+  }
+
   init(cwd: string) {
     if (this.initp && this.initcwd === cwd) return this.initp;
 
@@ -165,34 +207,42 @@ export class PiConfigService {
       this.exts = [];
       this.xerrs = [];
 
-      const loader = new DefaultResourceLoader({
+      const pi = await loadPi();
+      const mgr = this.settings(cwd);
+      const loader = new pi.DefaultResourceLoader({
         cwd,
         agentDir: getAgentDir(),
-        settingsManager: this.settings(cwd),
+        settingsManager: mgr,
         noSkills: true,
         noPromptTemplates: true,
         noThemes: true,
       });
+      const pack = new pi.DefaultPackageManager({
+        cwd,
+        agentDir: getAgentDir(),
+        settingsManager: mgr,
+      });
 
       try {
         await loader.reload();
+        const paths = await pack.resolve();
         const exts = loader.getExtensions();
-        this.exts = exts.extensions.map((item) => ({
-          name: item.sourceInfo.source || Path.basename(item.path),
-          path: item.path,
-          resolvedPath: item.resolvedPath,
-          scope:
-            item.sourceInfo.scope === "user" || item.sourceInfo.scope === "project"
-              ? item.sourceInfo.scope
-              : "other",
-        }));
+        this.exts = paths.extensions
+          .filter((item) => item.metadata.origin === "top-level")
+          .map((item) => ({
+            name: stem(item.path),
+            path: item.path,
+            resolvedPath: item.path,
+            scope: kind(item.metadata.scope),
+            enabled: item.enabled,
+          }));
         this.xerrs = exts.errors.map((item) => errDto(item));
 
-        const runner = new ExtensionRunner(
+        const runner = new pi.ExtensionRunner(
           exts.extensions,
           exts.runtime,
           cwd,
-          SessionManager.inMemory(cwd),
+          pi.SessionManager.inMemory(cwd),
           this.reg,
         );
         runner.bindCore(core, ctx);
@@ -373,6 +423,29 @@ export class PiConfigService {
     return this.flush(mgr);
   }
 
+  setExtensionEnabled(cwd: string, file: string, scope: "user" | "project", enabled: boolean) {
+    return Effect.tryPromise({
+      try: async () => {
+        const mgr = this.settings(cwd);
+        const root = scope === "user" ? this.paths(cwd).agent : Path.join(cwd, ".pi");
+        const list =
+          scope === "user"
+            ? (mgr.getGlobalSettings().extensions ?? [])
+            : (mgr.getProjectSettings().extensions ?? []);
+        const next = strip(list, file, root);
+        next.push(`${enabled ? "+" : "-"}${rel(file, root)}`);
+
+        if (scope === "user") mgr.setExtensionPaths(next);
+        if (scope === "project") mgr.setProjectExtensionPaths(next);
+
+        await this.flush(mgr);
+        this.invalidate();
+        await Effect.runPromise(this.prepare(cwd));
+      },
+      catch: (err) => (err instanceof Error ? err : new Error(String(err))),
+    });
+  }
+
   getApiKey(provider: string) {
     return Effect.tryPromise({
       try: async () => {
@@ -389,6 +462,15 @@ export class PiConfigService {
   setApiKey(provider: string, key: string) {
     return Effect.sync(() => {
       this.auth.set(provider, { type: "api_key", key });
+      this.sync();
+      const err = this.auth.drainErrors()[0];
+      if (err) throw err;
+    });
+  }
+
+  clearAuth(provider: string) {
+    return Effect.sync(() => {
+      this.auth.remove(provider);
       this.sync();
       const err = this.auth.drainErrors()[0];
       if (err) throw err;

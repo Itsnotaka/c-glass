@@ -18,8 +18,10 @@ import {
   IconStop,
 } from "central-icons";
 import {
+  forwardRef,
   memo,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -34,6 +36,7 @@ import { usePiStore } from "../../lib/pi-session-store";
 import {
   glassComposerAttachmentChip,
   glassComposerAttachmentStrip,
+  glassComposerImageGrid,
   glassComposerImageThumbnail,
 } from "../../lib/glass-attachment-styles";
 import { cn } from "../../lib/utils";
@@ -91,6 +94,10 @@ interface Props {
   model: PiModelRef | null;
   modelLoading?: boolean;
   busy: boolean;
+}
+
+export interface GlassPiComposerHandle {
+  focus: () => void;
 }
 
 function same(left: PiModelRef | null, right: PiModelRef | null) {
@@ -229,34 +236,76 @@ function attachmentIsImage(item: Pick) {
   return item.type === "inline" || item.kind === "image";
 }
 
-const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemove: () => void }) {
+/** Image lightbox — fullscreen preview overlay (Cursor: `ui-prompt-input-image-preview__fullscreen-content`). */
+function ImageLightbox(props: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={props.onClose}
+      onKeyDown={(e) => e.key === "Escape" && props.onClose()}
+      role="dialog"
+      aria-label="Image preview"
+    >
+      <button
+        type="button"
+        className="absolute right-4 top-4 z-10 flex size-9 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
+        onClick={props.onClose}
+        aria-label="Close preview"
+      >
+        <IconCrossSmall className="size-4" />
+      </button>
+      <img
+        alt={props.alt}
+        src={props.src}
+        className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+/** Image thumbnail — Cursor `ui-prompt-input-image-preview` (64×64 grid cell). */
+const ImageChip = memo(function ImageChip(props: { item: Pick; onRemove: () => void }) {
+  const [lightbox, setLightbox] = useState(false);
   const Glyph = icon(props.item);
   const src = attachmentPreviewUrl(props.item);
 
-  if (attachmentIsImage(props.item)) {
-    return (
+  return (
+    <>
       <div className="group relative inline-flex shrink-0" title={props.item.name}>
-        <div className={glassComposerImageThumbnail}>
+        <button
+          type="button"
+          className={cn(glassComposerImageThumbnail, "cursor-pointer")}
+          onClick={() => src && setLightbox(true)}
+          aria-label={`Preview ${props.item.name}`}
+        >
           {src ? (
             <img alt={props.item.name} className="h-full w-full object-cover" src={src} />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-glass-hover/20 text-muted-foreground/70">
-              <Glyph className="size-4" />
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
+              <Glyph className="size-5" />
             </div>
           )}
-        </div>
+        </button>
         <button
           type="button"
           aria-label={`Remove ${props.item.name}`}
-          className="absolute -right-1 -top-1 z-10 flex size-5 items-center justify-center rounded-full bg-black/45 text-white opacity-0 shadow-sm transition-[opacity,background-color] hover:bg-black/58 group-hover:opacity-100 focus-visible:opacity-100"
+          className="absolute -right-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 shadow-sm transition-[opacity,background-color] duration-100 hover:bg-black/65 group-hover:opacity-100 focus-visible:opacity-100"
           onClick={props.onRemove}
         >
           <IconCrossSmall className="size-3" />
         </button>
       </div>
-    );
-  }
+      {lightbox && src ? (
+        <ImageLightbox src={src} alt={props.item.name} onClose={() => setLightbox(false)} />
+      ) : null}
+    </>
+  );
+});
 
+/** File attachment chip — non-image files. */
+const FileChip = memo(function FileChip(props: { item: Pick; onRemove: () => void }) {
+  const Glyph = icon(props.item);
   return (
     <div className={glassComposerAttachmentChip}>
       <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-glass-hover/24 text-muted-foreground/75">
@@ -282,8 +331,32 @@ const AttachmentChip = memo(function AttachmentChip(props: { item: Pick; onRemov
   );
 });
 
-export const GlassPiComposer = memo(
-  function GlassPiComposer(props: Props) {
+/** Attachment strip — separates images (grid) from file chips. Cursor: `ui-prompt-input-image-grid` + `prompt-attachment`. */
+const AttachmentStrip = memo(function AttachmentStrip(props: {
+  files: Pick[];
+  onRemove: (id: string) => void;
+}) {
+  const images = props.files.filter(attachmentIsImage);
+  const docs = props.files.filter((f) => !attachmentIsImage(f));
+
+  return (
+    <div className={cn(glassComposerAttachmentStrip, "px-3 pt-3 pb-2")}>
+      {images.length > 0 ? (
+        <div className={glassComposerImageGrid}>
+          {images.map((item) => (
+            <ImageChip key={item.id} item={item} onRemove={() => props.onRemove(item.id)} />
+          ))}
+        </div>
+      ) : null}
+      {docs.map((item) => (
+        <FileChip key={item.id} item={item} onRemove={() => props.onRemove(item.id)} />
+      ))}
+    </div>
+  );
+});
+
+const GlassPiComposerImpl = memo(
+  forwardRef<GlassPiComposerHandle, Props>(function GlassPiComposer(props, ref) {
     const glass = readGlass();
     const navigate = useNavigate();
     const settings = useGlassSettings();
@@ -309,6 +382,12 @@ export const GlassPiComposer = memo(
     const [loading, setLoading] = useState(false);
     const [closed, setClosed] = useState<string | null>(null);
     const empty = !props.draft.trim() && files.length === 0;
+
+    useImperativeHandle(ref, () => ({
+      focus: () => {
+        area.current?.focus();
+      },
+    }));
 
     const locals = useMemo(
       () =>
@@ -708,6 +787,7 @@ export const GlassPiComposer = memo(
         anchor={shellRef}
         variant={props.variant}
         mode={at ? "file" : "slash"}
+        query={at ? at.query : (slash?.query ?? "")}
         slashRows={slashRows}
         slashActive={index}
         onSlashHover={setIndex}
@@ -750,9 +830,10 @@ export const GlassPiComposer = memo(
               {menu}
               <div
                 ref={shellRef}
+                data-dragging={drag || undefined}
                 className={cn(
                   "overflow-hidden rounded-glass-card border border-glass-stroke-tertiary bg-glass-bubble shadow-glass-card backdrop-blur-[10px] transition-none focus-within:border-glass-stroke-strong",
-                  drag && "border-glass-stroke-strong bg-glass-active/18",
+                  drag && "border-glass-stroke-strong shadow-[0_0_0_2px_var(--glass-ring)]",
                 )}
                 onDragLeave={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect();
@@ -772,17 +853,10 @@ export const GlassPiComposer = memo(
                 }}
               >
                 {files.length ? (
-                  <div className={cn(glassComposerAttachmentStrip, "px-3 pt-3 pb-2")}>
-                    {files.map((item) => (
-                      <AttachmentChip
-                        key={item.id}
-                        item={item}
-                        onRemove={() =>
-                          setFiles((cur) => cur.filter((next) => next.id !== item.id))
-                        }
-                      />
-                    ))}
-                  </div>
+                  <AttachmentStrip
+                    files={files}
+                    onRemove={(id) => setFiles((cur) => cur.filter((f) => f.id !== id))}
+                  />
                 ) : null}
                 <div className="relative min-h-10">
                   <div
@@ -890,7 +964,10 @@ export const GlassPiComposer = memo(
                       }}
                       disabled={props.busy}
                       variant={props.variant}
-                      onSelect={props.onModel}
+                      onSelect={(model) => {
+                        props.onModel(model);
+                        area.current?.focus();
+                      }}
                       onThinkingLevel={props.onThinkingLevel}
                     />
                   </div>
@@ -927,14 +1004,17 @@ export const GlassPiComposer = memo(
         </div>
       </div>
     );
-  },
-  (left, right) =>
+  }),
+  (left: Props, right: Props) =>
     left.variant === right.variant &&
     left.sessionId === right.sessionId &&
     left.draft === right.draft &&
     left.busy === right.busy &&
     same(left.model, right.model),
 );
+
+export const GlassPiComposer = GlassPiComposerImpl;
+GlassPiComposer.displayName = "GlassPiComposer";
 
 const demoModel: PiModelItem = {
   key: "openai/gpt",
@@ -1010,9 +1090,8 @@ const demoInline: Pick = {
 /** Dev `/dev/icons`: attachment chips (file + inline image). */
 export function GlassComposerAttachmentChipDemo() {
   return (
-    <div className="flex max-w-md flex-col gap-2">
-      <AttachmentChip item={demoPathPick} onRemove={() => {}} />
-      <AttachmentChip item={demoInline} onRemove={() => {}} />
+    <div className="flex max-w-md flex-col gap-3">
+      <AttachmentStrip files={[demoInline, demoPathPick]} onRemove={() => {}} />
     </div>
   );
 }
