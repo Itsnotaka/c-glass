@@ -13,7 +13,7 @@ export type GlassSlashItem = {
   name: string;
   description?: string;
   source: "pi" | "app" | "local";
-  /** Trailing pill (Pi `extension` | `prompt` | `skill`, or `app`). */
+  /** Trailing pill (`commands` for Pi prompts, `skill`, or `app`). */
   pill: string;
   section: "recent" | "commands" | "skills" | "subagents" | "app";
   keyword?: string[];
@@ -51,6 +51,12 @@ function runFor(cmd: Cmd): GlassSlashItem["run"] {
   return { type: "insert", value: cmd.name };
 }
 
+function pillFor(cmd: Cmd): string {
+  if (cmd.source === "app") return "app";
+  if (cmd.source === "prompt") return "commands";
+  return cmd.source;
+}
+
 export function rankSlashItems(
   items: GlassSlashItem[],
   query: string,
@@ -67,7 +73,7 @@ export function rankSlashItems(
 }
 
 export function mergeSlashItems(locals: Cmd[], remote: Cmd[]): GlassSlashItem[] {
-  const all = [...locals, ...remote];
+  const all = [...locals, ...remote.filter((cmd) => cmd.source !== "extension")];
   return all.map((cmd) => {
     const kind = kindFrom(cmd);
     const base: GlassSlashItem = {
@@ -75,7 +81,7 @@ export function mergeSlashItems(locals: Cmd[], remote: Cmd[]): GlassSlashItem[] 
       kind,
       name: cmd.name,
       source: cmd.source === "app" ? "app" : "pi",
-      pill: cmd.source === "app" ? "app" : cmd.source,
+      pill: pillFor(cmd),
       section: sectionFor(kind),
       run: runFor(cmd),
     };

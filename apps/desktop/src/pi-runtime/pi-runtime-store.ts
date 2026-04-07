@@ -123,12 +123,21 @@ function blocks(content: unknown[]) {
   return [tidy(out.text), ...names, ...imgs].filter(Boolean).join("\n");
 }
 
-function preview(message: {
-  role?: unknown;
-  content?: unknown;
-  toolName?: unknown;
-  errorMessage?: unknown;
-}) {
+function preview(
+  message:
+    | {
+        role?: unknown;
+        content?: unknown;
+        toolName?: unknown;
+        errorMessage?: unknown;
+      }
+    | null
+    | undefined,
+) {
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+
   if (message.role === "user" || message.role === "user-with-attachments") {
     if (typeof message.content === "string") {
       const out = summary(message.content);
@@ -296,7 +305,7 @@ function times(file: string | undefined) {
 
 function textAll(messages: PiSessionItem[]) {
   return messages
-    .map((item) => preview(item.message as Record<string, unknown>))
+    .flatMap((item) => (item?.message ? [preview(item.message)] : []))
     .filter(Boolean)
     .join("\n\n");
 }
@@ -470,6 +479,7 @@ export class PiRuntimeStore {
 
   private makeSummary(): PiSessionSummary {
     const time = times(this.snap.file ?? undefined);
+    const first = this.snap.messages.find((item) => item?.message)?.message;
     return {
       id: this.snap.id,
       path: this.snap.file ?? "",
@@ -478,7 +488,7 @@ export class PiRuntimeStore {
       createdAt: time.createdAt,
       modifiedAt: time.modifiedAt,
       messageCount: this.snap.messages.length,
-      firstMessage: preview(this.snap.messages[0]?.message as Record<string, unknown>),
+      firstMessage: preview(first),
       allMessagesText: textAll(this.snap.messages),
       isStreaming: this.snap.isStreaming,
     };

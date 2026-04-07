@@ -17,12 +17,13 @@ import type { ShellFileHit, ShellFilePreview } from "@glass/contracts";
 import { Popover } from "@base-ui/react/popover";
 import {
   IconBolt,
+  IconBuildingBlocks,
   IconChevronRight,
   IconFileBend,
   IconFolder1,
   IconImages1,
+  IconLightning,
   IconSettingsGear2,
-  IconSparklesSoft,
 } from "central-icons";
 import type { ReactNode, RefObject } from "react";
 import { cn } from "../../lib/utils";
@@ -31,10 +32,10 @@ import { GlassComposerFilePreview } from "./composer-file-preview";
 import type { GlassSlashItem, SlashMenuRow } from "./slash-registry";
 
 function kindGlyph(kind: GlassSlashItem["kind"]) {
-  if (kind === "skill") return IconSparklesSoft;
+  if (kind === "skill") return IconBuildingBlocks;
   if (kind === "app") return IconSettingsGear2;
   if (kind === "subagent") return IconBolt;
-  return IconBolt;
+  return IconLightning;
 }
 
 /** Cursor `ui-slash-menu__highlight`: font-weight:600, highlight foreground. */
@@ -134,7 +135,7 @@ function SlashPane(props: {
   onSlashPick: (item: GlassSlashItem) => void;
 }) {
   return (
-    <ScrollArea className="max-h-72">
+    <div className="max-h-72 min-h-0 overflow-y-auto overscroll-contain">
       {/* Cursor: ui-menu__content  padding:4px */}
       <div className="flex flex-col gap-px p-1" role="listbox" aria-label="Slash commands">
         {props.slashRows.map((row) => {
@@ -198,7 +199,7 @@ function SlashPane(props: {
           );
         })}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
 

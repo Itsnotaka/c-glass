@@ -24,8 +24,10 @@ import {
 import { buildPiRows, type PiRow, type PiUserAttachment } from "../../lib/pi-chat-timeline";
 import { VsFileIcon } from "../../lib/vscode-file-icon";
 import {
+  humanTool,
   isFileTool,
   isShellTool,
+  resolvedToolName,
   toolBody,
   toolBodyEmbedded,
   toolDiffStat,
@@ -112,6 +114,9 @@ function draw(row: PiRow, expanded: boolean) {
   }
 
   if (row.kind === "tool") {
+    if (resolvedToolName(row.name) === "websearch") {
+      return <LiteToolRow key={row.id} row={row} expanded={expanded} />;
+    }
     return <ToolCard key={row.id} row={row} expanded={expanded} />;
   }
 
@@ -566,6 +571,11 @@ function toolArgs(row: Extract<PiRow, { kind: "tool" }>): Record<string, Json> |
 }
 
 function toolTitle(row: Extract<PiRow, { kind: "tool" }>): string {
+  const name = resolvedToolName(row.name);
+  if (!["read", "edit", "write", "bash", "grep", "find", "ls", "ask", "websearch"].includes(name)) {
+    return humanTool(row.name);
+  }
+
   const path = toolPathFromCall(row.call, row.args);
   if (path) {
     const pos = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
@@ -584,6 +594,59 @@ function toolTitle(row: Extract<PiRow, { kind: "tool" }>): string {
   }
   return row.name;
 }
+
+const LiteToolRow = memo(function LiteToolRow(props: {
+  row: Extract<PiRow, { kind: "tool" }>;
+  expanded: boolean;
+}) {
+  const [open, setOpen] = useSyncedExpand(props.expanded);
+  const body = useMemo(
+    () =>
+      toolBody({
+        name: props.row.name,
+        call: props.row.call,
+        args: props.row.args,
+        result: props.row.result,
+        error: props.row.error,
+        details: props.row.details,
+        expanded: true,
+      }),
+    [props.row],
+  );
+
+  return (
+    <li className="min-w-0">
+      <Collapsible.Root open={open} onOpenChange={setOpen}>
+        <Collapsible.Trigger
+          className={cn(
+            collapsibleTriggerFocus,
+            "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8",
+          )}
+        >
+          <span className="min-w-0 flex-1 truncate text-body/[1.375] text-foreground/[0.7]">
+            Web Search
+          </span>
+          <span className="shrink-0">
+            <ToolSubtitle row={props.row} />
+          </span>
+          <IconChevronBottom
+            className={cn(
+              "size-3 shrink-0 text-foreground/48 transition-transform duration-200",
+              !open && "-rotate-90",
+            )}
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Panel>
+          {body ? (
+            <div className="mt-1 max-h-[min(40vh,20rem)] min-h-0 overflow-auto rounded-glass-control border border-glass-border/35 bg-muted/20 px-3 py-2">
+              {body}
+            </div>
+          ) : null}
+        </Collapsible.Panel>
+      </Collapsible.Root>
+    </li>
+  );
+});
 
 const FileEditToolCard = memo(function FileEditToolCard(props: {
   row: Extract<PiRow, { kind: "tool" }>;

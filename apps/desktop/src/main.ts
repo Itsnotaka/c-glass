@@ -63,6 +63,16 @@ import { isArm64HostRunningIntelBuild, resolveDesktopRuntimeInfo } from "./runti
 
 syncShellEnvironment();
 
+const dbgUrl = "http://localhost:60380/debug";
+
+function dbg(label: string, data: Record<string, unknown>) {
+  void fetch(dbgUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label, data }),
+  }).catch(() => {});
+}
+
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
 const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
@@ -1029,12 +1039,23 @@ function flushSessionEvents(): void {
 
   const sums = [...pendingSessionSummaries.values()];
   const acts = [...pendingSessionActives.entries()];
+  dbg("main-flush-session-events", {
+    summaryCount: sums.length,
+    activeWindowCount: acts.length,
+    activeCounts: acts.map(([id, events]) => ({ id, count: events.length })),
+  });
   pendingSessionSummaries.clear();
   pendingSessionActives.clear();
 
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue;
     for (const event of sums) {
+      dbg("main-send-summary", {
+        webContentsId: window.webContents.id,
+        sessionId: event.sessionId,
+        type: event.type,
+        messageCount: event.type === "upsert" ? event.summary.messageCount : null,
+      });
       window.webContents.send(SESSION_SUMMARY_CHANNEL, event);
     }
   }
@@ -1043,6 +1064,11 @@ function flushSessionEvents(): void {
     const window = BrowserWindow.getAllWindows().find((item) => item.webContents.id === id);
     if (!window || window.isDestroyed()) continue;
     for (const event of events) {
+      dbg("main-send-active", {
+        webContentsId: id,
+        sessionId: event.sessionId,
+        deltaType: event.delta.type,
+      });
       window.webContents.send(SESSION_ACTIVE_CHANNEL, event);
     }
   }
@@ -1050,6 +1076,16 @@ function flushSessionEvents(): void {
 
 function emitSessionEvent(event: unknown): void {
   if (!event || typeof event !== "object" || !("lane" in event)) return;
+  dbg("main-emit-session-event", {
+    lane: event.lane,
+    sessionId: "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null,
+    ...(event.lane === "active" &&
+    "delta" in event &&
+    typeof event.delta === "object" &&
+    event.delta !== null
+      ? { deltaType: (event.delta as { type?: unknown }).type ?? null }
+      : {}),
+  });
 
   if (event.lane === "summary") {
     const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
@@ -1065,6 +1101,7 @@ function emitSessionEvent(event: unknown): void {
       const list = pendingSessionActives.get(wid) ?? [];
       list.push(event as PiSessionActiveEvent);
       pendingSessionActives.set(wid, list);
+      dbg("main-queue-active", { webContentsId: wid, sessionId: id, count: list.length });
     }
   }
 
@@ -1291,7 +1328,24 @@ function registerIpcHandlers(): void {
   ipcMain.handle(SESSION_LIST_ALL_CHANNEL, async () => Effect.runPromise(sessionService.listAll()));
 
   ipcMain.removeHandler(SESSION_CREATE_CHANNEL);
-  ipcMain.handle(SESSION_CREATE_CHANNEL, async () => Effect.runPromise(sessionService.create()));
+  ipcMain.handle(SESSION_CREATE_CHANNEL, async () => {
+    dbg("ipc-session-create-start", {});
+    try {
+      const snap = await Effect.runPromise(sessionService.create());
+      dbg("ipc-session-create-success", {
+        id: snap.id,
+        cwd: snap.cwd,
+        file: snap.file,
+        messageCount: snap.messages.length,
+      });
+      return snap;
+    } catch (err) {
+      dbg("ipc-session-create-error", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  });
 
   ipcMain.removeHandler(SESSION_GET_CHANNEL);
   ipcMain.handle(SESSION_GET_CHANNEL, async (_event, sessionId: unknown) => {
@@ -1318,25 +1372,42 @@ function registerIpcHandlers(): void {
     }
 
     bindWatchedSession(event.sender);
+    dbg("ipc-session-watch-start", { webContentsId: event.sender.id, sessionId });
 
     const current = watchedSessions.get(event.sender.id);
     if (current === sessionId) {
+      dbg("ipc-session-watch-hit-current", { webContentsId: event.sender.id, sessionId });
       return Effect.runPromise(sessionService.get(sessionId));
     }
     if (current) {
       clearWatchedSession(event.sender.id);
     }
     watchedSessions.set(event.sender.id, sessionId);
-    return Effect.runPromise(
-      sessionService.watch(sessionId).pipe(
-        Effect.tapError(() =>
-          Effect.sync(() => {
-            watchedSessions.delete(event.sender.id);
-            pendingSessionActives.delete(event.sender.id);
-          }).pipe(Effect.andThen(sessionService.unwatch(sessionId))),
+    try {
+      const snap = await Effect.runPromise(
+        sessionService.watch(sessionId).pipe(
+          Effect.tapError(() =>
+            Effect.sync(() => {
+              watchedSessions.delete(event.sender.id);
+              pendingSessionActives.delete(event.sender.id);
+            }).pipe(Effect.andThen(sessionService.unwatch(sessionId))),
+          ),
         ),
-      ),
-    );
+      );
+      dbg("ipc-session-watch-success", {
+        webContentsId: event.sender.id,
+        sessionId,
+        messageCount: snap.messages.length,
+      });
+      return snap;
+    } catch (err) {
+      dbg("ipc-session-watch-error", {
+        webContentsId: event.sender.id,
+        sessionId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   });
 
   ipcMain.removeHandler(SESSION_UNWATCH_CHANNEL);
@@ -1352,7 +1423,27 @@ function registerIpcHandlers(): void {
     if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
       throw new Error("Missing prompt input");
     }
-    await Effect.runPromise(sessionService.prompt(sessionId, input as string | PiPromptInput));
+    const item = input as string | PiPromptInput;
+    dbg("ipc-session-prompt-start", {
+      sessionId,
+      textLen: typeof item === "string" ? item.length : (item.text?.length ?? 0),
+      attachmentCount:
+        typeof item === "string"
+          ? 0
+          : Array.isArray(item.attachments)
+            ? item.attachments.length
+            : 0,
+    });
+    try {
+      await Effect.runPromise(sessionService.prompt(sessionId, item));
+      dbg("ipc-session-prompt-success", { sessionId });
+    } catch (err) {
+      dbg("ipc-session-prompt-error", {
+        sessionId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   });
 
   ipcMain.removeHandler(SESSION_COMMANDS_CHANNEL);
@@ -1368,7 +1459,14 @@ function registerIpcHandlers(): void {
     if (typeof sessionId !== "string" || !sessionId.trim()) {
       throw new Error("Missing session id");
     }
-    return sessionService.readAsk(sessionId);
+    const state = sessionService.readAsk(sessionId);
+    dbg("ipc-session-read-ask", {
+      sessionId,
+      active: Boolean(state),
+      toolCallId: state?.toolCallId ?? null,
+      questionCount: state?.questions.length ?? 0,
+    });
+    return state;
   });
 
   ipcMain.removeHandler(SESSION_ANSWER_ASK_CHANNEL);
@@ -1379,6 +1477,11 @@ function registerIpcHandlers(): void {
     if (!reply || typeof reply !== "object") {
       throw new Error("Missing ask reply");
     }
+    dbg("ipc-session-answer-ask", {
+      sessionId,
+      replyType: (reply as { type?: unknown }).type ?? null,
+      questionId: (reply as { questionId?: unknown }).questionId ?? null,
+    });
     await Effect.runPromise(sessionService.answerAsk(sessionId, reply as PiAskReply));
   });
 

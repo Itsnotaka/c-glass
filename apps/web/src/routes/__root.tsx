@@ -135,6 +135,14 @@ function PiBootBridge() {
 
     const sync = () => {
       if (document.visibilityState === "hidden") return;
+      fetch("http://localhost:60380/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: "ui-refresh-sums-sync",
+          data: { visibility: document.visibilityState },
+        }),
+      }).catch(() => {});
       void refreshSums();
     };
 
@@ -148,6 +156,14 @@ function PiBootBridge() {
     };
 
     const offSummary = glass.session.onSummary((event) => {
+      fetch("http://localhost:60380/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: "ui-on-summary",
+          data: { sessionId: event.sessionId, type: event.type },
+        }),
+      }).catch(() => {});
       startTransition(() => {
         applySummaryEvent(event);
       });

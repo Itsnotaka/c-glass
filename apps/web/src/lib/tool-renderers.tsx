@@ -37,7 +37,16 @@ export function resolvedToolName(name: string) {
   }
   if (n === "run_terminal_cmd" || n === "run_command" || n === "shell") return "bash";
   if (n === "list_dir" || n === "directory_list") return "ls";
+  if (n === "web_search") return "websearch";
   return n;
+}
+
+export function humanTool(name: string) {
+  return name
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (hit) => hit.toUpperCase());
 }
 
 export function toolBody(data: ToolData): React.ReactNode {

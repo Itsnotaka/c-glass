@@ -21,7 +21,7 @@ const MotionCard = motion.create("div");
 
 function ShortcutBadge(props: { char: string }) {
   return (
-    <kbd className="flex size-6 shrink-0 items-center justify-center rounded-sm border border-glass-border/60 bg-glass-hover/40 text-detail/[1] font-medium text-muted-foreground shadow-xs">
+    <kbd className="flex size-5 shrink-0 items-center justify-center rounded-sm border border-glass-border/60 bg-glass-hover/40 text-[10px] leading-none font-medium text-muted-foreground/85">
       {props.char.toUpperCase()}
     </kbd>
   );
@@ -29,7 +29,7 @@ function ShortcutBadge(props: { char: string }) {
 
 function PickBadge(props: { text: string }) {
   return (
-    <span className="rounded-glass-pill border border-primary/30 bg-primary/[0.08] px-1.5 py-0.5 text-detail/[1] font-medium text-primary/88">
+    <span className="rounded-sm border border-primary/30 bg-primary/[0.08] px-1 py-px text-[10px] leading-[14px] font-medium text-primary/88">
       {props.text}
     </span>
   );
@@ -48,7 +48,7 @@ function OptRow(props: {
       type="button"
       onClick={props.onChange}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-glass-card border px-3 py-2.5 text-left transition-all",
+        "group flex w-full items-center gap-2 rounded-sm border px-2 py-1.5 text-left transition-colors",
         props.checked
           ? "border-primary/60 bg-primary/[0.06]"
           : "border-glass-border/50 bg-transparent hover:border-glass-border/80 hover:bg-glass-hover/30",
@@ -57,7 +57,7 @@ function OptRow(props: {
       {props.shortcut ? <ShortcutBadge char={props.shortcut} /> : null}
       <span
         className={cn(
-          "flex-1 text-body/[1.35]",
+          "flex-1 text-[12px] leading-[16px]",
           props.checked ? "text-foreground" : "text-foreground/80",
         )}
       >
@@ -66,8 +66,8 @@ function OptRow(props: {
       {props.recommended ? <PickBadge text="Recommended" /> : null}
       <span
         className={cn(
-          "flex size-4 shrink-0 items-center justify-center border transition-all",
-          props.multi ? "rounded-sm" : "rounded-full",
+          "flex size-3.5 shrink-0 items-center justify-center border transition-colors",
+          props.multi ? "rounded-[3px]" : "rounded-full",
           props.checked
             ? "border-primary bg-primary"
             : "border-muted-foreground/40 group-hover:border-muted-foreground/60",
@@ -75,9 +75,9 @@ function OptRow(props: {
       >
         {props.checked ? (
           props.multi ? (
-            <IconCheckmark1Small className="size-3 text-primary-foreground" />
+            <IconCheckmark1Small className="size-2.5 text-primary-foreground" />
           ) : (
-            <span className="size-1.5 rounded-full bg-primary-foreground" />
+            <span className="size-1 rounded-full bg-primary-foreground" />
           )
         ) : null}
       </span>
@@ -92,15 +92,15 @@ function Pagination(props: {
   onNext: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-detail/[1] text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-[11px] leading-[14px] text-muted-foreground/70">
       <button
         type="button"
         onClick={props.onPrev}
         disabled={props.current <= 1}
-        className="flex size-6 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+        className="flex size-5 items-center justify-center rounded-sm text-muted-foreground/55 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
         aria-label="Previous question"
       >
-        <IconChevronLeft className="size-4" />
+        <IconChevronLeft className="size-3" />
       </button>
       <span className="tabular-nums">
         {props.current} of {props.total}
@@ -109,10 +109,10 @@ function Pagination(props: {
         type="button"
         onClick={props.onNext}
         disabled={props.current >= props.total}
-        className="flex size-6 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+        className="flex size-5 items-center justify-center rounded-sm text-muted-foreground/55 transition-colors hover:bg-glass-hover hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
         aria-label="Next question"
       >
-        <IconChevronRight className="size-4" />
+        <IconChevronRight className="size-3" />
       </button>
     </div>
   );
@@ -240,17 +240,17 @@ export function GlassAskTool(props: Props) {
   if (!q) return null;
 
   return (
-    <div className="pointer-events-auto absolute inset-x-0 bottom-full z-50 mb-3 px-4 md:px-6">
+    <div className="pointer-events-auto absolute inset-x-0 bottom-full z-50 mb-2 px-4 md:px-6">
       <MotionCard
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 8 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        className="mx-auto w-full max-w-2xl overflow-hidden rounded-2xl border border-glass-stroke-tertiary bg-glass-bubble/98 shadow-glass-card backdrop-blur-[12px]"
+        className="mx-auto w-full max-w-xl overflow-hidden rounded-glass-card border border-glass-stroke-tertiary bg-glass-bubble/98 shadow-glass-popup backdrop-blur-xl"
       >
-        <div className="flex items-center justify-between border-b border-glass-border/30 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-body/[1] font-semibold text-foreground">Questions</h3>
+        <div className="flex items-center justify-between border-b border-glass-border/30 px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-[12px] leading-[16px] font-semibold text-foreground">Questions</h3>
             {count > 0 ? <PickBadge text={`${count} selected`} /> : null}
           </div>
           <Pagination
@@ -264,7 +264,7 @@ export function GlassAskTool(props: Props) {
         </div>
 
         <ScrollArea scrollFade className="max-h-[min(60vh,480px)]">
-          <div className="p-4">
+          <div className="p-2">
             <AnimatePresence mode="wait">
               <motion.div
                 key={q.id}
@@ -272,10 +272,12 @@ export function GlassAskTool(props: Props) {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.15 }}
-                className="flex flex-col gap-4"
+                className="flex flex-col gap-2"
               >
-                <p className="text-body/[1.4] font-medium text-foreground">{q.text}</p>
-                <div className="flex flex-col gap-2">
+                <p className="px-1 text-[12px] leading-[16px] font-medium text-foreground">
+                  {q.text}
+                </p>
+                <div className="flex flex-col gap-0.5">
                   {picks.map((item) => (
                     <OptRow
                       key={item.id}
@@ -292,14 +294,14 @@ export function GlassAskTool(props: Props) {
                       type="button"
                       onClick={() => setMode((cur) => (cur === "custom" ? "options" : "custom"))}
                       className={cn(
-                        "flex items-center gap-3 rounded-glass-card border px-3 py-2.5 text-left transition-all",
+                        "flex items-center gap-2 rounded-sm border px-2 py-1.5 text-left transition-all",
                         mode === "custom"
                           ? "border-primary/60 bg-primary/[0.06]"
                           : "border-dashed border-glass-border/50 bg-transparent hover:border-glass-border/80 hover:bg-glass-hover/30",
                       )}
                     >
                       {other.shortcut ? <ShortcutBadge char={other.shortcut} /> : null}
-                      <span className="flex-1 text-body/[1.35] text-foreground/82">
+                      <span className="flex-1 text-[12px] leading-[16px] text-foreground/82">
                         {other.label}
                       </span>
                       {custom.trim() ? <PickBadge text="Custom" /> : null}
@@ -307,9 +309,9 @@ export function GlassAskTool(props: Props) {
                   ) : null}
                 </div>
                 {mode === "custom" ? (
-                  <div className="rounded-glass-card border border-glass-border/50 bg-glass-hover/18 p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-body/[1.15] font-medium text-foreground/86">
+                  <div className="rounded-sm border border-glass-border/50 bg-glass-hover/18 p-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-1.5">
+                      <span className="text-[11px] leading-[14px] font-medium text-foreground/86">
                         Custom answer
                       </span>
                       <button
@@ -318,23 +320,25 @@ export function GlassAskTool(props: Props) {
                           setCustom("");
                           setMode("options");
                         }}
-                        className="flex size-7 items-center justify-center rounded-full text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground"
+                        className="flex size-5 items-center justify-center rounded-sm text-muted-foreground/62 transition-colors hover:bg-glass-hover hover:text-foreground"
                         aria-label="Close custom answer"
                       >
-                        <IconCrossSmall className="size-3.5" />
+                        <IconCrossSmall className="size-3" />
                       </button>
                     </div>
                     <textarea
                       value={custom}
                       onChange={(event) => setCustom(event.target.value)}
                       placeholder="Type your answer…"
-                      rows={4}
-                      className="w-full resize-none rounded-xl border border-glass-border/50 bg-transparent px-3 py-2 text-body/[1.45] text-foreground outline-hidden placeholder:text-muted-foreground/60"
+                      rows={3}
+                      className="w-full resize-none rounded-sm border border-glass-border/50 bg-transparent px-2 py-1.5 text-[12px] leading-[16px] text-foreground outline-hidden placeholder:text-muted-foreground/60"
                     />
-                    <p className="mt-2 text-detail/[1.3] text-muted-foreground/68">
+                    <p className="mt-1.5 text-[11px] leading-[14px] text-muted-foreground/68">
                       Press{" "}
-                      <kbd className="rounded-sm bg-glass-hover/60 px-1 py-0.5">Ctrl+Enter</kbd> to
-                      continue.
+                      <kbd className="rounded-sm bg-glass-hover/60 px-1 py-px text-[10px]">
+                        Ctrl+Enter
+                      </kbd>{" "}
+                      to continue.
                     </p>
                   </div>
                 ) : null}
@@ -343,29 +347,29 @@ export function GlassAskTool(props: Props) {
           </div>
         </ScrollArea>
 
-        <div className="flex items-center justify-between border-t border-glass-border/30 px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between border-t border-glass-border/30 px-2 py-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => reply("abort")}
-              className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+              className="rounded-sm px-2 py-1 text-[11px] leading-[14px] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => reply("skip")}
-              className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+              className="rounded-sm px-2 py-1 text-[11px] leading-[14px] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
             >
               Skip
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {canBack ? (
               <button
                 type="button"
                 onClick={() => reply("back")}
-                className="rounded-glass-control px-3 py-1.5 text-body/[1] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
+                className="rounded-sm px-2 py-1 text-[11px] leading-[14px] text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
               >
                 Back
               </button>
@@ -374,10 +378,10 @@ export function GlassAskTool(props: Props) {
               type="button"
               disabled={!canGo}
               onClick={() => reply("next")}
-              className="flex items-center gap-2 rounded-glass-card bg-primary px-4 py-2 text-body/[1] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 text-[11px] leading-[14px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {canNext ? "Next" : "Done"}
-              <kbd className="hidden rounded-sm bg-primary-foreground/20 px-1.5 py-0.5 text-detail/[1] font-medium text-primary-foreground/90 md:inline">
+              <kbd className="hidden rounded-sm bg-primary-foreground/20 px-1 py-px text-[10px] font-medium text-primary-foreground/90 md:inline">
                 ↵
               </kbd>
             </button>

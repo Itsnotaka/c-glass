@@ -1,9 +1,11 @@
 "use client";
 
+import { AnimatePresence } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { usePiStore, usePiSummary } from "../../lib/pi-session-store";
+import { GlassAskTool } from "./ask-tool";
 import { GlassOpenPicker } from "./open-picker";
 import { GlassPiComposer, type GlassPiComposerHandle } from "./pi-composer";
 import { GlassPiMessages } from "./pi-messages";
@@ -14,8 +16,9 @@ export function GlassChatSession(props: { sessionId: string }) {
   const sum = usePiSummary(props.sessionId);
   const snap = usePiStore((state) => state.snaps[props.sessionId]);
   const count = sum?.messageCount ?? snap?.messages.length ?? 0;
+  const live = Boolean(snap?.live) || Boolean(snap?.isStreaming);
 
-  if (count === 0) {
+  if (count === 0 && !live) {
     return <HeroSession sessionId={props.sessionId} />;
   }
 
@@ -43,20 +46,27 @@ function HeroSession(props: { sessionId: string }) {
     <GlassShell>
       <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
         <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
-          <GlassPiComposer
-            ref={composerRef}
-            sessionId={props.sessionId}
-            draft={draft}
-            onDraft={setDraft}
-            busy={session.busy}
-            model={session.model}
-            modelLoading={session.modelLoading}
-            variant="hero"
-            onAbort={session.abort}
-            onModel={session.setModel}
-            onThinkingLevel={session.setThinkingLevel}
-            onSend={session.send}
-          />
+          <div className="relative w-full">
+            <GlassPiComposer
+              ref={composerRef}
+              sessionId={props.sessionId}
+              draft={draft}
+              onDraft={setDraft}
+              busy={session.busy}
+              model={session.model}
+              modelLoading={session.modelLoading}
+              variant="hero"
+              onAbort={session.abort}
+              onModel={session.setModel}
+              onThinkingLevel={session.setThinkingLevel}
+              onSend={session.send}
+            />
+            <AnimatePresence>
+              {session.ask ? (
+                <GlassAskTool state={session.ask} onReply={session.answerAsk} />
+              ) : null}
+            </AnimatePresence>
+          </div>
           <GlassOpenPicker variant="hero" />
         </div>
       </div>
@@ -86,19 +96,24 @@ function DockSession(props: { sessionId: string }) {
   return (
     <GlassShell>
       <GlassPiMessages messages={session.messages} live={session.live} expanded={expanded} />
-      <GlassPiComposer
-        sessionId={props.sessionId}
-        draft={draft}
-        onDraft={setDraft}
-        busy={session.busy}
-        model={session.model}
-        modelLoading={session.modelLoading}
-        variant="dock"
-        onAbort={session.abort}
-        onModel={session.setModel}
-        onThinkingLevel={session.setThinkingLevel}
-        onSend={session.send}
-      />
+      <div className="relative">
+        <GlassPiComposer
+          sessionId={props.sessionId}
+          draft={draft}
+          onDraft={setDraft}
+          busy={session.busy}
+          model={session.model}
+          modelLoading={session.modelLoading}
+          variant="dock"
+          onAbort={session.abort}
+          onModel={session.setModel}
+          onThinkingLevel={session.setThinkingLevel}
+          onSend={session.send}
+        />
+        <AnimatePresence>
+          {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}
+        </AnimatePresence>
+      </div>
     </GlassShell>
   );
 }

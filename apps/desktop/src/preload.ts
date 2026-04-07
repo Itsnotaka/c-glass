@@ -122,6 +122,18 @@ const sessionBridge = {
   onAsk: (listener: (event: PiAskEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
+      fetch("http://localhost:60380/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: "preload-on-ask",
+          data: {
+            sessionId: (data as PiAskEvent).sessionId,
+            active: Boolean((data as PiAskEvent).state),
+            toolCallId: (data as PiAskEvent).state?.toolCallId ?? null,
+          },
+        }),
+      }).catch(() => {});
       listener(data as PiAskEvent);
     };
     ipcRenderer.on(SESSION_ASK_CHANNEL, wrapped);
@@ -132,6 +144,17 @@ const sessionBridge = {
   onSummary: (listener: (event: PiSessionSummaryEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
+      fetch("http://localhost:60380/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: "preload-on-summary",
+          data: {
+            sessionId: (data as PiSessionSummaryEvent).sessionId,
+            type: (data as PiSessionSummaryEvent).type,
+          },
+        }),
+      }).catch(() => {});
       listener(data as PiSessionSummaryEvent);
     };
     ipcRenderer.on(SESSION_SUMMARY_CHANNEL, wrapped);
@@ -142,6 +165,17 @@ const sessionBridge = {
   onActive: (listener: (event: PiSessionActiveEvent) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
       if (typeof data !== "object" || data === null) return;
+      fetch("http://localhost:60380/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: "preload-on-active",
+          data: {
+            sessionId: (data as PiSessionActiveEvent).sessionId,
+            deltaType: (data as PiSessionActiveEvent).delta.type,
+          },
+        }),
+      }).catch(() => {});
       listener(data as PiSessionActiveEvent);
     };
     ipcRenderer.on(SESSION_ACTIVE_CHANNEL, wrapped);

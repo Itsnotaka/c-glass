@@ -25,6 +25,15 @@ import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { usePiStore } from "../../lib/pi-session-store";
 
 const empty: PiSessionItem[] = [];
+const dbgUrl = "http://localhost:60380/debug";
+
+function dbg(label: string, data: Record<string, unknown>) {
+  void fetch(dbgUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label, data }),
+  }).catch(() => {});
+}
 
 function authError(message: string) {
   const text = message.toLowerCase();
@@ -158,9 +167,15 @@ export function usePiSession(sessionId: string | null) {
       .watch(sessionId)
       .then((snap) => {
         if (!live) return;
+        dbg("ui-watch-success", { sessionId, messageCount: snap.messages.length });
         putSnap(snap);
       })
-      .catch(() => {});
+      .catch((err) => {
+        dbg("ui-watch-error", {
+          sessionId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
 
     return () => {
       live = false;
@@ -183,6 +198,11 @@ export function usePiSession(sessionId: string | null) {
     };
 
     const off = glass.session.onActive((event) => {
+      dbg("ui-on-active", {
+        sessionId,
+        eventSessionId: event.sessionId,
+        deltaType: event.delta.type,
+      });
       if (event.sessionId !== sessionId) return;
       queued.current.push(event);
       if (frame.current !== null) return;
@@ -217,6 +237,12 @@ export function usePiSession(sessionId: string | null) {
     if (!glass) return;
 
     const off = glass.session.onAsk((event) => {
+      dbg("ui-on-ask", {
+        sessionId,
+        eventSessionId: event.sessionId,
+        active: Boolean(event.state),
+        toolCallId: event.state?.toolCallId ?? null,
+      });
       if (event.sessionId !== sessionId) return;
       setAsk(event.state);
     });
@@ -264,9 +290,17 @@ export function usePiSession(sessionId: string | null) {
   };
 
   const ensureSession = async () => {
+    dbg("ui-ensure-session-enter", { sessionId, sid });
     if (sessionId) return sessionId;
     if (sid) return sid;
+    dbg("ui-session-create-start", { sid });
     const next = await getGlass().session.create();
+    dbg("ui-session-create-success", {
+      id: next.id,
+      cwd: next.cwd,
+      file: next.file,
+      messageCount: next.messages.length,
+    });
     putSnap(next);
     void navigate({
       to: "/$threadId",
@@ -283,14 +317,31 @@ export function usePiSession(sessionId: string | null) {
         : input.attachments?.length
           ? { text: input.text.trim(), attachments: input.attachments }
           : { text: input.text.trim() };
+    dbg("ui-send-called", {
+      sessionId,
+      sid,
+      textLen: next.text.length,
+      attachmentCount: next.attachments?.length ?? 0,
+    });
     if (!next.text && !next.attachments?.length) return;
 
     const task = async () => {
       const id = await ensureSession();
+      dbg("ui-prompt-start", {
+        id,
+        textLen: next.text.length,
+        attachmentCount: next.attachments?.length ?? 0,
+      });
       try {
         await getGlass().session.prompt(id, next);
+        dbg("ui-prompt-success", { id });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        dbg("ui-prompt-error", {
+          id,
+          message,
+          provider: model?.provider ?? null,
+        });
         if (!model?.provider || !authError(message)) throw err;
         await showProvider(task, model.provider);
       }
@@ -336,6 +387,13 @@ export function usePiSession(sessionId: string | null) {
 
   const answerAsk = (reply: PiAskReply) => {
     if (!sessionId) return;
+    dbg("ui-answer-ask", {
+      sessionId,
+      replyType: reply.type,
+      questionId: "questionId" in reply ? reply.questionId : null,
+      values: "values" in reply ? (reply.values ?? null) : null,
+      custom: "custom" in reply ? (reply.custom ?? null) : null,
+    });
     void getGlass().session.answerAsk(sessionId, reply);
   };
 

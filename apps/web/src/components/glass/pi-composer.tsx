@@ -367,6 +367,8 @@ const GlassPiComposerImpl = memo(
         [props.sessionId],
       ),
     );
+    const putSnap = usePiStore((state) => state.putSnap);
+    const refreshSums = usePiStore((state) => state.refreshSums);
     const area = useRef<HTMLTextAreaElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const nextCursor = useRef<number | null>(null);
@@ -625,7 +627,21 @@ const GlassPiComposerImpl = memo(
       if (!files.length && raw === "/new") {
         props.onDraft("");
         setFiles([]);
-        void navigate({ to: "/" });
+        if (!glass) {
+          void navigate({ to: "/" });
+          return;
+        }
+
+        void glass.session
+          .create()
+          .then((next) => {
+            putSnap(next);
+            void refreshSums();
+            void navigate({ to: "/$threadId", params: { threadId: next.id } });
+          })
+          .catch(() => {
+            void navigate({ to: "/" });
+          });
         return;
       }
       if (!files.length && raw === "/settings") {
