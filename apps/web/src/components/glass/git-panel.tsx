@@ -4,7 +4,6 @@ import type { GitFileState } from "@glass/contracts";
 import type { DiffRow, GlassGitPanelModel } from "../../hooks/use-glass-git";
 import { useGitViewed } from "../../hooks/use-glass-git-viewed";
 import { isElectron } from "../../env";
-import { readGlass } from "../../host";
 import { cn } from "../../lib/utils";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -279,9 +278,8 @@ function DiscardDialog(props: {
 
 export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   const git = props.git;
-  const bridge = readGlass()?.git;
 
-  if (!isElectron || !bridge) {
+  if (!isElectron) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
         <p className="text-body/[1.4] font-medium text-foreground/85">Source control</p>

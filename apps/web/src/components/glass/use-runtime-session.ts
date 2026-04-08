@@ -1,103 +1,112 @@
 import type {
+  CommandId,
   GlassAskReply,
   GlassAskState,
-  GlassBlock,
   GlassPromptInput,
-  GlassSessionActiveEvent,
   GlassSessionItem,
-  GlassSessionSnapshot,
+  HarnessKind,
+  MessageId,
   ThinkingLevel,
-  GlassToolCallBlock,
-  ThreadSnapshot,
+  ThreadId,
 } from "@glass/contracts";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
+
 import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
-import { getGlass, readGlass } from "../../host";
-import { GLASS_SHELL_CHANGED_EVENT } from "../../lib/glass-runtime-constants";
+import { useShellState } from "../../hooks/use-shell-cwd";
+import { readNativeApi } from "../../nativeApi";
 import {
-  readPiProvider,
-  startPiOAuthLogin,
-  writePiApiKey,
-  writePiDefaultModel,
-  writePiDefaultThinkingLevel,
-  type PiModelItem,
+  applyThinking,
+  writeRuntimeDefaultModel,
+  writeRuntimeDefaultThinkingLevel,
+  type RuntimeModelItem,
 } from "../../lib/runtime-models";
-import { useGlassProviderAuthStore } from "../../lib/glass-provider-auth-store";
-import { useGlassShellStore } from "../../lib/glass-shell-store";
+import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
 import { useThreadSessionStore } from "../../lib/thread-session-store";
+import { derivePendingApprovals, derivePendingUserInputs } from "../../session-logic";
+import { useStore } from "../../store";
 
 const empty: GlassSessionItem[] = [];
 
-function threadToGlassSnapshot(t: ThreadSnapshot): GlassSessionSnapshot {
+const commandId = () => crypto.randomUUID() as CommandId;
+const newThreadId = () => crypto.randomUUID() as ThreadId;
+const newMessageId = () => crypto.randomUUID() as MessageId;
+
+function foldAttachments(input: GlassPromptInput) {
+  const inline = (input.attachments ?? []).flatMap((item) => {
+    if (item.type !== "inline") return [];
+    return [
+      {
+        type: "image" as const,
+        name: item.name,
+        mimeType: item.mimeType,
+        sizeBytes: Math.floor((item.data.length * 3) / 4),
+        dataUrl: `data:${item.mimeType};base64,${item.data}`,
+      },
+    ];
+  });
+  const refs = (input.attachments ?? [])
+    .flatMap((item) => (item.type === "path" ? [item.path] : []))
+    .map((item) => `@${item}`)
+    .join("\n");
+  const text = refs ? `${input.text.trim()}\n\n${refs}`.trim() : input.text.trim();
+  return { text, attachments: inline };
+}
+
+function approvalAsk(threadId: string, requestId: string, detail?: string): GlassAskState {
   return {
-    id: t.id,
-    harness: t.harness,
-    file: null,
-    cwd: t.cwd,
-    name: t.name,
-    model: t.model,
-    thinkingLevel: "off",
-    messages: t.messages as unknown as GlassSessionItem[],
-    live: t.live as unknown as GlassSessionItem | null,
-    tree: [],
-    isStreaming: t.state === "running",
-    pending: { steering: [], followUp: [] },
+    sessionId: threadId,
+    toolCallId: requestId,
+    kind: "select",
+    current: 0,
+    values: {},
+    custom: {},
+    questions: [
+      {
+        id: "approval",
+        text: detail?.trim() || "Choose how to respond to this approval request.",
+        options: [
+          { id: "accept", label: "Accept", recommended: true },
+          { id: "acceptForSession", label: "Accept For Session" },
+          { id: "decline", label: "Decline" },
+          { id: "cancel", label: "Cancel" },
+        ],
+      },
+    ],
   };
 }
 
-function authError(message: string) {
-  const text = message.toLowerCase();
-  return text.includes("api key") || text.includes("auth") || text.includes("credential");
+function inputAsk(
+  threadId: string,
+  requestId: string,
+  questions: ReturnType<typeof derivePendingUserInputs>[number]["questions"],
+): GlassAskState {
+  return {
+    sessionId: threadId,
+    toolCallId: requestId,
+    kind: "select",
+    current: 0,
+    values: {},
+    custom: {},
+    questions: questions.map((item) => ({
+      id: item.id,
+      text: `${item.header}\n\n${item.question}`,
+      options: item.options.map((option) => ({
+        id: option.label,
+        label: option.label,
+      })),
+      ...(item.multiSelect ? { multi: item.multiSelect } : {}),
+    })),
+  };
 }
 
-function paths(item: GlassSessionItem | null) {
-  const msg = item?.message;
-  if (!msg || msg.role !== "assistant" || !Array.isArray(msg.content)) return [];
-
-  return (msg.content as readonly GlassBlock[]).reduce<string[]>((out, part) => {
-    if (part.type !== "toolCall") return out;
-    if (part.name !== "edit" && part.name !== "write") return out;
-
-    const tool = part as GlassToolCallBlock;
-    const args = tool.arguments;
-    const path = args?.path;
-    if (typeof path === "string" && path.trim()) out.push(path);
-    if (part.name !== "edit" || !Array.isArray(args?.multi)) return out;
-
-    const list = args.multi as Array<{ path?: string } | null>;
-    list.reduce<string[]>((next, item) => {
-      if (!item || typeof item !== "object") return next;
-      const path = item.path;
-      if (typeof path !== "string" || !path.trim()) return next;
-      next.push(path);
-      return next;
-    }, out);
-
-    return out;
-  }, []);
-}
-
-function dirty(item: GlassSessionItem | null) {
-  const msg = item?.message;
-  if (!msg || msg.role !== "toolResult") return false;
-  return msg.toolName === "edit" || msg.toolName === "write";
-}
-
-export function useRuntimeSession(sessionId: string | null, harness?: string | null) {
+export function useRuntimeSession(sessionId: string | null, harness?: HarnessKind | null) {
+  const api = readNativeApi();
   const navigate = useNavigate();
+  const shell = useShellState();
   const defs = useRuntimeDefaults();
-  const applyActs = useThreadSessionStore((state) => state.applyActs);
-  const putSnap = useThreadSessionStore((state) => state.putSnap);
-  const openAuth = useGlassProviderAuthStore((state) => state.open);
-  const note = useGlassShellStore((state) => state.note);
-  const bumpPaths = useGlassShellStore((state) => state.bump);
-  const sid = useThreadSessionStore(
-    useMemo(
-      () => (state) => (sessionId ? (state.snaps[sessionId]?.id ?? null) : null),
-      [sessionId],
-    ),
-  );
+  const threads = useStore((state) => state.threads);
+  const projects = useStore((state) => state.projects);
   const messages = useThreadSessionStore(
     useMemo(
       () => (state) => (sessionId ? (state.snaps[sessionId]?.messages ?? empty) : empty),
@@ -122,252 +131,203 @@ export function useRuntimeSession(sessionId: string | null, harness?: string | n
       [sessionId],
     ),
   );
-  const [tick, setTick] = useState(0);
-  const [ask, setAsk] = useState<GlassAskState | null>(null);
-  const pending = useRef<(() => Promise<void>) | null>(null);
-  const queued = useRef<GlassSessionActiveEvent[]>([]);
-  const frame = useRef<number | null>(null);
+  const thread = sessionId ? (threads.find((item) => item.id === sessionId) ?? null) : null;
+  const project = useMemo(() => {
+    const shellProject = projects.find((item) => item.cwd === shell.cwd) ?? null;
+    const threadProject = thread
+      ? (projects.find((item) => item.id === thread.projectId) ?? null)
+      : null;
+    return shellProject ?? threadProject ?? projects[0] ?? null;
+  }, [projects, shell.cwd, thread]);
 
-  useEffect(() => {
-    const glass = readGlass();
-    const reload = () => {
-      setTick((value) => value + 1);
-    };
-
-    const off = glass?.desktop.onBootRefresh?.(reload) ?? (() => {});
-    window.addEventListener(GLASS_SHELL_CHANGED_EVENT, reload);
-    return () => {
-      window.removeEventListener(GLASS_SHELL_CHANGED_EVENT, reload);
-      off();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!sessionId) {
-      setAsk(null);
-      return;
+  const askBox = useMemo(() => {
+    if (!thread) return null;
+    const input = derivePendingUserInputs(thread.activities)[0];
+    if (input) {
+      return {
+        mode: "input" as const,
+        requestId: input.requestId,
+        state: inputAsk(thread.id, input.requestId, input.questions),
+      };
     }
-
-    const glass = readGlass();
-    if (!glass) return;
-
-    let live = true;
-
-    void glass.session
-      .readAsk(sessionId)
-      .then((state) => {
-        if (!live) return;
-        setAsk(state);
-      })
-      .catch(() => {});
-
-    return () => {
-      live = false;
-    };
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const glass = readGlass();
-    if (!glass) return;
-
-    let live = true;
-
-    void glass.session
-      .watch(sessionId)
-      .then((snap) => {
-        if (!live) return;
-        putSnap(snap);
-      })
-      .catch(() => {});
-
-    return () => {
-      live = false;
-      void glass.session.unwatch();
-    };
-  }, [putSnap, sessionId, tick]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const glass = readGlass();
-    if (!glass) return;
-
-    const cancel = () => {
-      const id = frame.current;
-      frame.current = null;
-      if (id !== null) {
-        window.cancelAnimationFrame(id);
-      }
-    };
-
-    const off = glass.session.onActive((event) => {
-      if (event.sessionId !== sessionId) return;
-      queued.current.push(event);
-      if (frame.current !== null) return;
-      frame.current = window.requestAnimationFrame(() => {
-        frame.current = null;
-        const batch = queued.current;
-        queued.current = [];
-        if (batch.length === 0) return;
-        const hits = batch.flatMap((item) =>
-          item.delta.type === "commit" ? paths(item.delta.item) : [],
-        );
-        if (hits.length > 0) note(hits);
-        if (batch.some((item) => item.delta.type === "commit" && dirty(item.delta.item))) {
-          bumpPaths();
-        }
-        startTransition(() => {
-          applyActs(batch);
-        });
-      });
-    });
-    return () => {
-      cancel();
-      queued.current = [];
-      off();
-    };
-  }, [applyActs, bumpPaths, note, sessionId, tick]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const glass = readGlass();
-    if (!glass) return;
-
-    const off = glass.session.onAsk((event) => {
-      if (event.sessionId !== sessionId) return;
-      setAsk(event.state);
-    });
-
-    return () => {
-      off();
-    };
-  }, [sessionId]);
+    const approval = derivePendingApprovals(thread.activities)[0];
+    if (approval) {
+      return {
+        mode: "approval" as const,
+        requestId: approval.requestId,
+        state: approvalAsk(thread.id, approval.requestId, approval.detail),
+      };
+    }
+    return null;
+  }, [thread]);
 
   const model = sessionId ? sessionModel : defs.model;
   const modelLoading = !sessionId && defs.status === "loading";
 
-  const showProvider = async (task: () => Promise<void>, name: string) => {
-    const next = await readPiProvider(name);
-    pending.current = task;
-    const mode = next.credentialType === "oauth" || next.oauthSupported ? "oauth" : "api_key";
-    openAuth({
-      provider: name,
-      mode,
-      oauthSupported: next.oauthSupported,
-      run: async (key) => {
-        if (key && mode === "api_key") {
-          await writePiApiKey(name, key);
-          const next = pending.current;
-          pending.current = null;
-          if (next) {
-            await next();
-            return;
-          }
-        }
-        pending.current = null;
-      },
-      ...(mode === "oauth"
+  const ensureThread = async (
+    seed: string,
+    draft?: { id: string; title: string | null } | null,
+  ) => {
+    if (sessionId) return sessionId as ThreadId;
+    if (!api || !project) {
+      throw new Error("No active project available.");
+    }
+
+    const nextThreadId = newThreadId();
+    const kind: "codex" | "claudeAgent" = harness === "claudeCode" ? "claudeAgent" : "codex";
+    const modelSelection =
+      !defs.stored && harness
         ? {
-            oauth: async () => {
-              await startPiOAuthLogin(name);
-              const next = pending.current;
-              pending.current = null;
-              if (!next) return;
-              await next();
-            },
+            provider: kind,
+            model: defs.items.find((item) => item.provider === kind)?.id ?? defs.selection.model,
           }
-        : {}),
+        : defs.selection;
+
+    await api.orchestration.dispatchCommand({
+      type: "thread.create",
+      commandId: commandId(),
+      threadId: nextThreadId,
+      projectId: project.id,
+      title: draft?.title?.trim() || seed || "New chat",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      createdAt: new Date().toISOString(),
     });
+    if (draft?.id) {
+      useGlassChatDraftStore.getState().promote(draft.id);
+    }
+
+    startTransition(() => {
+      void navigate({ to: "/$threadId", params: { threadId: nextThreadId }, replace: true });
+    });
+    return nextThreadId;
   };
 
-  const ensureSession = async () => {
-    if (sessionId) return sessionId;
-    if (sid) return sid;
-    const glass = getGlass();
-    const next = harness
-      ? await glass.thread.start(harness as import("@glass/contracts").HarnessKind, { text: "" })
-      : await glass.session.create();
-    putSnap(
-      harness ? threadToGlassSnapshot(next as ThreadSnapshot) : (next as GlassSessionSnapshot),
-    );
-    void navigate({
-      to: "/$threadId",
-      params: { threadId: next.id },
-      replace: true,
-    });
-    return next.id;
-  };
+  const send = async (
+    input: string | GlassPromptInput,
+    draft?: { id: string; title: string | null } | null,
+  ) => {
+    const payload =
+      typeof input === "string" ? { text: input.trim(), attachments: [] } : foldAttachments(input);
+    if (!payload.text && payload.attachments.length === 0) return false;
+    if (!api) return false;
 
-  const send = (input: string | GlassPromptInput) => {
-    const next =
-      typeof input === "string"
-        ? { text: input.trim() }
-        : input.attachments?.length
-          ? { text: input.text.trim(), attachments: input.attachments }
-          : { text: input.text.trim() };
-    if (!next.text && !next.attachments?.length) return;
-
-    const task = async () => {
-      const id = await ensureSession();
-      try {
-        await getGlass().session.prompt(id, next);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!model?.provider || !authError(message)) throw err;
-        await showProvider(task, model.provider);
-      }
-    };
-
-    void task();
+    try {
+      const nextThreadId = await ensureThread(payload.text.slice(0, 80), draft);
+      const current = useStore.getState().threads.find((item) => item.id === nextThreadId) ?? null;
+      await api.orchestration.dispatchCommand({
+        type: "thread.turn.start",
+        commandId: commandId(),
+        threadId: nextThreadId,
+        message: {
+          messageId: newMessageId(),
+          role: "user",
+          text: payload.text,
+          attachments: payload.attachments,
+        },
+        ...(current ? {} : { titleSeed: payload.text.slice(0, 80) || "New chat" }),
+        createdAt: new Date().toISOString(),
+        runtimeMode: current?.runtimeMode ?? "full-access",
+        interactionMode: current?.interactionMode ?? "default",
+      });
+      return { clear: !draft?.id };
+    } catch {
+      return false;
+    }
   };
 
   const abort = () => {
-    if (!sid) return;
-    void getGlass().session.abort(sid);
+    if (!api || !thread?.session?.activeTurnId) return;
+    void api.orchestration.dispatchCommand({
+      type: "thread.turn.interrupt",
+      commandId: commandId(),
+      threadId: thread.id,
+      turnId: thread.session.activeTurnId,
+      createdAt: new Date().toISOString(),
+    });
   };
 
-  const setModel = (next: PiModelItem) => {
-    const task = async () => {
-      if (!sessionId) {
-        await writePiDefaultModel(next);
-        return;
-      }
-      try {
-        await getGlass().session.setModel(sessionId, next.provider, next.id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!authError(message)) throw err;
-        await showProvider(task, next.provider);
-      }
+  const setModel = (next: RuntimeModelItem) => {
+    if (!sessionId) {
+      void writeRuntimeDefaultModel(next);
+      return;
+    }
+    if (!api || !thread) return;
+    const selection = {
+      provider: next.provider as "codex" | "claudeAgent",
+      model: next.id,
     };
-
-    void task();
+    void api.orchestration.dispatchCommand({
+      type: "thread.meta.update",
+      commandId: commandId(),
+      threadId: thread.id,
+      modelSelection: applyThinking(
+        selection,
+        useThreadSessionStore.getState().snaps[thread.id]?.thinkingLevel ?? "off",
+      ),
+    });
   };
 
   const setThinkingLevel = (level: ThinkingLevel) => {
-    const task = async () => {
-      if (!sessionId) {
-        await writePiDefaultThinkingLevel(level);
-        return;
-      }
-      await getGlass().session.setThinkingLevel(sessionId, level);
-    };
-
-    void task();
+    if (!sessionId) {
+      void writeRuntimeDefaultThinkingLevel(level);
+      return;
+    }
+    if (!api || !thread) return;
+    void api.orchestration.dispatchCommand({
+      type: "thread.meta.update",
+      commandId: commandId(),
+      threadId: thread.id,
+      modelSelection: applyThinking(thread.modelSelection, level),
+    });
   };
 
   const answerAsk = (reply: GlassAskReply) => {
-    if (!sessionId) return;
-    void getGlass().session.answerAsk(sessionId, reply);
+    if (!api || !thread || !askBox) return;
+    if (askBox.mode === "approval") {
+      const decision =
+        reply.type === "abort"
+          ? "cancel"
+          : "values" in reply
+            ? ((reply.values[0] ?? "cancel") as
+                | "accept"
+                | "acceptForSession"
+                | "decline"
+                | "cancel")
+            : "cancel";
+      void api.orchestration.dispatchCommand({
+        type: "thread.approval.respond",
+        commandId: commandId(),
+        threadId: thread.id,
+        requestId: askBox.requestId,
+        decision,
+        createdAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (reply.type === "abort") return;
+
+    const answers = {
+      [reply.questionId]: reply.custom?.trim() ? reply.custom.trim() : reply.values,
+    };
+    void api.orchestration.dispatchCommand({
+      type: "thread.user-input.respond",
+      commandId: commandId(),
+      threadId: thread.id,
+      requestId: askBox.requestId,
+      answers,
+      createdAt: new Date().toISOString(),
+    });
   };
 
   return {
     messages,
     live,
-    ask,
+    ask: askBox?.state ?? null,
     busy,
     model,
     modelLoading,

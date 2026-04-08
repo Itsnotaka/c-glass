@@ -16,7 +16,7 @@ function desktopUpdateStateQueryOptions() {
   return queryOptions({
     queryKey: desktopUpdateQueryKeys.state(),
     queryFn: async () => {
-      const bridge = window.glass?.desktop;
+      const bridge = window.desktopBridge;
       if (!bridge) return null;
       return bridge.getUpdateState();
     },
@@ -30,7 +30,7 @@ export function useDesktopUpdateState() {
   const query = useQuery(desktopUpdateStateQueryOptions());
 
   useEffect(() => {
-    const bridge = window.glass?.desktop;
+    const bridge = window.desktopBridge;
     if (!bridge) return;
 
     return bridge.onUpdateState((nextState) => {

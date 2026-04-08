@@ -8,45 +8,58 @@ import { useGlassAgents } from "../../hooks/use-glass-agents";
 import { useGlassGitPanel } from "../../hooks/use-glass-git";
 import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
 import { useShellState } from "../../hooks/use-shell-cwd";
-import { readGlass } from "../../host";
+import { useGlassChatDraftStore, hasDraft } from "../../lib/glass-chat-draft-store";
 import { switchWorkspace } from "../../lib/glass-workspace";
+import { useDefaultHarness } from "../../lib/harness-picker";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
-import { useThreadSessionStore, useThreadSummariesStatus } from "../../lib/thread-session-store";
+import { useThreadSummariesStatus } from "../../lib/thread-session-store";
+import { useStore } from "../../store";
 import { GlassAppShell } from "./app-shell";
-import { GlassWorkspacePicker } from "./workspace-picker";
 import { GlassCommandPalette } from "./command-palette";
 import { GlassGitPanel } from "./git-panel";
 import { GlassSidebarFooter } from "./sidebar-footer";
 import { GlassThreadRail } from "./thread-rail";
+import { GlassWorkspacePicker } from "./workspace-picker";
 
 export function GlassChatShell() {
   const navigate = useNavigate();
   const { cwd, home } = useShellState();
   const p = useGlassShellPanels(cwd);
-  const putSnap = useThreadSessionStore((state) => state.putSnap);
-  const refreshSums = useThreadSessionStore((state) => state.refreshSums);
-  const sums = useThreadSessionStore((state) => state.sums);
+  const { kind } = useDefaultHarness();
+  const projects = useStore((state) => state.projects);
   const sumsStatus = useThreadSummariesStatus();
   const clear = useGlassShellStore((state) => state.clear);
   const mute = useGlassShellStore((state) => state.mute);
   const unmute = useGlassShellStore((state) => state.unmute);
   const muted = useGlassShellStore((state) => (cwd ? Boolean(state.mutes[cwd]) : false));
-  const { sections, routeThreadId, loading, error } = useGlassAgents(cwd, home);
+  const root = useGlassChatDraftStore((state) => state.root);
+  const items = useGlassChatDraftStore((state) => state.items);
+  const cur = useGlassChatDraftStore((state) => state.cur);
+  const pick = useGlassChatDraftStore((state) => state.pick);
+  const park = useGlassChatDraftStore((state) => state.park);
+  const { sections, routeThreadId, selectedId, selected, loading, error } = useGlassAgents(
+    cwd,
+    home,
+  );
   const git = useGlassGitPanel();
-  const sum = routeThreadId ? sums[routeThreadId] : undefined;
   const rightOpen = p.rightOpen;
   const setRightOpen = p.setRightOpen;
 
   useEffect(() => {
     clear();
-  }, [clear, routeThreadId]);
+  }, [clear, selectedId]);
 
   useEffect(() => {
-    if (!sum?.cwd) return;
-    if (cwd !== null && sum.cwd === cwd) return;
+    if (!routeThreadId || cur === null) return;
+    pick(null);
+  }, [cur, pick, routeThreadId]);
 
-    void switchWorkspace(sum.cwd);
-  }, [cwd, sum?.cwd]);
+  useEffect(() => {
+    if (!selected?.cwd) return;
+    if (cwd !== null && selected.cwd === cwd) return;
+
+    void switchWorkspace(selected.cwd);
+  }, [cwd, selected?.cwd]);
 
   useEffect(() => {
     if (!routeThreadId) return;
@@ -54,40 +67,40 @@ export function GlassChatShell() {
     setRightOpen(true);
   }, [git.hit, muted, rightOpen, routeThreadId, setRightOpen]);
 
-  const title = !routeThreadId
+  const title = !selectedId
     ? "New chat"
-    : sumsStatus === "loading"
+    : routeThreadId && sumsStatus === "loading"
       ? "Loading chat"
-      : sumsStatus === "error"
+      : routeThreadId && sumsStatus === "error"
         ? "Chat unavailable"
-        : sum?.messageCount === 0
-          ? "New chat"
-          : sum?.name?.trim() || sum?.firstMessage?.trim()?.slice(0, 48) || "Untitled";
+        : selected?.title || "New chat";
 
   const create = useCallback(() => {
-    const glass = readGlass();
-    if (!glass) {
+    if (routeThreadId) {
+      pick(null);
       void navigate({ to: "/" });
       return;
     }
-
-    void glass.session
-      .create()
-      .then((next) => {
-        putSnap(next);
-        void refreshSums();
-        void navigate({ to: "/$threadId", params: { threadId: next.id } });
-      })
-      .catch(() => {
-        void navigate({ to: "/" });
-      });
-  }, [navigate, putSnap, refreshSums]);
+    if (cur) {
+      pick(null);
+      return;
+    }
+    if (!hasDraft(root.text, root.files)) return;
+    const dir = cwd ?? projects[0]?.cwd ?? "/";
+    park(dir, kind);
+  }, [cur, cwd, kind, navigate, park, pick, projects, root.files, root.text, routeThreadId]);
 
   const select = useCallback(
     (id: string) => {
+      if (id in items) {
+        pick(id);
+        void navigate({ to: "/" });
+        return;
+      }
+      pick(null);
       void navigate({ to: "/$threadId", params: { threadId: id } });
     },
-    [navigate],
+    [items, navigate, pick],
   );
 
   return (
@@ -125,9 +138,9 @@ export function GlassChatShell() {
               loading={loading}
               error={error}
               sections={sections}
-              selectedId={routeThreadId}
+              selectedId={selectedId}
               onSelectAgent={select}
-              onNewAgent={create}
+              onNewChat={create}
             />
             <GlassSidebarFooter />
           </div>

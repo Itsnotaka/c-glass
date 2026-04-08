@@ -57,7 +57,7 @@ export interface GlassPromptInput {
   attachments?: GlassPromptAttachment[];
 }
 
-export type GlassSlashCommandSource = "extension" | "prompt" | "skill";
+export type GlassSlashCommandSource = "prompt" | "skill";
 
 export interface GlassSlashCommand {
   name: string;

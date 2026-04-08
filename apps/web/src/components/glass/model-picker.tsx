@@ -4,7 +4,12 @@ import { IconBrain, IconCheckmark1Small, IconChevronRight } from "central-icons"
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { usePretextOneLine } from "../../hooks/use-glass-pretext-one-line";
-import { displayModelName, filterPiModels, type PiModelItem } from "../../lib/runtime-models";
+import {
+  displayModelName,
+  displayProviderName,
+  filterRuntimeModels,
+  type RuntimeModelItem,
+} from "../../lib/runtime-models";
 import { cn } from "../../lib/utils";
 
 function PretextOneLine(props: {
@@ -25,7 +30,7 @@ function PretextOneLine(props: {
   );
 }
 
-/** Pi `thinkingLevel`: `off` disables extended reasoning; other values set depth. */
+/** `thinkingLevel`: `off` disables extended reasoning; other values set depth. */
 const thinkingOptions: { label: string; value: ThinkingLevel }[] = [
   { label: "Off", value: "off" },
   { label: "Minimal", value: "minimal" },
@@ -55,19 +60,19 @@ function stopMenuSearchBubbling(e: React.KeyboardEvent) {
 }
 
 export function GlassModelPicker(props: {
-  items: readonly PiModelItem[];
+  items: readonly RuntimeModelItem[];
   selection: GlassModelPickerSelection;
   disabled?: boolean;
   loading?: boolean;
   status?: "loading" | "ready" | "error";
   variant?: "hero" | "dock" | "settings";
-  onSelect: (item: PiModelItem) => void;
+  onSelect: (item: RuntimeModelItem) => void;
   onThinkingLevel?: (level: ThinkingLevel) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const list = useMemo(() => filterPiModels(props.items, query), [props.items, query]);
+  const list = useMemo(() => filterRuntimeModels(props.items, query), [props.items, query]);
   const cur = useMemo(
     () =>
       props.items.find(
@@ -110,7 +115,7 @@ export function GlassModelPicker(props: {
       : props.selection.model?.id
         ? displayModelName(props.selection.model.name ?? props.selection.model.id)
         : failed
-          ? "Pi unavailable"
+          ? "Models unavailable"
           : "Select model";
 
   const side = props.variant === "dock" ? "top" : "bottom";
@@ -201,9 +206,9 @@ export function GlassModelPicker(props: {
             {list.length === 0 ? (
               <div className="shrink-0 px-4 py-3 text-center text-body text-muted-foreground/70">
                 {failed
-                  ? "Unable to load Pi models."
+                  ? "Unable to load models."
                   : props.items.length === 0
-                    ? "No Pi models available yet."
+                    ? "No models available yet."
                     : "No matching models."}
               </div>
             ) : null}
@@ -221,7 +226,7 @@ export function GlassModelPicker(props: {
                   return (
                     <Menu.Item
                       key={item.key}
-                      label={`${displayModelName(item.name || item.id)} ${item.provider}`}
+                      label={`${displayModelName(item.name || item.id)} ${displayProviderName(item.provider)}`}
                       closeOnClick={false}
                       onClick={() => {
                         props.onSelect(item);
@@ -241,7 +246,7 @@ export function GlassModelPicker(props: {
                           />
                         </span>
                         <span className="max-w-[5rem] shrink-0 truncate text-detail text-muted-foreground/70">
-                          {item.provider}
+                          {displayProviderName(item.provider)}
                         </span>
                         <div className="flex shrink-0 items-center gap-1">
                           {item.reasoning ? (

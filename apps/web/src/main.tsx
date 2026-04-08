@@ -1,5 +1,6 @@
 if (import.meta.env.DEV) {
   import("react-grab");
+  void import("./lib/evlog").then(({ installEvlog }) => installEvlog());
 }
 
 import "./glass-appearance-boot";

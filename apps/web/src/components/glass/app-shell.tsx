@@ -262,7 +262,7 @@ export function GlassAppShell(props: {
             type="button"
             onClick={() => p.toggleLeft()}
             className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-glass-control bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
-            aria-label={p.leftOpen ? "Collapse threads" : "Expand threads"}
+            aria-label={p.leftOpen ? "Collapse chats" : "Expand chats"}
           >
             {p.leftOpen ? (
               <IconSidebarHiddenLeftWide className="size-4" />

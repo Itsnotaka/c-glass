@@ -8,9 +8,8 @@ import type {
   ThinkingLevel,
   ShellFileHit,
   ShellFilePreview,
-  ShellPickedFile,
 } from "@glass/contracts";
-import type { PiModelItem } from "../../lib/runtime-models";
+import type { RuntimeModelItem } from "../../lib/runtime-models";
 import {
   IconArrowUp,
   IconCrossSmall,
@@ -31,9 +30,12 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from "react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useNavigate } from "@tanstack/react-router";
-import { readGlass, getGlass } from "../../host";
+import { readNativeApi } from "../../nativeApi";
 import { useRuntimeModels } from "../../hooks/use-runtime-models";
+import { useShellState } from "../../hooks/use-shell-cwd";
+import type { GlassDraftFile } from "../../lib/glass-chat-draft-store";
 import { useThreadSessionStore } from "../../lib/thread-session-store";
 import {
   glassComposerAttachmentChip,
@@ -60,26 +62,7 @@ import { readSlashRecents, recordSlashUse } from "./slash-recents";
 import { GlassComposerTokenMenu } from "./slash-menu";
 import { GlassModelPicker } from "./model-picker";
 
-type Pick =
-  | {
-      id: string;
-      type: "path";
-      name: string;
-      path: string;
-      kind: ShellPickedFile["kind"];
-      size: number;
-      mimeType: string | null;
-      previewData?: string;
-      previewMime?: string | null;
-    }
-  | {
-      id: string;
-      type: "inline";
-      name: string;
-      mimeType: string;
-      data: string;
-      size: number;
-    };
+type Pick = GlassDraftFile;
 
 type Cmd = Omit<GlassSlashCommand, "source"> & {
   source: GlassSlashCommand["source"] | "app";
@@ -89,7 +72,6 @@ const defaultCaps = {
   modelPicker: true,
   thinkingLevels: true,
   commands: true,
-  extensions: true,
   interactive: true,
   fileAttachments: true,
 } as const;
@@ -98,10 +80,14 @@ interface Props {
   variant: "hero" | "dock";
   sessionId?: string | null;
   draft: string;
+  files?: Pick[];
+  onFiles?: (files: Pick[]) => void;
   onDraft: (value: string) => void;
-  onSend: (input: GlassPromptInput) => void;
+  onSend: (
+    input: GlassPromptInput,
+  ) => Promise<{ clear: boolean } | false> | { clear: boolean } | false;
   onAbort: () => void;
-  onModel: (model: PiModelItem) => void;
+  onModel: (model: RuntimeModelItem) => void;
   onThinkingLevel: (level: ThinkingLevel) => void;
   model: HarnessModelRef | null;
   modelLoading?: boolean;
@@ -165,18 +151,6 @@ const imgExt = new Map([
   ["svg", "image/svg+xml"],
 ]);
 
-function local(file: ShellPickedFile) {
-  return {
-    id: `${file.path}:${file.size}`,
-    type: "path" as const,
-    name: file.name,
-    path: file.path,
-    kind: file.kind,
-    size: file.size,
-    mimeType: file.mimeType,
-  };
-}
-
 function imageFile(file: File) {
   if (file.type.startsWith("image/")) return true;
   const name = file.name.toLowerCase();
@@ -191,23 +165,6 @@ function imageType(file: File) {
   const cut = name.lastIndexOf(".");
   if (cut < 0) return "image/png";
   return imgExt.get(name.slice(cut + 1)) ?? "image/png";
-}
-
-function parsePaths(raw: string) {
-  const out = raw
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter((item) => item && !item.startsWith("#"))
-    .map((item) => {
-      if (
-        (item.startsWith('"') && item.endsWith('"')) ||
-        (item.startsWith("'") && item.endsWith("'"))
-      ) {
-        return item.slice(1, -1);
-      }
-      return item;
-    });
-  return [...new Set(out)];
 }
 
 function load(file: File) {
@@ -250,31 +207,35 @@ function attachmentIsImage(item: Pick) {
   return item.type === "inline" || item.kind === "image";
 }
 
-/** Image lightbox — fullscreen preview overlay (Cursor: `ui-prompt-input-image-preview__fullscreen-content`). */
-function ImageLightbox(props: { src: string; alt: string; onClose: () => void }) {
+/** Image lightbox — fullscreen preview overlay (Cursor: `ui-prompt-input-image-preview__fullscreen-content`).
+ *  Built on Base UI `Dialog` so the popup is portaled out of the composer subtree, escaping the
+ *  composer shell's `backdrop-filter` containing block (which would otherwise anchor `position: fixed`
+ *  to the composer instead of the viewport). The primitive also handles focus trap, escape-to-close,
+ *  click-outside-to-close, and dialog ARIA semantics. Mirrors Cursor's `Root + Portal + Backdrop + Popup`
+ *  composition (workbench.desktop.main.js, BEM class `ui-prompt-input-image-preview__fullscreen-content`). */
+function ImageLightbox(props: { src: string; alt: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={props.onClose}
-      onKeyDown={(e) => e.key === "Escape" && props.onClose()}
-      role="dialog"
-      aria-label="Image preview"
-    >
-      <button
-        type="button"
-        className="absolute right-4 top-4 z-10 flex size-9 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
-        onClick={props.onClose}
-        aria-label="Close preview"
-      >
-        <IconCrossSmall className="size-4" />
-      </button>
-      <img
-        alt={props.alt}
-        src={props.src}
-        className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
-    </div>
+    <DialogPrimitive.Root open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+        <DialogPrimitive.Popup
+          aria-label="Image preview"
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 outline-none transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
+        >
+          <DialogPrimitive.Close
+            aria-label="Close preview"
+            className="absolute right-4 top-4 z-10 flex size-9 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
+          >
+            <IconCrossSmall className="size-4" />
+          </DialogPrimitive.Close>
+          <img
+            alt={props.alt}
+            src={props.src}
+            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+          />
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
@@ -310,8 +271,13 @@ const ImageChip = memo(function ImageChip(props: { item: Pick; onRemove: () => v
           <IconCrossSmall className="size-3" />
         </button>
       </div>
-      {lightbox && src ? (
-        <ImageLightbox src={src} alt={props.item.name} onClose={() => setLightbox(false)} />
+      {src ? (
+        <ImageLightbox
+          src={src}
+          alt={props.item.name}
+          open={lightbox}
+          onOpenChange={setLightbox}
+        />
       ) : null}
     </>
   );
@@ -371,9 +337,10 @@ const AttachmentStrip = memo(function AttachmentStrip(props: {
 
 const GlassChatComposerImpl = memo(
   forwardRef<GlassChatComposerHandle, Props>(function GlassChatComposer(props, ref) {
-    const glass = readGlass();
+    const api = readNativeApi();
     const navigate = useNavigate();
     const settings = useGlassSettings();
+    const shell = useShellState();
     const models = useRuntimeModels(props.model);
     const snap = useThreadSessionStore(
       useMemo(
@@ -381,8 +348,6 @@ const GlassChatComposerImpl = memo(
         [props.sessionId],
       ),
     );
-    const putSnap = useThreadSessionStore((state) => state.putSnap);
-    const refreshSums = useThreadSessionStore((state) => state.refreshSums);
     const area = useRef<HTMLTextAreaElement | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const nextCursor = useRef<number | null>(null);
@@ -390,15 +355,29 @@ const GlassChatComposerImpl = memo(
     draftSink.current = props.onDraft;
     const [cursor, setCursor] = useState(0);
     const [composing, setComposing] = useState(false);
-    const [files, setFiles] = useState<Pick[]>([]);
+    const [localFiles, setLocalFiles] = useState<Pick[]>([]);
     const [drag, setDrag] = useState(false);
-    const [remote, setRemote] = useState<GlassSlashCommand[]>([]);
     const [hits, setHits] = useState<ShellFileHit[]>([]);
     const [preview, setPreview] = useState<ShellFilePreview | null>(null);
     const [loading, setLoading] = useState(false);
     const [closed, setClosed] = useState<string | null>(null);
+    const files = props.files ?? localFiles;
     const empty = !props.draft.trim() && files.length === 0;
     const caps = props.harnessDescriptor?.capabilities ?? defaultCaps;
+
+    const writeFiles = (next: Pick[] | ((cur: Pick[]) => Pick[])) => {
+      const value = typeof next === "function" ? next(files) : next;
+      if (props.onFiles) {
+        props.onFiles(value);
+        return;
+      }
+      setLocalFiles(value);
+    };
+
+    useEffect(() => {
+      if (props.onFiles) return;
+      setLocalFiles([]);
+    }, [props.onFiles, props.sessionId]);
 
     useImperativeHandle(ref, () => ({
       focus: () => {
@@ -430,27 +409,6 @@ const GlassChatComposerImpl = memo(
       });
     }, [props.draft]);
 
-    useEffect(() => {
-      if (!glass || !props.sessionId || !caps.commands) {
-        setRemote([]);
-        return;
-      }
-      let off = false;
-      void getGlass()
-        .session.commands(props.sessionId)
-        .then((items) => {
-          if (off) return;
-          setRemote(items);
-        })
-        .catch(() => {
-          if (off) return;
-          setRemote([]);
-        });
-      return () => {
-        off = true;
-      };
-    }, [glass, props.sessionId, caps.commands]);
-
     const slash = useMemo(
       () => (caps.commands ? slashMatch(props.draft, cursor) : null),
       [caps.commands, props.draft, cursor],
@@ -460,12 +418,8 @@ const GlassChatComposerImpl = memo(
       [caps.fileAttachments, props.draft, cursor],
     );
     const key = at ? `file:${at.token}` : slash ? `slash:${slash.query}` : null;
-    const remotes = useMemo<Cmd[]>(
-      () => remote.map((item) => ({ ...item, source: item.source })),
-      [remote],
-    );
     const [recSnap, setRecSnap] = useState(readSlashRecents);
-    const items = useMemo(() => mergeSlashItems(locals, remotes), [locals, remotes]);
+    const items = useMemo(() => mergeSlashItems(locals, []), [locals]);
     const slashRows = useMemo(
       () => buildSlashMenuRows(items, slash?.query ?? "", recSnap),
       [items, slash?.query, recSnap],
@@ -491,7 +445,7 @@ const GlassChatComposerImpl = memo(
     }, [key]);
 
     useEffect(() => {
-      if (!glass || !at) {
+      if (!api || !at || !shell.cwd) {
         setHits([]);
         setPreview(null);
         setLoading(false);
@@ -499,11 +453,22 @@ const GlassChatComposerImpl = memo(
       }
       let off = false;
       setLoading(true);
-      void getGlass()
-        .shell.suggestFiles(at.query)
-        .then((items) => {
+      void api.projects
+        .searchEntries({ cwd: shell.cwd, query: at.query || ".", limit: 50 })
+        .then((result) => {
           if (off) return;
-          setHits(items);
+          setHits(
+            result.entries.map((item) => ({
+              path: item.path,
+              name: item.path.split("/").at(-1) ?? item.path,
+              kind:
+                item.kind === "directory"
+                  ? "dir"
+                  : item.path.match(/\.(png|jpe?g|gif|webp|bmp|svg)$/i)
+                    ? "image"
+                    : "file",
+            })),
+          );
           setLoading(false);
         })
         .catch(() => {
@@ -514,7 +479,7 @@ const GlassChatComposerImpl = memo(
       return () => {
         off = true;
       };
-    }, [at, glass]);
+    }, [api, at, shell.cwd]);
 
     const open =
       key !== null &&
@@ -537,7 +502,10 @@ const GlassChatComposerImpl = memo(
 
     useEffect(() => {
       pushComposerDraft(props.draft);
-      readGlass()?.desktop.setComposerDraft?.(props.draft);
+      const bridge = window.desktopBridge as
+        | (typeof window.desktopBridge & { setComposerDraft?: (text: string) => void })
+        | undefined;
+      bridge?.setComposerDraft?.(props.draft);
     }, [props.draft]);
 
     useEffect(() => {
@@ -548,25 +516,8 @@ const GlassChatComposerImpl = memo(
     const cmdPick = !at && options[index] ? options[index].item : null;
 
     useEffect(() => {
-      if (!glass || !at || !filePick) {
-        setPreview(null);
-        return;
-      }
-      let off = false;
-      void getGlass()
-        .shell.previewFile(filePick.path)
-        .then((item) => {
-          if (off) return;
-          setPreview(item);
-        })
-        .catch(() => {
-          if (off) return;
-          setPreview(null);
-        });
-      return () => {
-        off = true;
-      };
-    }, [at, filePick, glass]);
+      setPreview(null);
+    }, [at, filePick]);
 
     const update = (value: string, pos?: number) => {
       nextCursor.current = pos ?? value.length;
@@ -589,92 +540,22 @@ const GlassChatComposerImpl = memo(
       }
     };
 
-    const append = (rows: ShellPickedFile[]) => {
-      if (rows.length === 0) return;
-      setFiles((cur) =>
-        merge(
-          cur,
-          rows.map((row) => local(row)),
-        ),
-      );
-      if (!glass) return;
-
-      const need = rows.filter((row) => row.kind === "image").map((row) => row.path);
-      if (need.length === 0) return;
-
-      void Promise.all(
-        need.map(async (path) => {
-          const out = await getGlass()
-            .shell.previewFile(path)
-            .catch(() => null);
-          if (!out || out.kind !== "image" || !out.data) return null;
-          return {
-            path,
-            data: out.data,
-            mimeType: out.mimeType,
-          };
-        }),
-      ).then((items) => {
-        const map = new Map(
-          items
-            .filter(
-              (
-                item,
-              ): item is {
-                path: string;
-                data: string;
-                mimeType: string | null | undefined;
-              } => Boolean(item),
-            )
-            .map((item) => [item.path, item]),
-        );
-        if (map.size === 0) return;
-
-        setFiles((cur) =>
-          cur.map((item) => {
-            if (item.type !== "path") return item;
-            const next = map.get(item.path);
-            if (!next) return item;
-            return {
-              ...item,
-              previewData: next.data,
-              previewMime: next.mimeType ?? item.mimeType,
-            };
-          }),
-        );
-      });
-    };
-
-    const submit = () => {
+    const submit = async () => {
       const raw = props.draft.trim();
       if (!files.length && raw === "/new") {
         props.onDraft("");
-        setFiles([]);
-        if (!glass) {
-          void navigate({ to: "/" });
-          return;
-        }
-
-        void glass.session
-          .create()
-          .then((next) => {
-            putSnap(next);
-            void refreshSums();
-            void navigate({ to: "/$threadId", params: { threadId: next.id } });
-          })
-          .catch(() => {
-            void navigate({ to: "/" });
-          });
+        writeFiles([]);
+        void navigate({ to: "/" });
         return;
       }
       if (!files.length && raw === "/settings") {
         props.onDraft("");
-        setFiles([]);
+        writeFiles([]);
         settings.openSettings();
         return;
       }
       if (!raw && files.length === 0) return;
-      props.onSend({
+      const res = await props.onSend({
         text: props.draft,
         attachments: files
           .map((item) => {
@@ -692,21 +573,33 @@ const GlassChatComposerImpl = memo(
             Boolean(item),
           ),
       });
-      setFiles([]);
-      props.onDraft("");
+      if (res === false) return;
       setHits([]);
       setPreview(null);
       setClosed(null);
+      if (!res.clear) return;
+      writeFiles([]);
+      props.onDraft("");
     };
 
     const pickFiles = () => {
-      if (!glass || props.busy) return;
-      void getGlass()
-        .shell.pickFiles()
-        .then((items) => {
-          append(items);
-        })
-        .catch(() => {});
+      if (props.busy) return;
+      const node = document.createElement("input");
+      node.type = "file";
+      node.accept = "image/*";
+      node.multiple = true;
+      node.addEventListener("change", () => {
+        const files = Array.from(node.files ?? []);
+        void Promise.all(files.map((item) => load(item))).then((items) => {
+          writeFiles((cur) =>
+            merge(
+              cur,
+              items.filter((item): item is Pick => Boolean(item)),
+            ),
+          );
+        });
+      });
+      node.click();
     };
 
     const drop = async (event: DragEvent<HTMLElement>) => {
@@ -714,48 +607,13 @@ const GlassChatComposerImpl = memo(
       setDrag(false);
       const list = Array.from(event.dataTransfer.files ?? []);
 
-      const paths = [
-        ...list.flatMap((item) => {
-          const path = (item as File & { path?: string }).path;
-          return typeof path === "string" && path ? [path] : [];
-        }),
-        ...parsePaths(event.dataTransfer.getData("text/uri-list") || "").filter(
-          (item) =>
-            item.startsWith("file://") ||
-            item.startsWith("/") ||
-            item.startsWith("~/") ||
-            item.startsWith("./") ||
-            item.startsWith("../") ||
-            /^[a-z]:[\\/]/i.test(item),
-        ),
-        ...parsePaths(event.dataTransfer.getData("text/plain") || "").filter(
-          (item) =>
-            item.startsWith("file://") ||
-            item.startsWith("/") ||
-            item.startsWith("~/") ||
-            item.startsWith("./") ||
-            item.startsWith("../") ||
-            /^[a-z]:[\\/]/i.test(item),
-        ),
-      ];
-
-      if (glass && paths.length > 0) {
-        const hits = await getGlass()
-          .shell.inspectFiles([...new Set(paths)])
-          .catch(() => []);
-        if (hits.length > 0) {
-          append(hits);
-          return;
-        }
-      }
-
       if (list.length === 0) return;
 
       const imgs = (await Promise.all(list.map((item) => load(item)))).filter(
         (item): item is Pick => Boolean(item),
       );
       if (imgs.length > 0) {
-        setFiles((cur) => merge(cur, imgs));
+        writeFiles((cur) => merge(cur, imgs));
       }
     };
 
@@ -769,7 +627,7 @@ const GlassChatComposerImpl = memo(
       if (list.length > 0) {
         event.preventDefault();
         void Promise.all(list.map((item) => load(item))).then((items) => {
-          setFiles((cur) =>
+          writeFiles((cur) =>
             merge(
               cur,
               items.filter((item): item is Pick => Boolean(item)),
@@ -779,42 +637,7 @@ const GlassChatComposerImpl = memo(
         return;
       }
 
-      if (!glass) return;
-
-      const raw = event.clipboardData.getData("text/plain") || "";
-      const paths = parsePaths(raw).filter(
-        (item) =>
-          item.startsWith("file://") ||
-          item.startsWith("/") ||
-          item.startsWith("~/") ||
-          item.startsWith("./") ||
-          item.startsWith("../") ||
-          /^[a-z]:[\\/]/i.test(item),
-      );
-      if (paths.length === 0) return;
-
-      event.preventDefault();
-      void getGlass()
-        .shell.inspectFiles(paths)
-        .then((items) => {
-          if (items.length > 0) {
-            append(items);
-            return;
-          }
-
-          const node = event.currentTarget;
-          const start = node.selectionStart ?? 0;
-          const end = node.selectionEnd ?? start;
-          const next = `${props.draft.slice(0, start)}${raw}${props.draft.slice(end)}`;
-          update(next, start + raw.length);
-        })
-        .catch(() => {
-          const node = event.currentTarget;
-          const start = node.selectionStart ?? 0;
-          const end = node.selectionEnd ?? start;
-          const next = `${props.draft.slice(0, start)}${raw}${props.draft.slice(end)}`;
-          update(next, start + raw.length);
-        });
+      return;
     };
 
     const menu = (
@@ -894,7 +717,7 @@ const GlassChatComposerImpl = memo(
                 {files.length ? (
                   <AttachmentStrip
                     files={files}
-                    onRemove={(id) => setFiles((cur) => cur.filter((f) => f.id !== id))}
+                    onRemove={(id) => writeFiles((cur) => cur.filter((f) => f.id !== id))}
                   />
                 ) : null}
                 <div className="relative min-h-10">
@@ -987,7 +810,7 @@ const GlassChatComposerImpl = memo(
                         props.onAbort();
                         return;
                       }
-                      submit();
+                      void submit();
                     }}
                   />
                 </div>
@@ -1034,7 +857,7 @@ const GlassChatComposerImpl = memo(
                         props.onAbort();
                         return;
                       }
-                      submit();
+                      void submit();
                     }}
                     className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
                     aria-label={props.busy ? "Stop" : "Send"}
@@ -1064,6 +887,7 @@ const GlassChatComposerImpl = memo(
     left.variant === right.variant &&
     left.sessionId === right.sessionId &&
     left.draft === right.draft &&
+    left.files === right.files &&
     left.busy === right.busy &&
     left.harness === right.harness &&
     left.harnessDescriptor?.kind === right.harnessDescriptor?.kind &&
@@ -1073,7 +897,7 @@ const GlassChatComposerImpl = memo(
 export const GlassChatComposer = GlassChatComposerImpl;
 GlassChatComposer.displayName = "GlassChatComposer";
 
-const demoModel: PiModelItem = {
+const demoModel: RuntimeModelItem = {
   key: "openai/gpt",
   provider: "openai",
   id: "gpt",

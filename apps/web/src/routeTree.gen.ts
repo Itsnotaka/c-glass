@@ -14,7 +14,6 @@ import { Route as DevIconsRouteImport } from './routes/dev.icons'
 import { Route as ChatSettingsRouteRouteImport } from './routes/_chat/settings/route'
 import { Route as ChatShellRouteRouteImport } from './routes/_chat/_shell/route'
 import { Route as ChatShellIndexRouteImport } from './routes/_chat/_shell/index'
-import { Route as ChatSettingsExtensionsRouteImport } from './routes/_chat/settings/extensions'
 import { Route as ChatSettingsArchivedRouteImport } from './routes/_chat/settings/archived'
 import { Route as ChatSettingsAppearanceRouteImport } from './routes/_chat/settings/appearance'
 import { Route as ChatSettingsAgentsRouteImport } from './routes/_chat/settings/agents'
@@ -42,11 +41,6 @@ const ChatShellIndexRoute = ChatShellIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => ChatShellRouteRoute,
-} as any)
-const ChatSettingsExtensionsRoute = ChatSettingsExtensionsRouteImport.update({
-  id: '/extensions',
-  path: '/extensions',
-  getParentRoute: () => ChatSettingsRouteRoute,
 } as any)
 const ChatSettingsArchivedRoute = ChatSettingsArchivedRouteImport.update({
   id: '/archived',
@@ -77,7 +71,6 @@ export interface FileRoutesByFullPath {
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/settings/archived': typeof ChatSettingsArchivedRoute
-  '/settings/extensions': typeof ChatSettingsExtensionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ChatShellIndexRoute
@@ -87,7 +80,6 @@ export interface FileRoutesByTo {
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/settings/archived': typeof ChatSettingsArchivedRoute
-  '/settings/extensions': typeof ChatSettingsExtensionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -99,7 +91,6 @@ export interface FileRoutesById {
   '/_chat/settings/agents': typeof ChatSettingsAgentsRoute
   '/_chat/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/_chat/settings/archived': typeof ChatSettingsArchivedRoute
-  '/_chat/settings/extensions': typeof ChatSettingsExtensionsRoute
   '/_chat/_shell/': typeof ChatShellIndexRoute
 }
 export interface FileRouteTypes {
@@ -112,7 +103,6 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
-    | '/settings/extensions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,7 +112,6 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
-    | '/settings/extensions'
   id:
     | '__root__'
     | '/_chat'
@@ -133,7 +122,6 @@ export interface FileRouteTypes {
     | '/_chat/settings/agents'
     | '/_chat/settings/appearance'
     | '/_chat/settings/archived'
-    | '/_chat/settings/extensions'
     | '/_chat/_shell/'
   fileRoutesById: FileRoutesById
 }
@@ -178,13 +166,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof ChatShellIndexRouteImport
       parentRoute: typeof ChatShellRouteRoute
-    }
-    '/_chat/settings/extensions': {
-      id: '/_chat/settings/extensions'
-      path: '/extensions'
-      fullPath: '/settings/extensions'
-      preLoaderRoute: typeof ChatSettingsExtensionsRouteImport
-      parentRoute: typeof ChatSettingsRouteRoute
     }
     '/_chat/settings/archived': {
       id: '/_chat/settings/archived'
@@ -235,14 +216,12 @@ interface ChatSettingsRouteRouteChildren {
   ChatSettingsAgentsRoute: typeof ChatSettingsAgentsRoute
   ChatSettingsAppearanceRoute: typeof ChatSettingsAppearanceRoute
   ChatSettingsArchivedRoute: typeof ChatSettingsArchivedRoute
-  ChatSettingsExtensionsRoute: typeof ChatSettingsExtensionsRoute
 }
 
 const ChatSettingsRouteRouteChildren: ChatSettingsRouteRouteChildren = {
   ChatSettingsAgentsRoute: ChatSettingsAgentsRoute,
   ChatSettingsAppearanceRoute: ChatSettingsAppearanceRoute,
   ChatSettingsArchivedRoute: ChatSettingsArchivedRoute,
-  ChatSettingsExtensionsRoute: ChatSettingsExtensionsRoute,
 }
 
 const ChatSettingsRouteRouteWithChildren =

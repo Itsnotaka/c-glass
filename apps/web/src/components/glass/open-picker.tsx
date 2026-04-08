@@ -8,7 +8,7 @@ import {
 } from "central-icons";
 
 import { usePreferredEditor } from "../../editor-preferences";
-import { getGlass } from "../../host";
+import { ensureNativeApi } from "../../nativeApi";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
 import { cn } from "../../lib/utils";
@@ -90,7 +90,7 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
             disabled={disabled}
             onClick={() => {
               if (!shell.cwd || !editor) return;
-              void getGlass().shell.openInEditor(shell.cwd, editor);
+              void ensureNativeApi().shell.openInEditor(shell.cwd, editor);
             }}
             className="font-glass relative inline-flex min-h-7 items-center gap-1.5 rounded-l-full border border-glass-stroke border-r-0 bg-glass-bubble px-2.5 text-detail/[17px] text-muted-foreground shadow-glass-card outline-none backdrop-blur-md transition-colors pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 hover:border-glass-stroke-strong hover:bg-glass-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50"
             aria-label={text}
@@ -120,7 +120,7 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
             disabled={disabled}
             onClick={() => {
               if (!shell.cwd || !editor) return;
-              void getGlass().shell.openInEditor(shell.cwd, editor);
+              void ensureNativeApi().shell.openInEditor(shell.cwd, editor);
             }}
             variant="outline"
             size="default"

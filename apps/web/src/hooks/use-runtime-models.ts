@@ -1,78 +1,63 @@
-import type { HarnessModelRef, ThinkingLevel } from "@glass/contracts";
+import type { HarnessModelRef, ModelSelection, ThinkingLevel } from "@glass/contracts";
 import { useMemo } from "react";
-import { usePiCfg, usePiCfgStatus, type ThreadBootStatus } from "../lib/thread-session-store";
+
+import { useServerProviders } from "../rpc/serverState";
+import { useStore } from "../store";
 import {
-  hasStoredPiDefault,
-  listPiModelsFromConfig,
-  readPiDefaultsFromConfig,
-  resolvePiDefaultModelFromConfig,
-  resolvePiDefaultThinkingLevelFromConfig,
-  type PiModelItem,
+  listRuntimeModelsFromProviders,
+  readRuntimeDefaults,
+  selectionToThinking,
+  type RuntimeModelItem,
 } from "../lib/runtime-models";
 
-interface PiModelState {
-  items: PiModelItem[];
+export type ThreadBootStatus = "loading" | "ready" | "error";
+
+interface RuntimeModelState {
+  items: RuntimeModelItem[];
   loading: boolean;
   status: ThreadBootStatus;
   thinkingLevel: ThinkingLevel;
 }
 
-interface PiDefaultState extends PiModelState {
-  model: PiModelItem | HarnessModelRef | null;
+interface RuntimeDefaultState extends RuntimeModelState {
+  selection: ModelSelection;
+  model: RuntimeModelItem | HarnessModelRef | null;
   stored: boolean;
 }
 
 export function useRuntimeModels(cur?: HarnessModelRef | null) {
-  const cfg = usePiCfg();
-  const status = usePiCfgStatus();
-  const provider = cur?.provider ?? "";
-  const id = cur?.id ?? "";
+  const providers = useServerProviders();
+  const projects = useStore((state) => state.projects);
 
   return useMemo(() => {
-    if (status !== "ready" || !cfg) {
-      return {
-        items: [],
-        loading: status === "loading",
-        status,
-        thinkingLevel: "off",
-      } satisfies PiModelState;
-    }
-
-    const ref = provider && id ? { provider, id } : null;
+    const status: ThreadBootStatus =
+      projects.length > 0 || providers.length > 0 ? "ready" : "loading";
+    const defs = readRuntimeDefaults(projects, providers, undefined, cur);
     return {
-      items: listPiModelsFromConfig(cfg, ref),
-      loading: false,
+      items: listRuntimeModelsFromProviders(providers, cur),
+      loading: status === "loading",
       status,
-      thinkingLevel: resolvePiDefaultThinkingLevelFromConfig(cfg),
-    } satisfies PiModelState;
-  }, [cfg, id, provider, status]);
+      thinkingLevel: selectionToThinking(defs.selection),
+    } satisfies RuntimeModelState;
+  }, [cur, projects, providers]);
 }
 
 export function useRuntimeDefaults() {
-  const cfg = usePiCfg();
-  const status = usePiCfgStatus();
+  const providers = useServerProviders();
+  const projects = useStore((state) => state.projects);
 
   return useMemo(() => {
-    if (status !== "ready" || !cfg) {
-      return {
-        items: [],
-        model: null,
-        thinkingLevel: "off",
-        stored: false,
-        loading: status === "loading",
-        status,
-      } satisfies PiDefaultState;
-    }
-
-    const model = resolvePiDefaultModelFromConfig(cfg);
-    const defs = readPiDefaultsFromConfig(cfg);
+    const status: ThreadBootStatus =
+      projects.length > 0 || providers.length > 0 ? "ready" : "loading";
+    const defs = readRuntimeDefaults(projects, providers);
     return {
-      items: listPiModelsFromConfig(cfg, model),
-      model,
-      thinkingLevel: resolvePiDefaultThinkingLevelFromConfig(cfg),
-      stored: hasStoredPiDefault(defs),
-      loading: false,
+      items: defs.items,
+      selection: defs.selection,
+      model: defs.modelRef,
+      thinkingLevel: defs.thinkingLevel,
+      stored: defs.stored,
+      loading: status === "loading",
       status,
-    } satisfies PiDefaultState;
-  }, [cfg, status]);
+    } satisfies RuntimeDefaultState;
+  }, [projects, providers]);
 }

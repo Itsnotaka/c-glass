@@ -30,7 +30,7 @@ function HeroSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
   const sum = useThreadSummary(props.sessionId);
   const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
-  const kind = sum?.harness ?? snap?.harness ?? "pi";
+  const kind = sum?.harness ?? snap?.harness ?? "codex";
   const harnessDescriptor = useHarnessDescriptor(kind);
   const session = useRuntimeSession(props.sessionId, kind);
   const composerRef = useRef<GlassChatComposerHandle>(null);
@@ -86,7 +86,7 @@ function DockSession(props: { sessionId: string }) {
   const [expanded, setExpanded] = useState(false);
   const sum = useThreadSummary(props.sessionId);
   const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
-  const kind = sum?.harness ?? snap?.harness ?? "pi";
+  const kind = sum?.harness ?? snap?.harness ?? "codex";
   const harnessDescriptor = useHarnessDescriptor(kind);
   const session = useRuntimeSession(props.sessionId, kind);
 

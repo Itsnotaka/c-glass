@@ -3,19 +3,35 @@ import {
   Outlet,
   createRootRouteWithContext,
   type ErrorComponentProps,
+  useLocation,
+  useNavigate,
 } from "@tanstack/react-router";
 import { QueryClient } from "@tanstack/react-query";
-import { startTransition, useCallback, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
-import { readGlass } from "../host";
-import { GLASS_EDITOR_SET_EVENT, GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
-import { peekComposerDraft } from "../lib/composer-draft-mirror";
-import { sumEventFromThread, useThreadSessionStore } from "../lib/thread-session-store";
+import { readNativeApi } from "../nativeApi";
+import { deriveOrchestrationBatchEffects } from "../orchestrationEventEffects";
+import {
+  createOrchestrationRecoveryCoordinator,
+  deriveReplayRetryDecision,
+  type ReplayRetryTracker,
+} from "../orchestrationRecovery";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import {
+  startServerStateSync,
+  useServerConfigUpdatedSubscription,
+  useServerWelcomeSubscription,
+} from "../rpc/serverState";
+import { noteEvlogDomain } from "../lib/evlog";
+import { useStore } from "../store";
+import { getWsRpcClient } from "../wsRpcClient";
 import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
+import { useThreadSessionStore } from "../lib/thread-session-store";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -31,8 +47,8 @@ export const Route = createRootRouteWithContext<{
 function RootRouteView() {
   return (
     <>
-      <PiBootBridge />
-      <DesktopExtUiBridge />
+      <ServerStateBootstrap />
+      <DomainBootstrap />
       <AppSidebarLayout>
         <Outlet />
       </AppSidebarLayout>
@@ -41,132 +57,238 @@ function RootRouteView() {
   );
 }
 
-function DesktopExtUiBridge() {
-  useEffect(() => {
-    const glass = readGlass();
-    if (!glass) return;
-
-    const offReq = glass.desktop.onExtensionUiRequest?.((req) => {
-      const reply = async (value: { cancelled?: boolean; value?: string | boolean }) => {
-        await glass.desktop.replyExtensionUi?.({ id: req.id, ...value });
-      };
-
-      if (req.type === "confirm") {
-        void reply({ value: window.confirm(`${req.title}\n\n${req.message}`) });
-        return;
-      }
-
-      if (req.type === "input") {
-        const val = window.prompt(req.title, req.placeholder ?? "");
-        void reply(val === null ? { cancelled: true } : { value: val });
-        return;
-      }
-
-      if (req.type === "editor") {
-        const val = window.prompt(req.title, req.prefill ?? "");
-        void reply(val === null ? { cancelled: true } : { value: val });
-        return;
-      }
-
-      if (req.type === "select") {
-        const lines = req.options.map((item, i) => `${i + 1}. ${item}`).join("\n");
-        const val = window.prompt(`${req.title}\n\n${lines}`, req.options[0] ?? "");
-        if (val === null) {
-          void reply({ cancelled: true });
-          return;
-        }
-        const num = Number(val);
-        if (Number.isInteger(num) && num >= 1 && num <= req.options.length) {
-          const pick = req.options[num - 1];
-          if (!pick) {
-            void reply({ cancelled: true });
-            return;
-          }
-          void reply({ value: pick });
-          return;
-        }
-        const hit = req.options.find((item) => item === val);
-        if (!hit) {
-          void reply({ cancelled: true });
-          return;
-        }
-        void reply({ value: hit });
-        return;
-      }
-
-      if (req.type === "get-editor") {
-        void reply({ value: peekComposerDraft() });
-      }
-    });
-
-    const offNotify = glass.desktop.onExtensionUiNotify?.((item) => {
-      const type =
-        item.type === "error" ? toast.error : item.type === "warning" ? toast.warning : toast;
-      type(item.message);
-    });
-
-    const offSet = glass.desktop.onExtensionSetEditor?.((item) => {
-      window.dispatchEvent(new CustomEvent(GLASS_EDITOR_SET_EVENT, { detail: item.text }));
-    });
-
-    return () => {
-      offReq?.();
-      offNotify?.();
-      offSet?.();
-    };
-  }, []);
+function ServerStateBootstrap() {
+  useEffect(() => startServerStateSync(getWsRpcClient().server), []);
 
   return null;
 }
 
-function PiBootBridge() {
-  const boot = useThreadSessionStore((state) => state.boot);
-  const refreshSums = useThreadSessionStore((state) => state.refreshSums);
-  const reset = useThreadSessionStore((state) => state.resetForWorkspaceChange);
-  const applySummaryEvent = useThreadSessionStore((state) => state.applySummaryEvent);
+function coalesceOrchestrationUiEvents(events: readonly any[]) {
+  if (events.length < 2) {
+    return [...events];
+  }
+
+  const out: any[] = [];
+  for (const event of events) {
+    const prev = out.at(-1);
+    if (
+      prev?.type === "thread.message-sent" &&
+      event.type === "thread.message-sent" &&
+      prev.payload.threadId === event.payload.threadId &&
+      prev.payload.messageId === event.payload.messageId
+    ) {
+      out[out.length - 1] = {
+        ...event,
+        payload: {
+          ...event.payload,
+          attachments: event.payload.attachments ?? prev.payload.attachments,
+          createdAt: prev.payload.createdAt,
+          text:
+            !event.payload.streaming && event.payload.text.length > 0
+              ? event.payload.text
+              : prev.payload.text + event.payload.text,
+        },
+      };
+      continue;
+    }
+
+    out.push(event);
+  }
+
+  return out;
+}
+
+const REPLAY_RECOVERY_RETRY_DELAY_MS = 100;
+const MAX_NO_PROGRESS_REPLAY_RETRIES = 3;
+
+function DomainBootstrap() {
+  const syncServerReadModel = useStore((store) => store.syncServerReadModel);
+  const applyOrchestrationEvents = useStore((store) => store.applyOrchestrationEvents);
+  const refreshCfg = useThreadSessionStore((state) => state.refreshCfg);
+  const syncDomain = useThreadSessionStore((state) => state.syncDomain);
+  const pathname = useLocation({ select: (loc) => loc.pathname });
+  const navigate = useNavigate();
+  const pathnameRef = useRef(pathname);
+  const bootstrapRef = useRef<() => Promise<void>>(async () => undefined);
+  const seenUpdateRef = useRef(0);
 
   useEffect(() => {
-    void boot();
-  }, [boot]);
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
-    const glass = readGlass();
-    if (!glass) return;
+    void refreshCfg();
+  }, [refreshCfg]);
 
-    const sync = () => {
-      if (document.visibilityState === "hidden") return;
-      void refreshSums();
+  useEffect(() => {
+    const api = readNativeApi();
+    if (!api) return;
+
+    let disposed = false;
+    const recovery = createOrchestrationRecoveryCoordinator();
+    let tracker: ReplayRetryTracker | null = null;
+    let refreshProviders = false;
+    const queue: any[] = [];
+    let scheduled = false;
+
+    const syncSnapshot = (snapshot: Awaited<ReturnType<typeof api.orchestration.getSnapshot>>) => {
+      syncServerReadModel(snapshot);
+      syncDomain();
     };
 
-    const reload = () => {
-      void boot();
+    const applyBatch = (events: readonly any[]) => {
+      const next = recovery.markEventBatchApplied(events);
+      if (next.length === 0) {
+        return;
+      }
+
+      const effects = deriveOrchestrationBatchEffects(next);
+      if (effects.needsProviderInvalidation) {
+        refreshProviders = true;
+      }
+      applyOrchestrationEvents(coalesceOrchestrationUiEvents(next));
+      syncDomain();
     };
 
-    const shell = () => {
-      reset();
-      reload();
+    const flush = () => {
+      scheduled = false;
+      if (disposed || queue.length === 0) {
+        return;
+      }
+      const next = queue.splice(0, queue.length);
+      applyBatch(next);
+      if (refreshProviders) {
+        refreshProviders = false;
+        void api.server.refreshProviders().catch(() => undefined);
+      }
     };
 
-    const offSummary = glass.thread.onSummary((event) => {
-      const next = sumEventFromThread(event);
-      startTransition(() => {
-        applySummaryEvent(next);
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      queueMicrotask(flush);
+    };
+
+    const runReplayRecovery = async (reason: "sequence-gap" | "resubscribe") => {
+      if (!recovery.beginReplayRecovery(reason)) {
+        return;
+      }
+
+      try {
+        const events = await api.orchestration.replayEvents(recovery.getState().latestSequence);
+        if (!disposed) {
+          applyBatch(events);
+        }
+      } catch {
+        tracker = null;
+        recovery.failReplayRecovery();
+        void runSnapshotRecovery("replay-failed");
+        return;
+      }
+
+      if (disposed) {
+        return;
+      }
+
+      const done = recovery.completeReplayRecovery();
+      const decision = deriveReplayRetryDecision({
+        previousTracker: tracker,
+        completion: done,
+        recoveryState: recovery.getState(),
+        baseDelayMs: REPLAY_RECOVERY_RETRY_DELAY_MS,
+        maxNoProgressRetries: MAX_NO_PROGRESS_REPLAY_RETRIES,
       });
-    });
-    const offBoot = glass.desktop.onBootRefresh?.(reload) ?? (() => {});
+      tracker = decision.tracker;
+      if (!decision.shouldRetry) {
+        return;
+      }
+      if (decision.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, decision.delayMs));
+        if (disposed) {
+          return;
+        }
+      }
+      void runReplayRecovery(reason);
+    };
 
-    window.addEventListener("focus", sync);
-    document.addEventListener("visibilitychange", sync);
-    window.addEventListener(GLASS_SHELL_CHANGED_EVENT, shell);
+    const runSnapshotRecovery = async (reason: "bootstrap" | "replay-failed") => {
+      if (!recovery.beginSnapshotRecovery(reason)) {
+        return;
+      }
+
+      try {
+        const snapshot = await api.orchestration.getSnapshot();
+        if (!disposed) {
+          syncSnapshot(snapshot);
+          if (recovery.completeSnapshotRecovery(snapshot.snapshotSequence)) {
+            void runReplayRecovery("sequence-gap");
+          }
+        }
+      } catch {
+        recovery.failSnapshotRecovery();
+      }
+    };
+
+    bootstrapRef.current = async () => {
+      await runSnapshotRecovery("bootstrap");
+    };
+
+    void bootstrapRef.current();
+
+    const off = api.orchestration.onDomainEvent(
+      (event) => {
+        noteEvlogDomain(event);
+        const action = recovery.classifyDomainEvent(event.sequence);
+        if (action === "apply") {
+          queue.push(event);
+          schedule();
+          return;
+        }
+        if (action === "recover") {
+          flush();
+          void runReplayRecovery("sequence-gap");
+        }
+      },
+      {
+        onResubscribe: () => {
+          if (disposed) return;
+          flush();
+          void runReplayRecovery("resubscribe");
+        },
+      },
+    );
 
     return () => {
-      window.removeEventListener("focus", sync);
-      document.removeEventListener("visibilitychange", sync);
-      window.removeEventListener(GLASS_SHELL_CHANGED_EVENT, shell);
-      offSummary();
-      offBoot();
+      disposed = true;
+      queue.length = 0;
+      scheduled = false;
+      off();
     };
-  }, [applySummaryEvent, boot, refreshSums, reset]);
+  }, [applyOrchestrationEvents, navigate, refreshCfg, syncDomain, syncServerReadModel]);
+
+  useServerWelcomeSubscription((payload) => {
+    void bootstrapRef.current().then(() => {
+      if (!payload.bootstrapThreadId) {
+        return;
+      }
+      if (pathnameRef.current !== "/") {
+        return;
+      }
+      void navigate({
+        to: "/$threadId",
+        params: { threadId: payload.bootstrapThreadId },
+        replace: true,
+      });
+    });
+  });
+
+  useServerConfigUpdatedSubscription((notification) => {
+    if (notification.id <= seenUpdateRef.current) {
+      return;
+    }
+    seenUpdateRef.current = notification.id;
+    void refreshCfg();
+  });
 
   return null;
 }
@@ -183,7 +305,7 @@ function NotFoundView() {
         <p className="text-caption font-semibold uppercase tracking-[0.25em] text-muted-foreground/60">
           {APP_DISPLAY_NAME}
         </p>
-        <p className="mt-8 font-mono text-[8rem]/1 font-bold tracking-tighter text-foreground/4 sm:text-[10rem] select-none">
+        <p className="mt-8 select-none font-mono text-[8rem]/1 font-bold tracking-tighter text-foreground/4 sm:text-[10rem]">
           404
         </p>
         <div className="-mt-16 sm:-mt-20">
@@ -216,12 +338,6 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   const href = typeof window !== "undefined" ? window.location.href : "";
   const { copyToClipboard, isCopied } = useCopyToClipboard();
 
-  const copy = useCallback(async () => {
-    const ok = await copyToClipboard(report);
-    if (ok) toast.success("Copied error report");
-    if (!ok) toast.error("Could not copy");
-  }, [copyToClipboard, report]);
-
   return (
     <>
       <Toaster />
@@ -248,7 +364,12 @@ function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
               variant="link"
               size="sm"
               className="h-auto min-h-0 px-0 py-0 text-body font-normal text-muted-foreground"
-              onClick={() => void copy()}
+              onClick={() => {
+                void copyToClipboard(report).then((ok) => {
+                  if (ok) toast.success("Copied error report");
+                  if (!ok) toast.error("Could not copy");
+                });
+              }}
               aria-label="Copy full error report to clipboard"
             >
               {isCopied ? "Copied" : "Copy error report"}

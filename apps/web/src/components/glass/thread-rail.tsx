@@ -1,18 +1,18 @@
+import type { GlassSidebarSection } from "../../lib/glass-view-model";
 import { GlassAgentList } from "./agent-list";
 import { GlassSidebarHeader } from "./sidebar-header";
-import type { GlassSidebarSection } from "../../lib/glass-view-model";
 
 export function GlassThreadRail(props: {
   sections: GlassSidebarSection[];
   selectedId: string | null;
   onSelectAgent: (id: string) => void;
-  onNewAgent: () => void;
+  onNewChat: () => void;
   loading?: boolean;
   error?: boolean;
 }) {
   return (
     <>
-      <GlassSidebarHeader onNewAgent={props.onNewAgent} />
+      <GlassSidebarHeader onNewChat={props.onNewChat} />
       <GlassAgentList
         sections={props.sections}
         selectedId={props.selectedId}

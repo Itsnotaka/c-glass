@@ -1,18 +1,252 @@
 import type {
-  PiConfig,
   GlassSessionActiveEvent,
-  GlassSessionDelta,
+  GlassSessionItem,
   GlassSessionSnapshot,
   GlassSessionSummary,
-  GlassSessionSummaryEvent,
-  ThreadSummary,
-  ThreadSummaryEvent,
+  HarnessKind,
+  HarnessModelRef,
+  ModelSelection,
+  ServerConfig,
+  ThinkingLevel,
 } from "@glass/contracts";
-import { useMemo } from "react";
 import { create } from "zustand";
-import { readGlass, readGlassBoot } from "../host";
+
+import { readNativeApi } from "../nativeApi";
+import { getServerConfig } from "../rpc/serverState";
+import { shouldShowActivity } from "../session-logic";
+import { useStore } from "../store";
+import type { Project, Thread } from "../types";
 
 export type ThreadBootStatus = "loading" | "ready" | "error";
+
+type State = {
+  cfg: ServerConfig | null;
+  cfgStatus: ThreadBootStatus;
+  cfgError: string | null;
+  ids: string[];
+  sums: Record<string, GlassSessionSummary>;
+  sumsStatus: ThreadBootStatus;
+  sumsError: string | null;
+  snaps: Record<string, GlassSessionSnapshot>;
+  ready: boolean;
+  boot: () => Promise<void>;
+  refreshCfg: () => Promise<void>;
+  refreshSums: () => Promise<void>;
+  putSnap: (snap: GlassSessionSnapshot) => void;
+  applyActs: (_events: GlassSessionActiveEvent[]) => void;
+  syncDomain: () => void;
+};
+
+function nowStatus(cfg: ThreadBootStatus, sums: ThreadBootStatus) {
+  return cfg === "ready" && sums === "ready";
+}
+
+function toHarness(provider: "codex" | "claudeAgent" | null | undefined): HarnessKind {
+  if (provider === "claudeAgent") return "claudeCode";
+  if (provider === "codex") return "codex";
+  return "codex";
+}
+
+function toModel(selection: ModelSelection | null | undefined): HarnessModelRef | null {
+  if (!selection) return null;
+  return {
+    provider: selection.provider,
+    id: selection.model,
+    name: selection.model,
+    reasoning:
+      selection.provider === "codex"
+        ? Boolean(selection.options?.reasoningEffort)
+        : Boolean(selection.options?.thinking) || Boolean(selection.options?.effort),
+  };
+}
+
+function toThinking(selection: ModelSelection | null | undefined): ThinkingLevel {
+  if (!selection) return "off";
+  if (selection.provider === "codex") {
+    switch (selection.options?.reasoningEffort) {
+      case "low":
+        return "low";
+      case "medium":
+        return "medium";
+      case "high":
+        return "high";
+      case "xhigh":
+        return "xhigh";
+      default:
+        return "off";
+    }
+  }
+
+  if (selection.options?.thinking === false) {
+    return "off";
+  }
+
+  switch (selection.options?.effort) {
+    case "low":
+      return "low";
+    case "medium":
+      return "medium";
+    case "high":
+      return "high";
+    case "max":
+    case "ultrathink":
+      return "xhigh";
+    default:
+      return selection.options?.thinking ? "medium" : "off";
+  }
+}
+
+function attachText(
+  text: string,
+  items: ReadonlyArray<Thread["messages"][number]["attachments"]>[number],
+) {
+  if (!items || items.length === 0) return text;
+  const suffix = items.map((item) => `<file name="${item.name}">${item.name}</file>`).join("\n");
+  return text.length > 0 ? `${text}\n\n${suffix}` : suffix;
+}
+
+function toMsg(item: Thread["messages"][number]): GlassSessionItem {
+  if (item.role === "user") {
+    return {
+      id: item.id,
+      message: {
+        role: "user",
+        content: attachText(item.text, item.attachments),
+      },
+    };
+  }
+
+  if (item.role === "assistant") {
+    return {
+      id: item.id,
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: item.text }],
+      },
+    };
+  }
+
+  return {
+    id: item.id,
+    message: {
+      role: "system",
+      content: item.text,
+    },
+  };
+}
+
+function activityText(thread: Thread, activity: Thread["activities"][number]) {
+  const head = activity.summary.trim();
+  const payload =
+    activity.payload && typeof activity.payload === "object"
+      ? JSON.stringify(activity.payload, null, 2)
+      : "";
+  const text = payload ? `${head}\n\n${payload}` : head;
+  if (activity.tone === "error") {
+    return {
+      id: `${thread.id}:activity:${activity.id}`,
+      message: {
+        role: "custom",
+        customType: activity.kind,
+        content: text,
+        display: true,
+        details: activity.payload,
+      },
+    } satisfies GlassSessionItem;
+  }
+  return {
+    id: `${thread.id}:activity:${activity.id}`,
+    message: {
+      role: "custom",
+      customType: activity.kind,
+      content: text,
+      display: true,
+      details: activity.payload,
+    },
+  } satisfies GlassSessionItem;
+}
+
+function planText(thread: Thread, plan: Thread["proposedPlans"][number]) {
+  return {
+    id: `${thread.id}:plan:${plan.id}`,
+    message: {
+      role: "custom",
+      customType: "proposed-plan",
+      content: plan.planMarkdown,
+      display: true,
+      details: {
+        implementedAt: plan.implementedAt,
+        implementationThreadId: plan.implementationThreadId,
+      },
+    },
+  } satisfies GlassSessionItem;
+}
+
+function buildItems(thread: Thread) {
+  const items = [
+    ...thread.messages.map((item) => ({ at: item.createdAt, item: toMsg(item) })),
+    ...thread.activities
+      .filter(shouldShowActivity)
+      .map((item) => ({ at: item.createdAt, item: activityText(thread, item) })),
+    ...thread.proposedPlans.map((item) => ({ at: item.createdAt, item: planText(thread, item) })),
+  ].toSorted((left, right) => {
+    if (left.at < right.at) return -1;
+    if (left.at > right.at) return 1;
+    return left.item.id.localeCompare(right.item.id);
+  });
+
+  return items.map((item) => item.item);
+}
+
+function threadCwd(thread: Thread, project: Project | undefined) {
+  return thread.worktreePath ?? project?.cwd ?? "";
+}
+
+function threadStreaming(thread: Thread) {
+  const status = thread.session?.orchestrationStatus;
+  return status === "starting" || status === "running";
+}
+
+function summaryPreview(thread: Thread) {
+  const first = thread.messages.find((item) => item.role === "user")?.text.trim();
+  if (first) return first;
+  return thread.title;
+}
+
+const summarySearch = (thread: Thread) => thread.messages.map((item) => item.text).join("\n\n");
+
+function toSummary(thread: Thread, project: Project | undefined): GlassSessionSummary {
+  return {
+    id: thread.id,
+    harness: toHarness(thread.session?.provider ?? thread.modelSelection.provider),
+    path: thread.worktreePath ?? project?.cwd ?? "",
+    cwd: threadCwd(thread, project),
+    name: thread.title,
+    createdAt: thread.createdAt,
+    modifiedAt: thread.updatedAt ?? thread.createdAt,
+    messageCount: thread.messages.length,
+    firstMessage: summaryPreview(thread),
+    allMessagesText: summarySearch(thread),
+    isStreaming: threadStreaming(thread),
+  };
+}
+
+function toSnapshot(thread: Thread, project: Project | undefined): GlassSessionSnapshot {
+  return {
+    id: thread.id,
+    harness: toHarness(thread.session?.provider ?? thread.modelSelection.provider),
+    file: thread.worktreePath,
+    cwd: threadCwd(thread, project),
+    name: thread.title,
+    model: toModel(thread.modelSelection),
+    thinkingLevel: toThinking(thread.modelSelection),
+    messages: buildItems(thread),
+    live: null,
+    tree: [],
+    isStreaming: threadStreaming(thread),
+    pending: { steering: [], followUp: [] },
+  };
+}
 
 function rank(sums: Record<string, GlassSessionSummary>) {
   return Object.values(sums)
@@ -22,300 +256,97 @@ function rank(sums: Record<string, GlassSessionSummary>) {
     .map((item) => item.id);
 }
 
-function same(left: GlassSessionSummary | undefined, right: GlassSessionSummary) {
-  if (!left) return false;
-  return (
-    left.id === right.id &&
-    left.harness === right.harness &&
-    left.path === right.path &&
-    left.cwd === right.cwd &&
-    left.name === right.name &&
-    left.createdAt === right.createdAt &&
-    left.modifiedAt === right.modifiedAt &&
-    left.messageCount === right.messageCount &&
-    left.firstMessage === right.firstMessage &&
-    left.allMessagesText === right.allMessagesText &&
-    left.isStreaming === right.isStreaming
-  );
+function domainState() {
+  const state = useStore.getState();
+  const projectById = new Map(state.projects.map((item) => [item.id, item]));
+  const threads = state.threads.filter((item) => item.archivedAt === null);
+  const sums = Object.fromEntries(
+    threads.map((item) => [item.id, toSummary(item, projectById.get(item.projectId))]),
+  ) as Record<string, GlassSessionSummary>;
+  const snaps = Object.fromEntries(
+    threads.map((item) => [item.id, toSnapshot(item, projectById.get(item.projectId))]),
+  ) as Record<string, GlassSessionSnapshot>;
+  return { sums, snaps, ids: rank(sums) };
 }
 
-function sync(snap: GlassSessionSnapshot, delta: Exclude<GlassSessionDelta, { type: "sync" }>) {
-  return {
-    ...snap,
-    model: delta.meta.model,
-    thinkingLevel: delta.meta.thinkingLevel,
-    isStreaming: delta.meta.isStreaming,
-    pending: delta.meta.pending,
-  } satisfies GlassSessionSnapshot;
+async function loadCfg() {
+  const cached = getServerConfig();
+  if (cached) return cached;
+  const api = readNativeApi();
+  if (!api) return null;
+  return api.server.getConfig();
 }
 
-function patch(snap: GlassSessionSnapshot, delta: GlassSessionDelta) {
-  if (delta.type === "sync") return delta.snapshot;
-
-  const next = sync(snap, delta);
-  if (delta.type === "meta") return next;
-  if (delta.type === "commit") {
-    return {
-      ...next,
-      messages: [...next.messages, delta.item],
-      live: null,
-    } satisfies GlassSessionSnapshot;
-  }
-  return {
-    ...next,
-    live: delta.item,
-  } satisfies GlassSessionSnapshot;
-}
-
-function flags(cfgStatus: ThreadBootStatus, sumsStatus: ThreadBootStatus) {
-  const cfgReady = cfgStatus === "ready";
-  const sumsReady = sumsStatus === "ready";
-  return {
-    cfgReady,
-    sumsReady,
-    ready: cfgReady && sumsReady,
-  };
-}
-
-function fromThread(item: ThreadSummary): GlassSessionSummary {
-  return {
-    id: item.id,
-    harness: item.harness,
-    path: item.path ?? "",
-    cwd: item.cwd,
-    name: item.name,
-    createdAt: item.createdAt,
-    modifiedAt: item.modifiedAt,
-    messageCount: item.messageCount,
-    firstMessage: item.preview,
-    allMessagesText: item.search,
-    isStreaming: item.state === "running",
-  };
-}
-
-export function sumEventFromThread(event: ThreadSummaryEvent): GlassSessionSummaryEvent {
-  if (event.type === "remove") {
-    return {
-      lane: "summary",
-      type: "remove",
-      sessionId: event.threadId,
-    };
-  }
-  const next = fromThread(event.summary);
-  return {
-    lane: "summary",
-    type: "upsert",
-    sessionId: event.threadId,
-    summary: next,
-  };
-}
-
-function issue(err: Error | string | null | undefined) {
-  if (err instanceof Error && err.message.trim()) return err.message;
-  if (typeof err === "string" && err.trim()) return err;
-  return "Unknown Pi boot error";
-}
-
-type State = {
-  cfg: PiConfig | null;
-  cfgStatus: ThreadBootStatus;
-  cfgReady: boolean;
-  cfgError: string | null;
-  ids: string[];
-  sums: Record<string, GlassSessionSummary>;
-  sumsStatus: ThreadBootStatus;
-  sumsReady: boolean;
-  sumsError: string | null;
-  ready: boolean;
-  snaps: Record<string, GlassSessionSnapshot>;
-  boot: () => Promise<void>;
-  refreshCfg: () => Promise<void>;
-  refreshSums: () => Promise<void>;
-  resetForWorkspaceChange: () => void;
-  applySummaryEvent: (event: GlassSessionSummaryEvent) => void;
-  putSnap: (snap: GlassSessionSnapshot) => void;
-  applyActs: (events: GlassSessionActiveEvent[]) => void;
-};
-
-function setCfg(
-  state: State,
-  cfg: PiConfig | null,
-  status: ThreadBootStatus,
-  cfgError: string | null,
-) {
-  return {
-    ...state,
-    cfg,
-    cfgStatus: status,
-    cfgError,
-    ...flags(status, state.sumsStatus),
-  } satisfies State;
-}
-
-function setSums(
-  state: State,
-  items: GlassSessionSummary[],
-  status: ThreadBootStatus,
-  sumsError: string | null,
-) {
-  const sums = Object.fromEntries(items.map((item) => [item.id, item]));
-  return {
-    ...state,
-    sums,
-    ids: rank(sums),
-    sumsStatus: status,
-    sumsError,
-    ...flags(state.cfgStatus, status),
-  } satisfies State;
-}
-
-function setBoot(state: State) {
-  const boot = readGlassBoot();
-  if (!boot) return state;
-
-  const sums = boot.threads.length > 0 ? boot.threads.map(fromThread) : boot.sessions;
-
-  let next = state;
-  next = setCfg(next, boot.pi, "ready", null);
-  next = setSums(next, sums, "ready", null);
-  return {
-    ...next,
-    snaps: { ...next.snaps, ...boot.snapshots },
-  } satisfies State;
-}
-
-let cfgSeq = 0;
-let sumsSeq = 0;
-let cfgRun: Promise<void> | null = null;
-let sumsRun: Promise<void> | null = null;
-
-export const useThreadSessionStore = create<State>()((set, get) => ({
+export const useThreadSessionStore = create<State>()((set) => ({
   cfg: null,
   cfgStatus: "loading",
-  cfgReady: false,
   cfgError: null,
   ids: [],
   sums: {},
   sumsStatus: "loading",
-  sumsReady: false,
   sumsError: null,
-  ready: false,
   snaps: {},
+  ready: false,
   boot: async () => {
-    const glass = readGlass();
-    const boot = readGlassBoot();
-    if (!glass && !boot) {
-      set((state) => {
-        let next = setCfg(state, null, "ready", null);
-        next = setSums(next, [], "ready", null);
-        return next;
-      });
-      return;
-    }
-
-    if (boot) {
-      set((state) => setBoot(state));
-    }
-
-    if (!glass) return;
-
-    await Promise.all([get().refreshCfg(), get().refreshSums()]);
+    await Promise.all([
+      useThreadSessionStore.getState().refreshCfg(),
+      useThreadSessionStore.getState().refreshSums(),
+    ]);
   },
   refreshCfg: async () => {
-    const glass = readGlass();
-    if (!glass) {
-      set((state) => setCfg(state, null, "ready", null));
-      return;
+    try {
+      const cfg = await loadCfg();
+      set((state) => ({
+        ...state,
+        cfg,
+        cfgStatus: "ready",
+        cfgError: null,
+        ready: nowStatus("ready", state.sumsStatus),
+      }));
+    } catch (err) {
+      set((state) => ({
+        ...state,
+        cfg: null,
+        cfgStatus: "error",
+        cfgError: err instanceof Error ? err.message : String(err),
+        ready: false,
+      }));
     }
-    if (cfgRun) return cfgRun;
-
-    const seq = ++cfgSeq;
-    cfgRun = glass.pi
-      .getConfig()
-      .then((cfg) => {
-        if (seq !== cfgSeq) return;
-        set((state) => setCfg(state, cfg, "ready", null));
-      })
-      .catch((err) => {
-        if (seq !== cfgSeq) return;
-        set((state) => (state.cfgReady ? state : setCfg(state, null, "error", issue(err))));
-      })
-      .finally(() => {
-        if (seq !== cfgSeq) return;
-        cfgRun = null;
-      });
-
-    return cfgRun;
   },
   refreshSums: async () => {
-    const glass = readGlass();
-    if (!glass) {
-      set((state) => setSums(state, [], "ready", null));
-      return;
+    try {
+      const next = domainState();
+      set((state) => ({
+        ...state,
+        ...next,
+        sumsStatus: "ready",
+        sumsError: null,
+        ready: nowStatus(state.cfgStatus, "ready"),
+      }));
+    } catch (err) {
+      set((state) => ({
+        ...state,
+        sumsStatus: "error",
+        sumsError: err instanceof Error ? err.message : String(err),
+        ready: false,
+      }));
     }
-    if (sumsRun) return sumsRun;
-
-    const seq = ++sumsSeq;
-    sumsRun = glass.thread
-      .listAll()
-      .then((items) => {
-        if (seq !== sumsSeq) return;
-        set((state) => setSums(state, items.map(fromThread), "ready", null));
-      })
-      .catch((err) => {
-        if (seq !== sumsSeq) return;
-        set((state) => (state.sumsReady ? state : setSums(state, [], "error", issue(err))));
-      })
-      .finally(() => {
-        if (seq !== sumsSeq) return;
-        sumsRun = null;
-      });
-
-    return sumsRun;
-  },
-  resetForWorkspaceChange: () => {
-    cfgSeq++;
-    cfgRun = null;
-    set((state) => setCfg(state, state.cfg, "loading", null));
-  },
-  applySummaryEvent: (event) => {
-    set((state) => {
-      if (event.type === "remove") {
-        if (!(event.sessionId in state.sums)) return state;
-        const sums = { ...state.sums };
-        delete sums[event.sessionId];
-        return { sums, ids: rank(sums) } satisfies Partial<State>;
-      }
-
-      const item = event.summary;
-      if (same(state.sums[item.id], item)) return state;
-      const sums = { ...state.sums, [item.id]: item };
-      return { sums, ids: rank(sums) } satisfies Partial<State>;
-    });
   },
   putSnap: (snap) => {
-    set((state) => ({
-      snaps: { ...state.snaps, [snap.id]: snap },
-    }));
+    set((state) => ({ ...state, snaps: { ...state.snaps, [snap.id]: snap } }));
   },
-  applyActs: (events) => {
-    set((state) => {
-      const snaps = { ...state.snaps };
-      let hit = false;
-      for (const event of events) {
-        const cur = snaps[event.sessionId];
-        if (!cur) {
-          if (event.delta.type !== "sync") continue;
-          snaps[event.sessionId] = event.delta.snapshot;
-          hit = true;
-          continue;
-        }
-        snaps[event.sessionId] = patch(cur, event.delta);
-        hit = true;
-      }
-      if (!hit) return state;
-      return { snaps } satisfies Partial<State>;
-    });
+  applyActs: () => {
+    useThreadSessionStore.getState().syncDomain();
+  },
+  syncDomain: () => {
+    const next = domainState();
+    set((state) => ({
+      ...state,
+      ...next,
+      sumsStatus: "ready",
+      sumsError: null,
+      ready: nowStatus(state.cfgStatus, "ready"),
+    }));
   },
 }));
 
@@ -327,9 +358,6 @@ export const useThreadSummaries = () => useThreadSessionStore((state) => state.s
 export const useThreadSummariesStatus = () => useThreadSessionStore((state) => state.sumsStatus);
 
 export function useThreadSummary(sessionId: string | null | undefined) {
-  const pick = useMemo(
-    () => (state: State) => (sessionId ? state.sums[sessionId] : undefined),
-    [sessionId],
-  );
+  const pick = (state: State) => (sessionId ? (state.sums[sessionId] ?? null) : null);
   return useThreadSessionStore(pick);
 }

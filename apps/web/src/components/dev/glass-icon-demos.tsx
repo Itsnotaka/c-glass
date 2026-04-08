@@ -47,7 +47,7 @@ import {
 } from "~/components/glass/combobox";
 import type { DiffRow } from "~/hooks/use-glass-git";
 import type { GlassSidebarSection } from "~/lib/glass-view-model";
-import type { PiModelItem } from "~/lib/runtime-models";
+import type { RuntimeModelItem } from "~/lib/runtime-models";
 
 function useDemoPanels(): GlassAppShellPanels {
   const [leftOpen, setLeftOpen] = useState(true);
@@ -104,7 +104,7 @@ const slashSkill: GlassSlashItem = {
   id: "demo-skill",
   kind: "skill",
   name: "skill",
-  source: "pi",
+  source: "runtime",
   pill: "skill",
   section: "skills",
   run: { type: "insert", value: "skill" },
@@ -124,7 +124,7 @@ const slashSub: GlassSlashItem = {
   id: "demo-sub",
   kind: "subagent",
   name: "plan",
-  source: "pi",
+  source: "runtime",
   pill: "subagent",
   section: "subagents",
   run: { type: "insert", value: "plan" },
@@ -143,7 +143,7 @@ const fileHits: ShellFileHit[] = [
   { path: "/proj/readme.md", name: "readme.md", kind: "file" },
 ];
 
-const reasoningModel: PiModelItem = {
+const reasoningModel: RuntimeModelItem = {
   key: "openai/o1",
   provider: "openai",
   id: "o1",
@@ -173,7 +173,25 @@ const askDemo: GlassAskState = {
 };
 
 const agentSections: GlassSidebarSection[] = [
-  { id: "sec", label: "Today", cwd: "/", active: true, ids: ["missing-thread"] },
+  {
+    id: "sec",
+    label: "Today",
+    cwd: "/",
+    active: true,
+    items: [
+      {
+        id: "missing-thread",
+        kind: "draft",
+        title: "Draft chat",
+        state: "draft",
+        unread: false,
+        updatedAt: new Date().toISOString(),
+        ago: "now",
+        selected: false,
+        cwd: "/",
+      },
+    ],
+  },
 ];
 
 function DemoSection(props: { title: string; hint?: string; children: ReactNode }) {
@@ -300,7 +318,7 @@ export function GlassIconDemosPanel() {
       <DemoSection title="components/glass/app-shell.tsx">
         <div className="h-[min(22rem,70vh)] overflow-hidden rounded-lg border border-border">
           <GlassAppShell
-            left={<div className="p-2 text-detail text-muted-foreground">Threads</div>}
+            left={<div className="p-2 text-detail text-muted-foreground">Chats</div>}
             center={<div className="p-2 text-detail">Editor</div>}
             right={<div className="p-2 text-detail text-muted-foreground">Changes</div>}
             title="Demo"
@@ -336,7 +354,7 @@ export function GlassIconDemosPanel() {
 
       <DemoSection title="components/glass/sidebar-header.tsx">
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
-          <GlassSidebarHeader onNewAgent={() => {}} />
+          <GlassSidebarHeader onNewChat={() => {}} />
         </div>
       </DemoSection>
 

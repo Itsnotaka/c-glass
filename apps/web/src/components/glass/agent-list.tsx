@@ -6,17 +6,19 @@ import type { GlassSidebarSection } from "../../lib/glass-view-model";
 import { cn } from "../../lib/utils";
 import { GlassAgentRow } from "./agent-row";
 
-/** Matches Cursor `workbench.desktop.main.js`: `E$i=5,H_l=8` (SidebarPaginatedMenu). */
 const initialMaxVisible = 5;
 const pageStep = 8;
 
-function minVisibleForSelection(ids: readonly string[], selectedId: string | null) {
-  if (ids.length === 0) return 0;
-  const firstPage = Math.min(ids.length, initialMaxVisible);
+function minVisibleForSelection(
+  items: readonly GlassSidebarSection["items"][number][],
+  selectedId: string | null,
+) {
+  if (items.length === 0) return 0;
+  const firstPage = Math.min(items.length, initialMaxVisible);
   if (!selectedId) return firstPage;
-  const i = ids.indexOf(selectedId);
+  const i = items.findIndex((item) => item.id === selectedId);
   if (i < 0) return firstPage;
-  return Math.min(ids.length, Math.max(firstPage, i + 1));
+  return Math.min(items.length, Math.max(firstPage, i + 1));
 }
 
 function Section(props: {
@@ -25,28 +27,28 @@ function Section(props: {
   onSelectAgent: (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const ids = props.section.ids;
+  const items = props.section.items;
   const minVisible = useMemo(
-    () => minVisibleForSelection(ids, props.selectedId),
-    [ids, props.selectedId],
+    () => minVisibleForSelection(items, props.selectedId),
+    [items, props.selectedId],
   );
   const [extra, setExtra] = useState(0);
 
   useEffect(() => {
-    setExtra((b) => {
+    setExtra((count) => {
       const need = Math.max(0, minVisible - initialMaxVisible);
-      const minB = need === 0 ? 0 : Math.ceil(need / pageStep);
-      return Math.max(b, minB);
+      const min = need === 0 ? 0 : Math.ceil(need / pageStep);
+      return Math.max(count, min);
     });
   }, [minVisible]);
 
-  const firstPage = Math.min(ids.length, initialMaxVisible);
-  const rawVisible = Math.min(ids.length, initialMaxVisible + extra * pageStep);
+  const firstPage = Math.min(items.length, initialMaxVisible);
+  const rawVisible = Math.min(items.length, initialMaxVisible + extra * pageStep);
   let visible = Math.max(rawVisible, minVisible);
-  if (ids.length - visible === 1 && visible < ids.length) visible = ids.length;
+  if (items.length - visible === 1 && visible < items.length) visible = items.length;
 
-  const shouldPaginate = ids.length > firstPage;
-  const showMore = shouldPaginate && visible < ids.length;
+  const shouldPaginate = items.length > firstPage;
+  const showMore = shouldPaginate && visible < items.length;
 
   return (
     <section className="min-w-0 w-full">
@@ -66,18 +68,13 @@ function Section(props: {
       </button>
       {open && (
         <div className="flex flex-col">
-          {ids.slice(0, visible).map((id) => (
-            <GlassAgentRow
-              key={id}
-              id={id}
-              selectedId={props.selectedId}
-              onSelectAgent={props.onSelectAgent}
-            />
+          {items.slice(0, visible).map((item) => (
+            <GlassAgentRow key={item.id} item={item} onSelectAgent={props.onSelectAgent} />
           ))}
           {showMore ? (
             <button
               type="button"
-              onClick={() => setExtra((b) => b + 1)}
+              onClick={() => setExtra((count) => count + 1)}
               className={cn(
                 "font-glass flex min-h-7.5 w-full items-center justify-start gap-2 rounded-glass-control px-2 py-1 text-left text-detail/4 text-muted-foreground/70 transition-colors",
                 "hover:bg-glass-hover hover:text-muted-foreground",
@@ -96,7 +93,7 @@ function Section(props: {
 export function GlassAgentList(props: {
   sections: GlassSidebarSection[];
   selectedId: string | null;
-  onSelectAgent: (threadId: string) => void;
+  onSelectAgent: (id: string) => void;
   loading?: boolean;
   error?: boolean;
 }) {
@@ -120,7 +117,7 @@ export function GlassAgentList(props: {
   if (props.error) {
     return (
       <p className="px-2 py-4 text-detail text-muted-foreground/60">
-        Unable to load threads right now.
+        Unable to load chats right now.
       </p>
     );
   }
@@ -128,7 +125,7 @@ export function GlassAgentList(props: {
   if (props.sections.length === 0) {
     return (
       <p className="px-2 py-4 text-detail text-muted-foreground/60">
-        No threads yet. Create a new agent to begin.
+        No chats yet. Start a chat to begin.
       </p>
     );
   }

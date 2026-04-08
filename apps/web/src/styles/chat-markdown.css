@@ -1,6 +1,6 @@
 /**
  * Cursor / VS Code interactive-session `.rendered-markdown` parity for Streamdown output.
- * Reference: Cursor `workbench.desktop.main.css`; extract via `scripts/extract-cursor-markdown-css.mjs`.
+ * Reference: Cursor `workbench.desktop.main.css`.
  */
 
 /* Chat markdown — Cursor / VS Code interactive `.rendered-markdown` semantics + Streamdown overrides */

@@ -22,15 +22,8 @@
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
     "glass/no-tiny-wrapper-function": "warn",
-    "glass/no-unknown-function-type": "warn",
-    "typescript/no-restricted-types": [
-      "warn",
-      {
-        "types": {
-          "unknown": "Avoid `unknown` as a broad type escape hatch. Prefer concrete shapes or validated parser outputs. Prefer type inference over explicit `unknown`."
-        }
-      }
-    ]
+    "glass/no-unknown-function-type": "off",
+    "typescript/no-restricted-types": "off"
   },
   "overrides": [
     {

@@ -127,7 +127,6 @@ export interface HarnessCapabilities {
   modelPicker: boolean;
   thinkingLevels: boolean;
   commands: boolean;
-  extensions: boolean;
   interactive: boolean;
   fileAttachments: boolean;
 }

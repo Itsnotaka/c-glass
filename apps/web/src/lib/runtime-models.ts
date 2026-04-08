@@ -1,265 +1,367 @@
-import type { PiConfig, HarnessModelRef, PiProviderState, ThinkingLevel } from "@glass/contracts";
-import { getGlass } from "../host";
+import {
+  CommandId,
+  DEFAULT_MODEL_BY_PROVIDER,
+  type HarnessModelRef,
+  type ModelSelection,
+  type ProviderKind,
+  PROVIDER_DISPLAY_NAMES,
+  type ServerProvider,
+  type ThinkingLevel,
+} from "@glass/contracts";
+import {
+  normalizeClaudeModelOptionsWithCapabilities,
+  normalizeCodexModelOptionsWithCapabilities,
+  resolveSelectableModel,
+} from "@glass/shared/model";
 
-const PREFERRED = [
-  ["amazon-bedrock", "us.anthropic.claude-opus-4-6-v1"],
-  ["anthropic", "claude-opus-4-6"],
-  ["openai", "gpt-5.4"],
-  ["azure-openai-responses", "gpt-5.2"],
-  ["openai-codex", "gpt-5.4"],
-  ["google", "gemini-2.5-pro"],
-  ["google-gemini-cli", "gemini-2.5-pro"],
-  ["google-antigravity", "gemini-3.1-pro-high"],
-  ["google-vertex", "gemini-3-pro-preview"],
-  ["github-copilot", "gpt-4o"],
-  ["openrouter", "openai/gpt-5.1-codex"],
-  ["cursor", "composer-2-fast"],
-  ["vercel-ai-gateway", "anthropic/claude-opus-4-6"],
-  ["xai", "grok-4-fast-non-reasoning"],
-  ["groq", "openai/gpt-oss-120b"],
-  ["cerebras", "zai-glm-4.7"],
-  ["zai", "glm-5"],
-  ["mistral", "devstral-medium-latest"],
-  ["minimax", "MiniMax-M2.7"],
-  ["minimax-cn", "MiniMax-M2.7"],
-  ["huggingface", "moonshotai/Kimi-K2.5"],
-  ["opencode", "claude-opus-4-6"],
-  ["opencode-go", "kimi-k2.5"],
-  ["kimi-coding", "kimi-k2-thinking"],
-] as const;
+import { readNativeApi } from "../nativeApi";
+import { getServerConfig } from "../rpc/serverState";
+import {
+  getDefaultServerModel,
+  getProviderModelCapabilities,
+  getProviderModels,
+  resolveSelectableProvider,
+} from "../providerModels";
+import { useStore } from "../store";
+import type { Project } from "../types";
 
-export interface PiModelItem extends HarnessModelRef {
+const WORKSPACE_KEY = "glass:workspace-cwd";
+
+export interface RuntimeModelItem extends HarnessModelRef {
   key: string;
   name: string;
   supportsXhigh: boolean;
 }
 
-export interface PiDefaultsRead {
+export interface RuntimeDefaultsRead {
+  project: Project | null;
+  selection: ModelSelection;
   provider: string | null;
   model: string | null;
-  thinkingLevel: ThinkingLevel | null;
+  thinkingLevel: ThinkingLevel;
+  stored: boolean;
+  items: RuntimeModelItem[];
+  modelRef: RuntimeModelItem | HarnessModelRef | null;
 }
 
-export interface PiProviderItem extends PiProviderState {}
+const commandId = () => CommandId.makeUnsafe(crypto.randomUUID());
+
+export function readStoredCwd() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(WORKSPACE_KEY)?.trim();
+  return raw && raw.length > 0 ? raw : null;
+}
+
+export function resolveActiveProject(projects: readonly Project[], cwd = readStoredCwd()) {
+  return projects.find((item) => item.cwd === cwd) ?? projects[0] ?? null;
+}
+
+function activeProject() {
+  return resolveActiveProject(useStore.getState().projects);
+}
 
 function key(provider: string, id: string) {
   return `${provider}/${id}`;
 }
 
-/** Strips a redundant leading "Model " from Pi display names (config often includes it). */
 export function displayModelName(raw: string) {
-  const t = raw.trim();
-  if (!t) return raw;
-  const n = t.replace(/^model\s+/i, "").trim();
-  return n.length ? n : t;
+  const text = raw.trim();
+  if (!text) return raw;
+  const next = text.replace(/^model\s+/i, "").trim();
+  return next.length > 0 ? next : text;
 }
 
-function item(model: PiConfig["models"][number]) {
+export function displayProviderName(provider: string) {
+  return provider === "codex" || provider === "claudeAgent"
+    ? PROVIDER_DISPLAY_NAMES[provider]
+    : provider;
+}
+
+function supportsXhigh(
+  provider: ProviderKind,
+  caps: ServerProvider["models"][number]["capabilities"],
+) {
+  if (!caps) return false;
+  if (provider === "codex") {
+    return caps.reasoningEffortLevels.some((item) => item.value === "xhigh");
+  }
+  return caps.reasoningEffortLevels.some(
+    (item) => item.value === "max" || item.value === "ultrathink",
+  );
+}
+
+export function toModelItem(
+  provider: ProviderKind,
+  item: ServerProvider["models"][number],
+): RuntimeModelItem {
   return {
-    key: key(model.provider, model.id),
-    provider: model.provider,
-    id: model.id,
-    name: model.name || model.id,
-    reasoning: model.reasoning,
-    supportsXhigh: model.supportsXhigh,
+    key: key(provider, item.slug),
+    provider,
+    id: item.slug,
+    name: item.name,
+    reasoning:
+      Boolean(item.capabilities?.supportsThinkingToggle) ||
+      Boolean(item.capabilities?.reasoningEffortLevels.length),
+    supportsXhigh: supportsXhigh(provider, item.capabilities),
   };
 }
 
-function same(left: HarnessModelRef | null | undefined, right: HarnessModelRef | null | undefined) {
-  if (!left || !right) return false;
-  return left.provider === right.provider && left.id === right.id;
-}
-
-function fuzzyMatch(query: string, text: string) {
-  const a = query.toLowerCase();
-  const b = text.toLowerCase();
-
-  const match = (cur: string) => {
-    if (!cur.length) return { matches: true, score: 0 };
-    if (cur.length > b.length) return { matches: false, score: 0 };
-
-    let qi = 0;
-    let score = 0;
-    let last = -1;
-    let run = 0;
-
-    for (let i = 0; i < b.length && qi < cur.length; i++) {
-      if (b[i] !== cur[qi]) continue;
-      const edge = i === 0 || /[\s\-_./:]/.test(b[i - 1] ?? "");
-      if (last === i - 1) {
-        run++;
-        score -= run * 5;
-      }
-      if (last !== i - 1) {
-        run = 0;
-        if (last >= 0) score += (i - last - 1) * 2;
-      }
-      if (edge) score -= 10;
-      score += i * 0.1;
-      last = i;
-      qi++;
-    }
-
-    if (qi < cur.length) return { matches: false, score: 0 };
-    return { matches: true, score };
+function fallbackModel(selection: ModelSelection): HarnessModelRef {
+  return {
+    provider: selection.provider,
+    id: selection.model,
+    name: selection.model,
+    reasoning:
+      selection.provider === "codex"
+        ? Boolean(selection.options?.reasoningEffort)
+        : Boolean(selection.options?.thinking) || Boolean(selection.options?.effort),
   };
-
-  const base = match(a);
-  if (base.matches) return base;
-
-  const alpha = a.match(/^(?<letters>[a-z]+)(?<digits>[0-9]+)$/);
-  const num = a.match(/^(?<digits>[0-9]+)(?<letters>[a-z]+)$/);
-  const swap = alpha
-    ? `${alpha.groups?.digits ?? ""}${alpha.groups?.letters ?? ""}`
-    : num
-      ? `${num.groups?.letters ?? ""}${num.groups?.digits ?? ""}`
-      : "";
-
-  if (!swap) return base;
-  const next = match(swap);
-  if (!next.matches) return base;
-  return { matches: true, score: next.score + 5 };
 }
 
-export function filterPiModels(items: readonly PiModelItem[], query: string) {
-  const input = query.trim();
+function selectableOptions(
+  providers: readonly ServerProvider[],
+  provider: ProviderKind,
+): ReadonlyArray<{ slug: string; name: string }> {
+  return getProviderModels(providers, provider).map((item) => ({
+    slug: item.slug,
+    name: item.name,
+  }));
+}
+
+export function resolveRuntimeSelection(
+  providers: readonly ServerProvider[],
+  selection: ModelSelection | null | undefined,
+  requested?: ProviderKind | null,
+): ModelSelection {
+  const provider = resolveSelectableProvider(
+    providers,
+    requested ?? selection?.provider ?? "codex",
+  );
+  const prev = selection?.provider === provider ? selection : null;
+  const model =
+    resolveSelectableModel(provider, prev?.model ?? null, selectableOptions(providers, provider)) ??
+    getDefaultServerModel(providers, provider) ??
+    DEFAULT_MODEL_BY_PROVIDER[provider];
+  const caps = getProviderModelCapabilities(
+    getProviderModels(providers, provider),
+    model,
+    provider,
+  );
+  const options =
+    provider === "codex"
+      ? normalizeCodexModelOptionsWithCapabilities(
+          caps,
+          prev?.provider === "codex" ? prev.options : undefined,
+        )
+      : normalizeClaudeModelOptionsWithCapabilities(
+          caps,
+          prev?.provider === "claudeAgent" ? prev.options : undefined,
+        );
+
+  return {
+    provider,
+    model,
+    ...(options ? { options } : {}),
+  };
+}
+
+export function filterRuntimeModels(items: readonly RuntimeModelItem[], query: string) {
+  const input = query.trim().toLowerCase();
   if (!input) return [...items];
 
-  const tokens = input
-    .split(/\s+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  if (!tokens.length) return [...items];
-
-  const out: Array<{ item: PiModelItem; score: number }> = [];
-
-  for (const item of items) {
-    const text = `${item.provider} ${item.id} ${item.provider}/${item.id} ${item.name}`;
-    let score = 0;
-    let ok = true;
-
-    for (const token of tokens) {
-      const match = fuzzyMatch(token, text);
-      if (!match.matches) {
-        ok = false;
-        break;
-      }
-      score += match.score;
-    }
-
-    if (ok) out.push({ item, score });
-  }
-
-  out.sort((left, right) => left.score - right.score);
-  return out.map((item) => item.item);
+  const tokens = input.split(/\s+/).filter(Boolean);
+  return items
+    .filter((item) => {
+      const text =
+        `${item.provider} ${displayProviderName(item.provider)} ${item.id} ${item.name}`.toLowerCase();
+      return tokens.every((token) => text.includes(token));
+    })
+    .toSorted((left, right) =>
+      `${displayProviderName(left.provider)} ${left.name}`.localeCompare(
+        `${displayProviderName(right.provider)} ${right.name}`,
+      ),
+    );
 }
 
-export function readPiDefaultsFromConfig(data: PiConfig): PiDefaultsRead {
+export function selectionToThinking(selection: ModelSelection | null | undefined): ThinkingLevel {
+  if (!selection) return "off";
+  if (selection.provider === "codex") {
+    switch (selection.options?.reasoningEffort) {
+      case "low":
+        return "low";
+      case "medium":
+        return "medium";
+      case "high":
+        return "high";
+      case "xhigh":
+        return "xhigh";
+      default:
+        return "off";
+    }
+  }
+
+  if (selection.options?.thinking === false) return "off";
+  switch (selection.options?.effort) {
+    case "low":
+      return "low";
+    case "medium":
+      return "medium";
+    case "high":
+      return "high";
+    case "max":
+    case "ultrathink":
+      return "xhigh";
+    default:
+      return selection.options?.thinking ? "medium" : "off";
+  }
+}
+
+export function applyThinking(selection: ModelSelection, level: ThinkingLevel): ModelSelection {
+  if (selection.provider === "codex") {
+    if (level === "off") {
+      return { provider: "codex", model: selection.model };
+    }
+
+    const reasoningEffort =
+      level === "minimal" || level === "low"
+        ? "low"
+        : level === "medium"
+          ? "medium"
+          : level === "xhigh"
+            ? "xhigh"
+            : "high";
+    return {
+      provider: "codex",
+      model: selection.model,
+      options: { reasoningEffort },
+    };
+  }
+
+  if (level === "off") {
+    return {
+      provider: "claudeAgent",
+      model: selection.model,
+      options: { thinking: false },
+    };
+  }
+
+  const effort =
+    level === "minimal" || level === "low"
+      ? "low"
+      : level === "medium"
+        ? "medium"
+        : level === "xhigh"
+          ? "max"
+          : "high";
   return {
-    provider: data.defaults.provider,
-    model: data.defaults.model,
-    thinkingLevel: data.defaults.thinkingLevel,
+    provider: "claudeAgent",
+    model: selection.model,
+    options: { thinking: true, effort },
   };
 }
 
-export async function readPiDefaults() {
-  const data = await getGlass().pi.getConfig();
-  return readPiDefaultsFromConfig(data);
-}
-
-export async function listPiProviders() {
-  const data = await getGlass().pi.getConfig();
-  return [...data.providers].toSorted((left, right) => left.provider.localeCompare(right.provider));
-}
-
-export async function readPiProvider(provider: string) {
-  const data = await getGlass().pi.getConfig();
-  return (data.providers.find((item) => item.provider === provider) ?? {
-    provider,
-    configured: false,
-    credentialType: null,
-    oauthSupported: false,
-  }) satisfies PiProviderItem;
-}
-
-export function listPiModelsFromConfig(data: PiConfig, cur?: HarnessModelRef | null) {
-  const all = data.models.map((m) => item(m));
-  const available = new Set(data.available);
-  const next = all.filter((row) => available.has(row.key) || same(cur, row));
-  if (next.length > 0) return next;
-  return all;
-}
-
-export function resolvePiDefaultModelFromConfig(data: PiConfig, cur?: HarnessModelRef | null) {
-  const items = data.models.map((m) => item(m));
-  const available = new Set(data.available);
-
-  if (data.defaults.provider && data.defaults.model) {
-    const hit = items.find(
-      (row) => row.provider === data.defaults.provider && row.id === data.defaults.model,
-    );
-    if (hit) return hit;
+export function listRuntimeModelsFromProviders(
+  providers: readonly ServerProvider[],
+  cur?: HarnessModelRef | null,
+) {
+  const items = providers
+    .filter((provider) => provider.enabled)
+    .flatMap((provider) => provider.models.map((item) => toModelItem(provider.provider, item)));
+  const keys = new Set(items.map((item) => item.key));
+  if (cur && !keys.has(key(cur.provider, cur.id))) {
+    items.push({
+      key: key(cur.provider, cur.id),
+      provider: cur.provider,
+      id: cur.id,
+      name: cur.name ?? cur.id,
+      reasoning: Boolean(cur.reasoning),
+      supportsXhigh: false,
+    });
   }
+  return items.toSorted((left, right) =>
+    `${displayProviderName(left.provider)} ${left.name}`.localeCompare(
+      `${displayProviderName(right.provider)} ${right.name}`,
+    ),
+  );
+}
 
-  const pref = PREFERRED.flatMap(([provider, id]) => {
-    const hit = items.find(
-      (row) => available.has(row.key) && row.provider === provider && row.id === id,
-    );
-    return hit ? [hit] : [];
+export function resolveRuntimeModel(
+  providers: readonly ServerProvider[],
+  selection: ModelSelection,
+  cur?: HarnessModelRef | null,
+) {
+  const items = listRuntimeModelsFromProviders(providers, cur);
+  return (
+    items.find((item) => item.provider === selection.provider && item.id === selection.model) ??
+    cur ??
+    fallbackModel(selection)
+  );
+}
+
+export function readRuntimeDefaults(
+  projects: readonly Project[],
+  providers: readonly ServerProvider[],
+  cwd = readStoredCwd(),
+  cur?: HarnessModelRef | null,
+) {
+  const project = resolveActiveProject(projects, cwd);
+  const selection = resolveRuntimeSelection(providers, project?.defaultModelSelection);
+  const modelRef = resolveRuntimeModel(providers, selection, cur);
+  return {
+    project,
+    selection,
+    provider: modelRef?.provider ?? null,
+    model: modelRef?.id ?? null,
+    thinkingLevel: selectionToThinking(selection),
+    stored: project?.defaultModelSelection !== null,
+    items: listRuntimeModelsFromProviders(providers, cur),
+    modelRef,
+  };
+}
+
+export async function writeRuntimeDefaultModel(model: HarnessModelRef) {
+  const api = readNativeApi();
+  const project = activeProject();
+  if (!api || !project) return;
+  const providers = getServerConfig()?.providers ?? [];
+  const current = project.defaultModelSelection;
+  const next = resolveRuntimeSelection(providers, {
+    provider: model.provider as ProviderKind,
+    model: model.id,
+    ...(current?.provider === model.provider && current.options
+      ? { options: current.options }
+      : {}),
   });
-  if (pref[0]) return pref[0];
-
-  const vis = listPiModelsFromConfig(data, cur);
-  if (vis[0]) return vis[0];
-  return cur ?? items[0] ?? null;
+  await api.orchestration.dispatchCommand({
+    type: "project.meta.update",
+    commandId: commandId(),
+    projectId: project.id,
+    defaultModelSelection: next,
+  });
 }
 
-export function resolvePiDefaultThinkingLevelFromConfig(data: PiConfig): ThinkingLevel {
-  return data.defaults.thinkingLevel ?? "off";
+export async function clearRuntimeDefaultModel() {
+  const api = readNativeApi();
+  const project = activeProject();
+  if (!api || !project) return;
+  await api.orchestration.dispatchCommand({
+    type: "project.meta.update",
+    commandId: commandId(),
+    projectId: project.id,
+    defaultModelSelection: null,
+  });
 }
 
-export async function listPiModels(cur?: HarnessModelRef | null) {
-  const data = await getGlass().pi.getConfig();
-  return listPiModelsFromConfig(data, cur);
-}
-
-export async function resolvePiDefaultModel(cur?: HarnessModelRef | null) {
-  const data = await getGlass().pi.getConfig();
-  return resolvePiDefaultModelFromConfig(data, cur);
-}
-
-export async function resolvePiDefaultThinkingLevel() {
-  const data = await getGlass().pi.getConfig();
-  return resolvePiDefaultThinkingLevelFromConfig(data);
-}
-
-export async function writePiDefaultModel(model: HarnessModelRef) {
-  await getGlass().pi.setDefaultModel(model.provider, model.id);
-}
-
-export async function clearPiDefaultModel() {
-  await getGlass().pi.clearDefaultModel();
-}
-
-export async function writePiDefaultThinkingLevel(level: ThinkingLevel) {
-  await getGlass().pi.setDefaultThinkingLevel(level);
-}
-
-export const readPiApiKey = async (provider: string) => getGlass().pi.getApiKey(provider);
-
-export async function writePiApiKey(provider: string, key: string) {
-  await getGlass().pi.setApiKey(provider, key);
-}
-
-export async function clearPiAuth(provider: string) {
-  await getGlass().pi.clearAuth(provider);
-}
-
-export async function startPiOAuthLogin(provider: string) {
-  await getGlass().pi.startOAuthLogin(provider);
-}
-
-export function hasStoredPiDefault(defs: PiDefaultsRead) {
-  return defs.provider !== null && defs.model !== null;
+export async function writeRuntimeDefaultThinkingLevel(level: ThinkingLevel) {
+  const api = readNativeApi();
+  const project = activeProject();
+  if (!api || !project) return;
+  const providers = getServerConfig()?.providers ?? [];
+  const selection = resolveRuntimeSelection(providers, project.defaultModelSelection);
+  await api.orchestration.dispatchCommand({
+    type: "project.meta.update",
+    commandId: commandId(),
+    projectId: project.id,
+    defaultModelSelection: resolveRuntimeSelection(providers, applyThinking(selection, level)),
+  });
 }

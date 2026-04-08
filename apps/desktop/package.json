@@ -14,9 +14,6 @@
     "smoke-test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
-    "@mariozechner/pi-agent-core": "0.64.0",
-    "@mariozechner/pi-ai": "0.64.0",
-    "@mariozechner/pi-coding-agent": "^0.64.0",
     "effect": "catalog:",
     "electron": "40.6.0",
     "electron-updater": "^6.8.3"
