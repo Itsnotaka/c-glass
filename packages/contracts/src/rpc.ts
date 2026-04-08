@@ -12,6 +12,7 @@ import {
   GitCreateBranchResult,
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
+  GitDiscardPathsInput,
   GitGetFilePatchInput,
   GitGetFilePatchResult,
   GitInitInput,
@@ -90,6 +91,7 @@ export const WS_METHODS = {
   gitPull: "git.pull",
   gitRefreshStatus: "git.refreshStatus",
   gitGetFilePatch: "git.getFilePatch",
+  gitDiscardPaths: "git.discardPaths",
   gitRunStackedAction: "git.runStackedAction",
   gitListBranches: "git.listBranches",
   gitCreateWorktree: "git.createWorktree",
@@ -191,6 +193,11 @@ export const WsGitRefreshStatusRpc = Rpc.make(WS_METHODS.gitRefreshStatus, {
 export const WsGitGetFilePatchRpc = Rpc.make(WS_METHODS.gitGetFilePatch, {
   payload: GitGetFilePatchInput,
   success: GitGetFilePatchResult,
+  error: GitCommandError,
+});
+
+export const WsGitDiscardPathsRpc = Rpc.make(WS_METHODS.gitDiscardPaths, {
+  payload: GitDiscardPathsInput,
   error: GitCommandError,
 });
 
@@ -356,6 +363,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsGitPullRpc,
   WsGitRefreshStatusRpc,
   WsGitGetFilePatchRpc,
+  WsGitDiscardPathsRpc,
   WsGitRunStackedActionRpc,
   WsGitResolvePullRequestRpc,
   WsGitPreparePullRequestThreadRpc,

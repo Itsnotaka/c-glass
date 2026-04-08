@@ -15,6 +15,7 @@ import type {
   GitCreateBranchResult,
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
+  GitDiscardPathsInput,
   GitGetFilePatchResult,
   GitInitInput,
   GitListBranchesInput,
@@ -180,6 +181,11 @@ export interface GitCoreShape {
     cwd: string,
     path: string,
   ) => Effect.Effect<GitGetFilePatchResult, GitCommandError>;
+
+  /**
+   * Discard selected working-tree changes.
+   */
+  readonly discardPaths: (input: GitDiscardPathsInput) => Effect.Effect<void, GitCommandError>;
 
   /**
    * Create a commit with provided subject/body.

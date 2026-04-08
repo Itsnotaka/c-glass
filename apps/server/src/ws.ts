@@ -583,6 +583,12 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           git.workingTreeFilePatch(input.cwd, input.path),
           { "rpc.aggregate": "git" },
         ),
+      [WS_METHODS.gitDiscardPaths]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.gitDiscardPaths,
+          git.discardPaths(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+          { "rpc.aggregate": "git" },
+        ),
       [WS_METHODS.gitPull]: (input) =>
         observeRpcEffect(
           WS_METHODS.gitPull,

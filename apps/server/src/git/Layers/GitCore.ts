@@ -18,7 +18,7 @@ import {
 } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
-import { GitCommandError, type GitBranch } from "@glass/contracts";
+import { GitCommandError, type GitBranch, type GitFileState } from "@glass/contracts";
 import { dedupeRemoteBranchesWithLocalMatches } from "@glass/shared/git";
 import { compactTraceAttributes } from "../../observability/Attributes.ts";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../../observability/Metrics.ts";
@@ -151,26 +151,54 @@ function chunkPathsForGitCheckIgnore(relativePaths: readonly string[]): string[]
   return chunks;
 }
 
-function parsePorcelainPath(line: string): string | null {
+function parseState(code: string, renamed: boolean): GitFileState {
+  if (renamed) return "renamed";
+  if (code.includes("U")) return "conflicted";
+  if (code.includes("T")) return "typechange";
+  if (code.includes("D")) return "deleted";
+  if (code.includes("A")) return "added";
+  return "modified";
+}
+
+function parsePorcelainFile(
+  line: string,
+): { path: string; prevPath: string | null; state: GitFileState } | null {
   if (line.startsWith("? ") || line.startsWith("! ")) {
     const simple = line.slice(2).trim();
-    return simple.length > 0 ? simple : null;
+    if (simple.length === 0 || line.startsWith("! ")) return null;
+    return {
+      path: simple,
+      prevPath: null,
+      state: "untracked",
+    };
   }
 
   if (!(line.startsWith("1 ") || line.startsWith("2 ") || line.startsWith("u "))) {
     return null;
   }
 
+  const parts = line.trim().split(/\s+/g);
+  const code = parts[1] ?? "";
   const tabIndex = line.indexOf("\t");
   if (tabIndex >= 0) {
     const fromTab = line.slice(tabIndex + 1);
-    const [filePath] = fromTab.split("\t");
-    return filePath?.trim().length ? filePath.trim() : null;
+    const [pathRaw, prevPathRaw] = fromTab.split("\t");
+    const path = pathRaw?.trim() ?? "";
+    if (path.length === 0) return null;
+    return {
+      path,
+      prevPath: prevPathRaw?.trim().length ? prevPathRaw.trim() : null,
+      state: line.startsWith("u ") ? "conflicted" : parseState(code, line.startsWith("2 ")),
+    };
   }
 
-  const parts = line.trim().split(/\s+/g);
   const filePath = parts.at(-1) ?? "";
-  return filePath.length > 0 ? filePath : null;
+  if (filePath.length === 0) return null;
+  return {
+    path: filePath,
+    prevPath: null,
+    state: line.startsWith("u ") ? "conflicted" : parseState(code, false),
+  };
 }
 
 function parseBranchLine(line: string): { name: string; current: boolean } | null {
@@ -1230,7 +1258,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     let aheadCount = 0;
     let behindCount = 0;
     let hasWorkingTreeChanges = false;
-    const changedFilesWithoutNumstat = new Set<string>();
+    const changedFiles = new Map<string, { prevPath: string | null; state: GitFileState }>();
 
     for (const line of statusStdout.split(/\r?\n/g)) {
       if (line.startsWith("# branch.head ")) {
@@ -1252,8 +1280,13 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       }
       if (line.trim().length > 0 && !line.startsWith("#")) {
         hasWorkingTreeChanges = true;
-        const pathValue = parsePorcelainPath(line);
-        if (pathValue) changedFilesWithoutNumstat.add(pathValue);
+        const file = parsePorcelainFile(line);
+        if (file) {
+          changedFiles.set(file.path, {
+            prevPath: file.prevPath,
+            state: file.state,
+          });
+        }
       }
     }
 
@@ -1276,19 +1309,21 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
 
     let insertions = 0;
     let deletions = 0;
-    const files = Array.from(fileStatMap.entries())
-      .map(([filePath, stat]) => {
+    const files = Array.from(new Set([...fileStatMap.keys(), ...changedFiles.keys()]))
+      .map((filePath) => {
+        const stat = fileStatMap.get(filePath) ?? { insertions: 0, deletions: 0 };
+        const file = changedFiles.get(filePath);
         insertions += stat.insertions;
         deletions += stat.deletions;
-        return { path: filePath, insertions: stat.insertions, deletions: stat.deletions };
+        return {
+          path: filePath,
+          prevPath: file?.prevPath ?? null,
+          state: file?.state ?? "modified",
+          insertions: stat.insertions,
+          deletions: stat.deletions,
+        };
       })
       .toSorted((a, b) => a.path.localeCompare(b.path));
-
-    for (const filePath of changedFilesWithoutNumstat) {
-      if (fileStatMap.has(filePath)) continue;
-      files.push({ path: filePath, insertions: 0, deletions: 0 });
-    }
-    files.sort((a, b) => a.path.localeCompare(b.path));
 
     return {
       isRepo: true,
@@ -1411,6 +1446,42 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
       },
     );
     return { unifiedDiff: untracked };
+  });
+
+  const discardPaths: GitCoreShape["discardPaths"] = Effect.fn("discardPaths")(function* (input) {
+    const details = yield* statusDetailsLocal(input.cwd);
+    const want = new Set(input.paths);
+    const files = details.workingTree.files.filter((file) => want.has(file.path));
+
+    const tracked = new Set<string>();
+    const untracked = new Set<string>();
+
+    for (const file of files) {
+      if (file.state === "untracked") {
+        untracked.add(file.path);
+        continue;
+      }
+
+      tracked.add(file.path);
+      if (file.state === "renamed" && file.prevPath) {
+        tracked.add(file.prevPath);
+      }
+    }
+
+    if (tracked.size > 0) {
+      yield* runGit("GitCore.discardPaths.restore", input.cwd, [
+        "restore",
+        "--source=HEAD",
+        "--staged",
+        "--worktree",
+        "--",
+        ...tracked,
+      ]);
+    }
+
+    if (untracked.size > 0) {
+      yield* runGit("GitCore.discardPaths.clean", input.cwd, ["clean", "-fd", "--", ...untracked]);
+    }
   });
 
   const commit: GitCoreShape["commit"] = Effect.fn("commit")(function* (
@@ -2165,6 +2236,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     statusDetailsLocal,
     prepareCommitContext,
     workingTreeFilePatch,
+    discardPaths,
     commit,
     pushCurrentBranch,
     pullCurrentBranch,

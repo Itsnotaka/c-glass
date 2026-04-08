@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 
-import type { EvlogApi } from "./lib/evlog";
 import type { NativeApi, DesktopBridge } from "@glass/contracts";
 
 interface ImportMetaEnv {
@@ -13,7 +12,6 @@ interface ImportMeta {
 
 declare global {
   interface Window {
-    evlog?: EvlogApi;
     nativeApi?: NativeApi;
     desktopBridge?: DesktopBridge;
   }

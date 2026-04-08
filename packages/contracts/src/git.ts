@@ -46,6 +46,15 @@ const GitPullRequestState = Schema.Literals(["open", "closed", "merged"]);
 const GitPreparePullRequestThreadMode = Schema.Literals(["local", "worktree"]);
 export const GitHostingProviderKind = Schema.Literals(["github", "gitlab", "unknown"]);
 export type GitHostingProviderKind = typeof GitHostingProviderKind.Type;
+const GitFileStateSchema = Schema.Literals([
+  "modified",
+  "added",
+  "deleted",
+  "renamed",
+  "untracked",
+  "typechange",
+  "conflicted",
+]);
 export const GitHostingProvider = Schema.Struct({
   kind: GitHostingProviderKind,
   name: TrimmedNonEmptyStringSchema,
@@ -195,6 +204,12 @@ export const GitGetFilePatchInput = Schema.Struct({
 });
 export type GitGetFilePatchInput = typeof GitGetFilePatchInput.Type;
 
+export const GitDiscardPathsInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  paths: Schema.Array(TrimmedNonEmptyStringSchema).check(Schema.isMinLength(1)),
+});
+export type GitDiscardPathsInput = typeof GitDiscardPathsInput.Type;
+
 export const GitGetFilePatchResult = Schema.Struct({
   unifiedDiff: Schema.String,
 });
@@ -222,6 +237,8 @@ const GitStatusLocalShape = {
     files: Schema.Array(
       Schema.Struct({
         path: TrimmedNonEmptyStringSchema,
+        prevPath: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+        state: GitFileStateSchema,
         insertions: NonNegativeInt,
         deletions: NonNegativeInt,
       }),
@@ -444,14 +461,7 @@ export const GitActionProgressEvent = Schema.Union([
 ]);
 export type GitActionProgressEvent = typeof GitActionProgressEvent.Type;
 
-export type GitFileState =
-  | "modified"
-  | "added"
-  | "deleted"
-  | "renamed"
-  | "untracked"
-  | "typechange"
-  | "conflicted";
+export type GitFileState = typeof GitFileStateSchema.Type;
 
 export interface GitFileSummary {
   id: string;

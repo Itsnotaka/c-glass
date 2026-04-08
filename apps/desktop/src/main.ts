@@ -1351,10 +1351,11 @@ function getIconOption(): { icon: string } | Record<string, never> {
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1536,
-    height: 960,
-    minWidth: 1536,
-    minHeight: 960,
+    width: 1472,
+    height: 828,
+    minWidth: 1472,
+    minHeight: 828,
+    center: true,
     show: false,
     autoHideMenuBar: true,
     ...getIconOption(),

@@ -19,13 +19,11 @@ import {
   deriveReplayRetryDecision,
   type ReplayRetryTracker,
 } from "../orchestrationRecovery";
-import { appAtomRegistry } from "../rpc/atomRegistry";
 import {
   startServerStateSync,
   useServerConfigUpdatedSubscription,
   useServerWelcomeSubscription,
 } from "../rpc/serverState";
-import { noteEvlogDomain } from "../lib/evlog";
 import { useStore } from "../store";
 import { getWsRpcClient } from "../wsRpcClient";
 import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
@@ -237,7 +235,6 @@ function DomainBootstrap() {
 
     const off = api.orchestration.onDomainEvent(
       (event) => {
-        noteEvlogDomain(event);
         const action = recovery.classifyDomainEvent(event.sequence);
         if (action === "apply") {
           queue.push(event);

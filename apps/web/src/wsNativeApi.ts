@@ -1,12 +1,6 @@
 import { type ContextMenuItem, type NativeApi } from "@glass/contracts";
 
 import { showContextMenuFallback } from "./contextMenuFallback";
-import {
-  noteEvlogCommand,
-  noteEvlogCommandAck,
-  noteEvlogReplay,
-  noteEvlogSnapshot,
-} from "./lib/evlog";
 import { resetRequestLatencyStateForTests } from "./rpc/requestLatencyState";
 import { resetServerStateForTests } from "./rpc/serverState";
 import { resetWsConnectionStateForTests } from "./rpc/wsConnectionState";
@@ -73,6 +67,7 @@ export function createWsNativeApi(): NativeApi {
       pull: rpcClient.git.pull,
       refreshStatus: rpcClient.git.refreshStatus,
       getFilePatch: rpcClient.git.getFilePatch,
+      discardPaths: rpcClient.git.discardPaths,
       onStatus: (input, callback, options) => rpcClient.git.onStatus(input, callback, options),
       listBranches: rpcClient.git.listBranches,
       createWorktree: rpcClient.git.createWorktree,
@@ -102,24 +97,13 @@ export function createWsNativeApi(): NativeApi {
       updateSettings: rpcClient.server.updateSettings,
     },
     orchestration: {
-      getSnapshot: async () => {
-        const snap = await rpcClient.orchestration.getSnapshot();
-        noteEvlogSnapshot(snap);
-        return snap;
-      },
-      dispatchCommand: async (input) => {
-        noteEvlogCommand(input);
-        const ack = await rpcClient.orchestration.dispatchCommand(input);
-        noteEvlogCommandAck({ commandId: input.commandId, type: input.type, ack });
-        return ack;
-      },
+      getSnapshot: rpcClient.orchestration.getSnapshot,
+      dispatchCommand: rpcClient.orchestration.dispatchCommand,
       getTurnDiff: rpcClient.orchestration.getTurnDiff,
       getFullThreadDiff: rpcClient.orchestration.getFullThreadDiff,
       replayEvents: async (fromSequenceExclusive) => {
         const events = await rpcClient.orchestration.replayEvents({ fromSequenceExclusive });
-        const next = [...events];
-        noteEvlogReplay({ fromSequenceExclusive, events: next });
-        return next;
+        return [...events];
       },
       onDomainEvent: (callback, options) =>
         rpcClient.orchestration.onDomainEvent(callback, options),

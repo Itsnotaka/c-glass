@@ -2,6 +2,7 @@ import type {
   GitCheckoutInput,
   GitCheckoutResult,
   GitCreateBranchInput,
+  GitDiscardPathsInput,
   GitGetFilePatchInput,
   GitGetFilePatchResult,
   GitPreparePullRequestThreadInput,
@@ -163,6 +164,7 @@ export interface NativeApi {
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
     getFilePatch: (input: GitGetFilePatchInput) => Promise<GitGetFilePatchResult>;
+    discardPaths: (input: GitDiscardPathsInput) => Promise<void>;
     onStatus: (
       input: GitStatusInput,
       callback: (status: GitStatusResult) => void,

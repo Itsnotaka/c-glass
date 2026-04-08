@@ -30,8 +30,18 @@ const kindLabel: Record<GitFileState, string> = {
   conflicted: "conflict",
 };
 
-export const KindBadge = memo(function KindBadge(props: { state: GitFileState }) {
-  return <Badge variant={kindVariant[props.state]}>{kindLabel[props.state]}</Badge>;
+export const KindBadge = memo(function KindBadge(props: {
+  state: GitFileState;
+  className?: string;
+}) {
+  return (
+    <Badge
+      variant={kindVariant[props.state]}
+      {...(props.className ? { className: props.className } : {})}
+    >
+      {kindLabel[props.state]}
+    </Badge>
+  );
 });
 
 function splitPath(path: string) {
@@ -59,7 +69,7 @@ export const GlassDiffHeader = memo(function GlassDiffHeader(props: Props) {
   return (
     <div
       className={cn(
-        "sticky top-0 z-[14] flex shrink-0 items-center gap-2 border-b border-glass-border/40 bg-glass-surface/95 px-3 py-1.5 backdrop-blur-sm",
+        "sticky top-0 z-[14] flex min-h-[22px] shrink-0 items-center gap-1 border-b border-[color-mix(in_srgb,var(--foreground)_6%,transparent)] bg-glass-bubble/88 py-1 pr-3 pl-2.5 text-[12px] leading-4 backdrop-blur-xl",
         props.className,
       )}
     >
@@ -73,16 +83,16 @@ export const GlassDiffHeader = memo(function GlassDiffHeader(props: Props) {
 
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         {prefix ? (
-          <span className="min-w-0 flex-1 truncate text-detail text-muted-foreground/50 direction-rtl text-left">
-            {prefix}
+          <span className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/40 direction-rtl">
+            <span className="inline [unicode-bidi:embed] direction-ltr">{prefix}</span>
           </span>
         ) : null}
-        <span className="shrink-0 text-body font-medium text-foreground/90">{name}</span>
+        <span className="shrink-0 text-[12px] font-medium text-foreground/90">{name}</span>
       </div>
 
-      <KindBadge state={props.state} />
+      <KindBadge state={props.state} className="px-1 py-0 text-[11px] leading-4 font-medium" />
 
-      <div className="flex shrink-0 items-center gap-1 text-detail/[1] tabular-nums">
+      <div className="flex shrink-0 items-center gap-0.5 tabular-nums">
         {props.add > 0 && (
           <span className="font-medium text-[var(--glass-diff-addition)]">+{props.add}</span>
         )}
@@ -91,7 +101,7 @@ export const GlassDiffHeader = memo(function GlassDiffHeader(props: Props) {
         )}
       </div>
 
-      <div className="ml-1 flex shrink-0 items-center rounded-glass-control border border-glass-border/50 bg-glass-hover/20 p-0.5">
+      <div className="ml-1 flex shrink-0 items-center rounded-glass-control border border-glass-border/45 bg-glass-hover/14 p-0.5">
         <button
           type="button"
           onClick={() => props.onDiffStyleChange("unified")}

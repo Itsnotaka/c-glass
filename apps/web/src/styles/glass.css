@@ -123,6 +123,11 @@
   --glass-ring: oklch(0.68 0.04 240 / 0.2);
 }
 
+/*
+ * Cursor workbench parity (smart-review-panel, changes-list, review-changes-group):
+ * [data-glass-review-panel] pl-8 + summary row pr aligned to Changes toggle; list padding px-3 py-2.5; group body pl-[18px].
+ */
+
 [data-electron] {
   --glass-workbench-toggle-left: var(
     --glass-workbench-toggle-left-user,

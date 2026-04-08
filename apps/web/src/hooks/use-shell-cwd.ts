@@ -1,12 +1,11 @@
-import { useMatchRoute, useParams } from "@tanstack/react-router";
 import { useMemo, useSyncExternalStore } from "react";
 
 import { GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
 import { useServerAvailableEditors } from "../rpc/serverState";
 import { useStore } from "../store";
+import { useRouteThreadId } from "./use-route-thread-id";
 
 const WORKSPACE_KEY = "glass:workspace-cwd";
-const THREAD_ROUTE = "/$threadId";
 
 function readStoredCwd() {
   if (typeof window === "undefined") return null;
@@ -19,17 +18,6 @@ function basename(cwd: string | null) {
   const clean = cwd.replace(/[\\/]+$/, "");
   const cut = Math.max(clean.lastIndexOf("/"), clean.lastIndexOf("\\"));
   return cut >= 0 ? clean.slice(cut + 1) : clean;
-}
-
-function useRouteThreadId() {
-  const id = useParams({
-    strict: false,
-    select: (params) => (typeof params.threadId === "string" ? params.threadId : null),
-  });
-  const match = useMatchRoute();
-  const pending = match({ to: THREAD_ROUTE, pending: true });
-  if (pending && typeof pending.threadId === "string") return pending.threadId;
-  return id;
 }
 
 function subscribe(listener: () => void) {
