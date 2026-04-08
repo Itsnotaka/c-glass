@@ -6,24 +6,39 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { useHarnessDescriptor } from "../../lib/harness-store";
 import { useThreadSessionStore, useThreadSummary } from "../../lib/thread-session-store";
+import { useStore } from "../../store";
 import { GlassAskTool } from "./ask-tool";
 import { GlassOpenPicker } from "./open-picker";
 import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
 import { GlassChatMessages } from "./chat-messages";
+import { GlassProviderNoticeBanner } from "./provider-notice-banner";
 import { GlassShell } from "./shell";
 import { useRuntimeSession } from "./use-runtime-session";
 
 export function GlassChatSession(props: { sessionId: string }) {
   const sum = useThreadSummary(props.sessionId);
   const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const thread = useStore(
+    (state) => state.threads.find((item) => item.id === props.sessionId) ?? null,
+  );
   const count = sum?.messageCount ?? snap?.messages.length ?? 0;
   const live = Boolean(snap?.live) || Boolean(snap?.isStreaming);
+  const provider = thread?.session?.provider ?? thread?.modelSelection.provider ?? null;
 
-  if (count === 0 && !live) {
-    return <HeroSession sessionId={props.sessionId} />;
-  }
-
-  return <DockSession sessionId={props.sessionId} />;
+  return (
+    <GlassShell>
+      <GlassProviderNoticeBanner
+        sessionId={props.sessionId}
+        provider={provider}
+        activities={thread?.activities ?? []}
+      />
+      {count === 0 && !live ? (
+        <HeroSession sessionId={props.sessionId} />
+      ) : (
+        <DockSession sessionId={props.sessionId} />
+      )}
+    </GlassShell>
+  );
 }
 
 function HeroSession(props: { sessionId: string }) {
@@ -48,36 +63,32 @@ function HeroSession(props: { sessionId: string }) {
   }, [props.sessionId]);
 
   return (
-    <GlassShell>
-      <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
-        <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
-          <div className="relative w-full">
-            <GlassChatComposer
-              ref={composerRef}
-              sessionId={props.sessionId}
-              draft={draft}
-              onDraft={setDraft}
-              busy={session.busy}
-              model={session.model}
-              modelLoading={session.modelLoading}
-              variant="hero"
-              onAbort={session.abort}
-              onModel={session.setModel}
-              onThinkingLevel={session.setThinkingLevel}
-              onSend={session.send}
-              harness={kind}
-              harnessDescriptor={harnessDescriptor}
-            />
-            <AnimatePresence>
-              {session.ask ? (
-                <GlassAskTool state={session.ask} onReply={session.answerAsk} />
-              ) : null}
-            </AnimatePresence>
-          </div>
-          <GlassOpenPicker variant="hero" />
+    <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
+      <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
+        <div className="relative w-full">
+          <GlassChatComposer
+            ref={composerRef}
+            sessionId={props.sessionId}
+            draft={draft}
+            onDraft={setDraft}
+            busy={session.busy}
+            model={session.model}
+            modelLoading={session.modelLoading}
+            variant="hero"
+            onAbort={session.abort}
+            onModel={session.setModel}
+            onThinkingLevel={session.setThinkingLevel}
+            onSend={session.send}
+            harness={kind}
+            harnessDescriptor={harnessDescriptor}
+          />
+          <AnimatePresence>
+            {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}
+          </AnimatePresence>
         </div>
+        <GlassOpenPicker variant="hero" />
       </div>
-    </GlassShell>
+    </div>
   );
 }
 
@@ -105,7 +116,7 @@ function DockSession(props: { sessionId: string }) {
   );
 
   return (
-    <GlassShell>
+    <>
       <GlassChatMessages messages={session.messages} live={session.live} expanded={expanded} />
       <div className="relative">
         <GlassChatComposer
@@ -127,6 +138,6 @@ function DockSession(props: { sessionId: string }) {
           {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}
         </AnimatePresence>
       </div>
-    </GlassShell>
+    </>
   );
 }

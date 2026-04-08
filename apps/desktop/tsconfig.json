@@ -13,6 +13,6 @@
     "src/syncShellEnvironment.ts",
     "src/updateMachine.ts",
     "src/updateState.ts",
-    "tsdown.config.ts"
+    "tsdown.config.mts"
   ]
 }

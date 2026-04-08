@@ -15,6 +15,7 @@ import type {
   GitCreateBranchResult,
   GitCreateWorktreeInput,
   GitCreateWorktreeResult,
+  GitGetFilePatchResult,
   GitInitInput,
   GitListBranchesInput,
   GitListBranchesResult,
@@ -170,6 +171,15 @@ export interface GitCoreShape {
     cwd: string,
     filePaths?: readonly string[],
   ) => Effect.Effect<GitPreparedCommitContext | null, GitCommandError>;
+
+  /**
+   * Read the working-tree unified diff for a single tracked file (staged + unstaged
+   * changes vs HEAD). Returns an empty string when the file is unchanged.
+   */
+  readonly workingTreeFilePatch: (
+    cwd: string,
+    path: string,
+  ) => Effect.Effect<GitGetFilePatchResult, GitCommandError>;
 
   /**
    * Create a commit with provided subject/body.

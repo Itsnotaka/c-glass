@@ -16,6 +16,7 @@ export interface EvlogApi {
   tail: (count?: number) => EvlogEntry[];
   print: (count?: number) => EvlogEntry[];
   counts: () => Record<EvlogKind, number>;
+  subscribe: (listener: () => void) => () => void;
   help: () => string;
 }
 
@@ -44,6 +45,13 @@ export function createEvlogStore(size = limit) {
   let on = false;
   let seq = 0;
   const list: EvlogEntry[] = [];
+  const listeners = new Set<() => void>();
+
+  const emit = () => {
+    for (const listener of listeners) {
+      listener();
+    }
+  };
 
   const push = (kind: EvlogKind, label: string, data: unknown) => {
     const entry: EvlogEntry = {
@@ -60,6 +68,7 @@ export function createEvlogStore(size = limit) {
     if (on) {
       dump(entry);
     }
+    emit();
     return entry;
   };
 
@@ -77,6 +86,7 @@ export function createEvlogStore(size = limit) {
     },
     clear() {
       list.length = 0;
+      emit();
     },
     list() {
       return [...list];
@@ -92,6 +102,12 @@ export function createEvlogStore(size = limit) {
         },
         { command: 0, "command-ack": 0, domain: 0, replay: 0, snapshot: 0 },
       );
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
     push,
   };
@@ -144,14 +160,18 @@ function api(): EvlogApi {
       return rows;
     },
     counts: () => store.counts(),
+    subscribe: (listener) => store.subscribe(listener),
     help: () => {
       const text =
-        "window.evlog: on(), off(), clear(), list(), tail(count), print(count), counts()";
+        "window.evlog: on(), off(), clear(), list(), tail(count), print(count), counts(), subscribe(fn)";
       console.info(`[evlog] ${text}`);
       return text;
     },
   };
 }
+
+export const readEvlog = () => store.list();
+export const subscribeEvlog = (listener: () => void) => store.subscribe(listener);
 
 function labelFor(kind: EvlogKind, data: unknown, fallback: string) {
   if (!data || typeof data !== "object") {

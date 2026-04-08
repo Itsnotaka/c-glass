@@ -2104,6 +2104,17 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           },
         });
         return;
+      case "api_retry":
+        yield* Effect.logDebug("ignoring Claude API retry system message", {
+          threadId: context.session.threadId,
+          ...(context.turnState ? { turnId: context.turnState.turnId } : {}),
+          attempt: message.attempt,
+          maxRetries: message.max_retries,
+          retryDelayMs: message.retry_delay_ms,
+          errorStatus: message.error_status,
+          error: message.error,
+        });
+        return;
       default:
         yield* emitRuntimeWarning(
           context,

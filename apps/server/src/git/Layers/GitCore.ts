@@ -45,6 +45,7 @@ const PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES = 49_000;
 const RANGE_COMMIT_SUMMARY_MAX_OUTPUT_BYTES = 19_000;
 const RANGE_DIFF_SUMMARY_MAX_OUTPUT_BYTES = 19_000;
 const RANGE_DIFF_PATCH_MAX_OUTPUT_BYTES = 59_000;
+const WORKING_TREE_FILE_PATCH_MAX_OUTPUT_BYTES = 1_000_000;
 const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const GIT_CHECK_IGNORE_MAX_STDIN_BYTES = 256 * 1024;
 const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
@@ -1379,6 +1380,39 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     };
   });
 
+  const workingTreeFilePatch: GitCoreShape["workingTreeFilePatch"] = Effect.fn(
+    "workingTreeFilePatch",
+  )(function* (cwd, path) {
+    // Tracked changes (staged + unstaged) vs HEAD. Empty when the file is unchanged
+    // or untracked — untracked files are handled by the --no-index fallback below.
+    const tracked = yield* runGitStdoutWithOptions(
+      "GitCore.workingTreeFilePatch.diffHead",
+      cwd,
+      ["diff", "HEAD", "--patch", "--no-color", "--minimal", "--", path],
+      {
+        maxOutputBytes: WORKING_TREE_FILE_PATCH_MAX_OUTPUT_BYTES,
+        truncateOutputAtMaxBytes: true,
+      },
+    );
+    if (tracked.length > 0) {
+      return { unifiedDiff: tracked };
+    }
+
+    // Untracked file: synthesize a diff against /dev/null. `git diff --no-index`
+    // exits 1 when there are differences, which is the normal case here.
+    const untracked = yield* runGitStdoutWithOptions(
+      "GitCore.workingTreeFilePatch.diffNoIndex",
+      cwd,
+      ["diff", "--no-index", "--patch", "--no-color", "--", "/dev/null", path],
+      {
+        allowNonZeroExit: true,
+        maxOutputBytes: WORKING_TREE_FILE_PATCH_MAX_OUTPUT_BYTES,
+        truncateOutputAtMaxBytes: true,
+      },
+    );
+    return { unifiedDiff: untracked };
+  });
+
   const commit: GitCoreShape["commit"] = Effect.fn("commit")(function* (
     cwd,
     subject,
@@ -2130,6 +2164,7 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     statusDetails,
     statusDetailsLocal,
     prepareCommitContext,
+    workingTreeFilePatch,
     commit,
     pushCurrentBranch,
     pullCurrentBranch,

@@ -189,6 +189,17 @@ export const GitInitInput = Schema.Struct({
 });
 export type GitInitInput = typeof GitInitInput.Type;
 
+export const GitGetFilePatchInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  path: TrimmedNonEmptyStringSchema,
+});
+export type GitGetFilePatchInput = typeof GitGetFilePatchInput.Type;
+
+export const GitGetFilePatchResult = Schema.Struct({
+  unifiedDiff: Schema.String,
+});
+export type GitGetFilePatchResult = typeof GitGetFilePatchResult.Type;
+
 // RPC Results
 
 const GitStatusPr = Schema.Struct({

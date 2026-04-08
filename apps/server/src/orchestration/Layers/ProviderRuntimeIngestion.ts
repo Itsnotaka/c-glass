@@ -7,6 +7,8 @@ import {
   type OrchestrationProposedPlanId,
   CheckpointRef,
   isToolLifecycleItemType,
+  PROVIDER_DISPLAY_NAMES,
+  PROVIDER_NOTICE_KIND,
   ThreadId,
   type ThreadTokenUsageSnapshot,
   TurnId,
@@ -73,6 +75,136 @@ function sameId(left: string | null | undefined, right: string | null | undefine
 
 function truncateDetail(value: string, limit = 180): string {
   return value.length > limit ? `${value.slice(0, limit - 3)}...` : value;
+}
+
+function obj(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function str(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const next = value.trim();
+  if (next.length === 0) {
+    return undefined;
+  }
+  return next;
+}
+
+function num(value: unknown): number | undefined {
+  if (typeof value !== "number") {
+    return undefined;
+  }
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function iso(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const stamp = Date.parse(value);
+    if (!Number.isFinite(stamp)) {
+      return undefined;
+    }
+    return new Date(stamp).toISOString();
+  }
+
+  const stamp = num(value);
+  if (stamp === undefined || stamp <= 0) {
+    return undefined;
+  }
+
+  return new Date(stamp > 100_000_000_000 ? stamp : stamp * 1_000).toISOString();
+}
+
+function label(provider: ProviderRuntimeEvent["provider"]): string {
+  return PROVIDER_DISPLAY_NAMES[provider];
+}
+
+function rate(event: Extract<ProviderRuntimeEvent, { type: "account.rate-limits.updated" }>) {
+  const raw = obj(event.payload.rateLimits);
+  const info = obj(raw?.rate_limit_info) ?? raw;
+  const status = str(info?.status);
+  const over = str(info?.overageStatus);
+  const blocked = status === "rejected" || over === "rejected";
+  if (!blocked) return [];
+
+  const name = label(event.provider);
+  const title = `${name} rate limit reached`;
+  const until = iso(info?.overageResetsAt) ?? iso(info?.resetsAt);
+  const payload: Record<string, unknown> = {
+    provider: event.provider,
+    level: "warning",
+    title,
+    detail: `${name} is currently rate limited for this thread.`,
+    raw: event.payload.rateLimits,
+  };
+  if (until) {
+    payload.until = until;
+  }
+
+  const activity: OrchestrationThreadActivity = {
+    id: event.eventId,
+    createdAt: event.createdAt,
+    tone: "info",
+    kind: PROVIDER_NOTICE_KIND.rateLimit,
+    summary: title,
+    payload,
+    turnId: toTurnId(event.turnId) ?? null,
+  };
+  return [activity];
+}
+
+function auth(event: Extract<ProviderRuntimeEvent, { type: "auth.status" }>) {
+  const err = str(event.payload.error);
+  if (!err) return [];
+
+  const name = label(event.provider);
+  const title = `${name} authentication issue`;
+  const activity: OrchestrationThreadActivity = {
+    id: event.eventId,
+    createdAt: event.createdAt,
+    tone: "error",
+    kind: PROVIDER_NOTICE_KIND.auth,
+    summary: title,
+    payload: {
+      provider: event.provider,
+      level: "error",
+      title,
+      detail: err,
+      raw: event.payload,
+    },
+    turnId: toTurnId(event.turnId) ?? null,
+  };
+  return [activity];
+}
+
+function config(event: Extract<ProviderRuntimeEvent, { type: "config.warning" }>) {
+  const payload: Record<string, unknown> = {
+    provider: event.provider,
+    level: "warning",
+    title: event.payload.summary,
+    raw: event.payload,
+  };
+  if (event.payload.details) {
+    payload.detail = event.payload.details;
+  }
+
+  const activity: OrchestrationThreadActivity = {
+    id: event.eventId,
+    createdAt: event.createdAt,
+    tone: "info",
+    kind: PROVIDER_NOTICE_KIND.config,
+    summary: event.payload.summary,
+    payload,
+    turnId: toTurnId(event.turnId) ?? null,
+  };
+  return [activity];
 }
 
 function normalizeProposedPlanMarkdown(planMarkdown: string | undefined): string | undefined {
@@ -221,6 +353,18 @@ function runtimeEventToActivities(
           ...maybeSequence,
         },
       ];
+    }
+
+    case "account.rate-limits.updated": {
+      return rate(event);
+    }
+
+    case "auth.status": {
+      return auth(event);
+    }
+
+    case "config.warning": {
+      return config(event);
     }
 
     case "runtime.error": {

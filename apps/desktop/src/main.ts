@@ -1351,8 +1351,8 @@ function getIconOption(): { icon: string } | Record<string, never> {
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1100,
-    height: 780,
+    width: 1536,
+    height: 960,
     minWidth: 1536,
     minHeight: 960,
     show: false,

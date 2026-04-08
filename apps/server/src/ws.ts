@@ -577,6 +577,12 @@ const WsRpcLayer = WsRpcGroup.toLayer(
             "rpc.aggregate": "git",
           },
         ),
+      [WS_METHODS.gitGetFilePatch]: (input) =>
+        observeRpcEffect(
+          WS_METHODS.gitGetFilePatch,
+          git.workingTreeFilePatch(input.cwd, input.path),
+          { "rpc.aggregate": "git" },
+        ),
       [WS_METHODS.gitPull]: (input) =>
         observeRpcEffect(
           WS_METHODS.gitPull,

@@ -12,6 +12,8 @@ import type {
 import type { RuntimeModelItem } from "../../lib/runtime-models";
 import {
   IconArrowUp,
+  IconChevronLeft,
+  IconChevronRight,
   IconCrossSmall,
   IconFileBend,
   IconImages1,
@@ -207,79 +209,142 @@ function attachmentIsImage(item: Pick) {
   return item.type === "inline" || item.kind === "image";
 }
 
-/** Image lightbox — fullscreen preview overlay (Cursor: `ui-prompt-input-image-preview__fullscreen-content`).
- *  Built on Base UI `Dialog` so the popup is portaled out of the composer subtree, escaping the
- *  composer shell's `backdrop-filter` containing block (which would otherwise anchor `position: fixed`
- *  to the composer instead of the viewport). The primitive also handles focus trap, escape-to-close,
- *  click-outside-to-close, and dialog ARIA semantics. Mirrors Cursor's `Root + Portal + Backdrop + Popup`
- *  composition (workbench.desktop.main.js, BEM class `ui-prompt-input-image-preview__fullscreen-content`). */
-function ImageLightbox(props: { src: string; alt: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+type LightboxItem = { id: string; src: string; alt: string };
+
+/** Image lightbox — fullscreen gallery overlay (Cursor: `ui-prompt-input-image-preview__fullscreen-content`).
+ *  Built on Base UI `Dialog` (Portal → Backdrop + Viewport → Popup). The Viewport has
+ *  `pointer-events-none` so clicks on the dim area pass through to the Backdrop and dismiss the dialog,
+ *  while the Popup carries `pointer-events-auto` so the image and controls stay interactive. The portal
+ *  also escapes the composer shell's `backdrop-filter` containing block, which would otherwise anchor
+ *  `position: fixed` descendants to the composer instead of the viewport. Mirrors Cursor's
+ *  `Root + GridItem + Portal + Backdrop + Popup` gallery composition with shared `activeIndex`. */
+function ImageLightbox(props: {
+  gallery: LightboxItem[];
+  index: number | null;
+  onIndexChange: (next: number) => void;
+  onClose: () => void;
+}) {
+  const { gallery, index, onIndexChange, onClose } = props;
+  const total = gallery.length;
+  const open = index !== null && index >= 0 && index < total;
+  const current = open ? gallery[index] : null;
+
+  const goPrev = () => {
+    if (index === null || total < 2) return;
+    onIndexChange((index - 1 + total) % total);
+  };
+  const goNext = () => {
+    if (index === null || total < 2) return;
+    onIndexChange((index + 1) % total);
+  };
+
   return (
-    <DialogPrimitive.Root open={props.open} onOpenChange={props.onOpenChange}>
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <DialogPrimitive.Popup
-          aria-label="Image preview"
-          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 outline-none transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
-        >
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
+        <DialogPrimitive.Viewport className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4">
+          <DialogPrimitive.Popup
+            aria-label="Image preview"
+            className="pointer-events-auto relative flex max-h-full max-w-full items-center justify-center outline-none transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0"
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                goPrev();
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                goNext();
+              }
+            }}
+          >
+            {current ? (
+              <img
+                key={current.id}
+                alt={current.alt}
+                src={current.src}
+                className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+              />
+            ) : null}
+          </DialogPrimitive.Popup>
+
           <DialogPrimitive.Close
             aria-label="Close preview"
-            className="absolute right-4 top-4 z-10 flex size-9 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
+            className="pointer-events-auto absolute right-4 top-4 flex size-9 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
           >
             <IconCrossSmall className="size-4" />
           </DialogPrimitive.Close>
-          <img
-            alt={props.alt}
-            src={props.src}
-            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
-          />
-        </DialogPrimitive.Popup>
+
+          {total > 1 ? (
+            <>
+              <button
+                type="button"
+                aria-label="Previous image"
+                className="pointer-events-auto absolute left-4 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
+                onClick={goPrev}
+              >
+                <IconChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next image"
+                className="pointer-events-auto absolute right-4 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white/90 transition-colors hover:bg-white/25"
+                onClick={goNext}
+              >
+                <IconChevronRight className="size-5" />
+              </button>
+              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/15 px-3 py-1 text-detail text-white/90 backdrop-blur-sm">
+                {(index ?? 0) + 1} / {total}
+              </div>
+            </>
+          ) : null}
+        </DialogPrimitive.Viewport>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
 }
 
-/** Image thumbnail — Cursor `ui-prompt-input-image-preview` (64×64 grid cell). */
-const ImageChip = memo(function ImageChip(props: { item: Pick; onRemove: () => void }) {
-  const [lightbox, setLightbox] = useState(false);
+/** Image thumbnail — Cursor `ui-prompt-input-image-preview` (64×64 grid cell).
+ *  Acts as a `GridItem` trigger: clicking opens the shared gallery lightbox owned by `AttachmentStrip`. */
+const ImageChip = memo(function ImageChip(props: {
+  item: Pick;
+  onRemove: () => void;
+  onOpen: () => void;
+  hasPreview: boolean;
+}) {
   const Glyph = icon(props.item);
   const src = attachmentPreviewUrl(props.item);
 
   return (
-    <>
-      <div className="group relative inline-flex shrink-0" title={props.item.name}>
-        <button
-          type="button"
-          className={cn(glassComposerImageThumbnail, "cursor-pointer")}
-          onClick={() => src && setLightbox(true)}
-          aria-label={`Preview ${props.item.name}`}
-        >
-          {src ? (
-            <img alt={props.item.name} className="h-full w-full object-cover" src={src} />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
-              <Glyph className="size-5" />
-            </div>
-          )}
-        </button>
-        <button
-          type="button"
-          aria-label={`Remove ${props.item.name}`}
-          className="absolute -right-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 shadow-sm transition-[opacity,background-color] duration-100 hover:bg-black/65 group-hover:opacity-100 focus-visible:opacity-100"
-          onClick={props.onRemove}
-        >
-          <IconCrossSmall className="size-3" />
-        </button>
-      </div>
-      {src ? (
-        <ImageLightbox
-          src={src}
-          alt={props.item.name}
-          open={lightbox}
-          onOpenChange={setLightbox}
-        />
-      ) : null}
-    </>
+    <div className="group relative inline-flex shrink-0" title={props.item.name}>
+      <button
+        type="button"
+        className={cn(glassComposerImageThumbnail, props.hasPreview && "cursor-pointer")}
+        onClick={() => {
+          if (props.hasPreview) props.onOpen();
+        }}
+        aria-label={`Preview ${props.item.name}`}
+      >
+        {src ? (
+          <img alt={props.item.name} className="h-full w-full object-cover" src={src} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground/60">
+            <Glyph className="size-5" />
+          </div>
+        )}
+      </button>
+      <button
+        type="button"
+        aria-label={`Remove ${props.item.name}`}
+        className="absolute -right-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 shadow-sm transition-[opacity,background-color] duration-100 hover:bg-black/65 group-hover:opacity-100 focus-visible:opacity-100"
+        onClick={props.onRemove}
+      >
+        <IconCrossSmall className="size-3" />
+      </button>
+    </div>
   );
 });
 
@@ -311,26 +376,57 @@ const FileChip = memo(function FileChip(props: { item: Pick; onRemove: () => voi
   );
 });
 
-/** Attachment strip — separates images (grid) from file chips. Cursor: `ui-prompt-input-image-grid` + `prompt-attachment`. */
+/** Attachment strip — separates images (grid) from file chips. Cursor: `ui-prompt-input-image-grid` + `prompt-attachment`.
+ *  Owns the shared lightbox state so all image chips open the same gallery and the user can cycle through them. */
 const AttachmentStrip = memo(function AttachmentStrip(props: {
   files: Pick[];
   onRemove: (id: string) => void;
 }) {
   const images = props.files.filter(attachmentIsImage);
   const docs = props.files.filter((f) => !attachmentIsImage(f));
+  const gallery = useMemo<LightboxItem[]>(
+    () =>
+      images.flatMap((item) => {
+        const src = attachmentPreviewUrl(item);
+        return src ? [{ id: item.id, src, alt: item.name }] : [];
+      }),
+    [images],
+  );
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openIndex = openId ? gallery.findIndex((entry) => entry.id === openId) : -1;
+  const previewIds = useMemo(() => new Set(gallery.map((entry) => entry.id)), [gallery]);
+
+  // If the open image was removed (or its preview disappeared), close the lightbox.
+  useEffect(() => {
+    if (openId && openIndex < 0) setOpenId(null);
+  }, [openId, openIndex]);
 
   return (
     <div className={cn(glassComposerAttachmentStrip, "px-3 pt-3 pb-2")}>
       {images.length > 0 ? (
         <div className={glassComposerImageGrid}>
           {images.map((item) => (
-            <ImageChip key={item.id} item={item} onRemove={() => props.onRemove(item.id)} />
+            <ImageChip
+              key={item.id}
+              item={item}
+              hasPreview={previewIds.has(item.id)}
+              onRemove={() => props.onRemove(item.id)}
+              onOpen={() => setOpenId(item.id)}
+            />
           ))}
         </div>
       ) : null}
       {docs.map((item) => (
         <FileChip key={item.id} item={item} onRemove={() => props.onRemove(item.id)} />
       ))}
+      {gallery.length > 0 ? (
+        <ImageLightbox
+          gallery={gallery}
+          index={openIndex >= 0 ? openIndex : null}
+          onIndexChange={(next) => setOpenId(gallery[next]?.id ?? null)}
+          onClose={() => setOpenId(null)}
+        />
+      ) : null}
     </div>
   );
 });

@@ -16,7 +16,6 @@ import { GlassSelect } from "~/components/ui/select";
 import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { SidebarTrigger } from "~/components/ui/sidebar";
 
-import { GlassDiffSidebar } from "~/components/glass/diff-sidebar";
 import { GlassAgentList } from "~/components/glass/agent-list";
 import { GlassAppShell, type GlassAppShellPanels } from "~/components/glass/app-shell";
 import { GlassAskTool } from "~/components/glass/ask-tool";
@@ -71,23 +70,6 @@ function useDemoPanels(): GlassAppShellPanels {
   );
 }
 
-const diffFiles = [
-  {
-    id: "d1",
-    name: "nested.ts",
-    path: "src/pkg/nested.ts",
-    type: "change" as const,
-    stats: { additions: 2, deletions: 1 },
-  },
-  {
-    id: "d2",
-    name: "readme.md",
-    path: "readme.md",
-    type: "new" as const,
-    stats: { additions: 10, deletions: 0 },
-  },
-];
-
 const gitRow: DiffRow = {
   id: "g1",
   path: "src/a.ts",
@@ -97,7 +79,6 @@ const gitRow: DiffRow = {
   unstaged: false,
   add: 2,
   del: 1,
-  diff: null,
 };
 
 const slashSkill: GlassSlashItem = {
@@ -306,12 +287,6 @@ export function GlassIconDemosPanel() {
       >
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
           <GlassSettingsNavRail />
-        </div>
-      </DemoSection>
-
-      <DemoSection title="components/glass/diff-sidebar.tsx">
-        <div className="h-72 max-w-md overflow-hidden rounded-lg border border-border">
-          <GlassDiffSidebar files={diffFiles} selectedFileId="d1" className="h-full" />
         </div>
       </DemoSection>
 

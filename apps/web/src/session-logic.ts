@@ -4,6 +4,7 @@ import {
   type OrchestrationLatestTurn,
   type OrchestrationThreadActivity,
   type OrchestrationProposedPlanId,
+  PROVIDER_NOTICE_KINDS,
   type ProviderKind,
   type ToolLifecycleItemType,
   type UserInputQuestion,
@@ -56,6 +57,8 @@ export const HIDDEN_ACTIVITY_KINDS = new Set<OrchestrationThreadActivity["kind"]
   "task.started",
   "task.completed",
   "context-window.updated",
+  "runtime.warning",
+  ...PROVIDER_NOTICE_KINDS,
 ]);
 
 export interface PendingApproval {
