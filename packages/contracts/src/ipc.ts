@@ -2,6 +2,8 @@ import type {
   GitCheckoutInput,
   GitCheckoutResult,
   GitCreateBranchInput,
+  GitGetFilePatchInput,
+  GitGetFilePatchResult,
   GitPreparePullRequestThreadInput,
   GitPreparePullRequestThreadResult,
   GitPullRequestRefInput,
@@ -160,6 +162,7 @@ export interface NativeApi {
     // Stacked action API
     pull: (input: GitPullInput) => Promise<GitPullResult>;
     refreshStatus: (input: GitStatusInput) => Promise<GitStatusResult>;
+    getFilePatch: (input: GitGetFilePatchInput) => Promise<GitGetFilePatchResult>;
     onStatus: (
       input: GitStatusInput,
       callback: (status: GitStatusResult) => void,

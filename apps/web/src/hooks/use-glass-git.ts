@@ -1,6 +1,7 @@
 import type { GitFileSummary, GitState, GitStatusResult } from "@glass/contracts";
+import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { readNativeApi } from "../nativeApi";
 import { useGlassShellStore } from "../lib/glass-shell-store";
@@ -18,7 +19,6 @@ export function useGlassDiffStylePreference() {
 }
 
 export interface DiffRow extends GitFileSummary {
-  diff: null;
   add: number;
   del: number;
 }
@@ -29,7 +29,9 @@ export interface GlassGitPanelModel {
   error: string | null;
   count: number;
   selected: string | null;
-  patch: null;
+  fileDiff: FileDiffMetadata | null;
+  fileDiffLoading: boolean;
+  fileDiffError: string | null;
   hit: string | null;
   totalAdd: number;
   totalDel: number;
@@ -39,6 +41,17 @@ export interface GlassGitPanelModel {
   refresh: () => Promise<GitState | null>;
   init: () => Promise<GitState | null>;
   discard: (_paths: string[]) => Promise<GitState | null>;
+}
+
+function firstFileFromUnifiedDiff(unifiedDiff: string): FileDiffMetadata | null {
+  const trimmed = unifiedDiff.trim();
+  if (trimmed.length === 0) return null;
+  const patches = parsePatchFiles(trimmed);
+  for (const patch of patches) {
+    const file = patch.files[0];
+    if (file) return file;
+  }
+  return null;
 }
 
 function clean(path: string) {
@@ -126,7 +139,6 @@ function toRows(snap: GitState | null, status: GitStatusResult | null) {
     const hit = status.workingTree.files.find((item) => item.path === file.path);
     return {
       ...file,
-      diff: null,
       add: hit?.insertions ?? 0,
       del: hit?.deletions ?? 0,
     } satisfies DiffRow;
@@ -230,6 +242,43 @@ export function useGlassGitPanel(): GlassGitPanelModel {
     setSelected(rows[0]?.id ?? null);
   }, [recent, rows, selected]);
 
+  const selectedRow = useMemo(
+    () => (selected ? (rows.find((row) => row.id === selected) ?? null) : null),
+    [rows, selected],
+  );
+
+  const [fileDiff, setFileDiff] = useState<FileDiffMetadata | null>(null);
+  const [fileDiffLoading, setFileDiffLoading] = useState(false);
+  const [fileDiffError, setFileDiffError] = useState<string | null>(null);
+  const fileDiffSeq = useRef(0);
+
+  useEffect(() => {
+    if (!api || !cwd || !selectedRow) {
+      setFileDiff(null);
+      setFileDiffLoading(false);
+      setFileDiffError(null);
+      return;
+    }
+
+    const seq = ++fileDiffSeq.current;
+    setFileDiffLoading(true);
+    setFileDiffError(null);
+
+    api.git
+      .getFilePatch({ cwd, path: selectedRow.path })
+      .then((result) => {
+        if (fileDiffSeq.current !== seq) return;
+        setFileDiff(firstFileFromUnifiedDiff(result.unifiedDiff));
+        setFileDiffLoading(false);
+      })
+      .catch((err) => {
+        if (fileDiffSeq.current !== seq) return;
+        setFileDiff(null);
+        setFileDiffLoading(false);
+        setFileDiffError(err instanceof Error ? err.message : String(err));
+      });
+  }, [api, cwd, selectedRow]);
+
   const statsById = useMemo(
     () => new Map(rows.map((row) => [row.id, { add: row.add, del: row.del }])),
     [rows],
@@ -241,7 +290,9 @@ export function useGlassGitPanel(): GlassGitPanelModel {
     error: err,
     count: snap?.count ?? 0,
     selected,
-    patch: null,
+    fileDiff,
+    fileDiffLoading,
+    fileDiffError,
     hit: recent?.id ?? null,
     totalAdd: rows.reduce((sum, row) => sum + row.add, 0),
     totalDel: rows.reduce((sum, row) => sum + row.del, 0),

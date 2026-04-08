@@ -72,6 +72,7 @@ export function createWsNativeApi(): NativeApi {
     git: {
       pull: rpcClient.git.pull,
       refreshStatus: rpcClient.git.refreshStatus,
+      getFilePatch: rpcClient.git.getFilePatch,
       onStatus: (input, callback, options) => rpcClient.git.onStatus(input, callback, options),
       listBranches: rpcClient.git.listBranches,
       createWorktree: rpcClient.git.createWorktree,
