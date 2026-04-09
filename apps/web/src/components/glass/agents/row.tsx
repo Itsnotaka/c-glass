@@ -117,6 +117,7 @@ export const GlassAgentRow = memo(
 
     return (
       <GlassThreadContextMenu
+        threadId={props.item.id}
         onRename={() => {
           setRenaming(true);
           setRenameValue(props.item.title);

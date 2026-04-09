@@ -1,5 +1,5 @@
 import { ContextMenu } from "@base-ui/react/context-menu";
-import { IconArchive, IconBell, IconEditSmall1 } from "central-icons";
+import { IconArchive, IconBell, IconClipboard, IconEditSmall1 } from "central-icons";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -19,6 +19,7 @@ const itemClass = cn(
 
 export function GlassThreadContextMenu(props: {
   children: ReactNode;
+  threadId: string;
   onRename: () => void;
   onMarkUnread: () => void;
   onArchive: () => void;
@@ -45,6 +46,17 @@ export function GlassThreadContextMenu(props: {
                   <IconBell className="size-3" aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1 truncate">Mark as unread</span>
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-0.5 h-px shrink-0 bg-glass-stroke/60" />
+              <ContextMenu.Item
+                label="Copy Thread ID"
+                onClick={() => void navigator.clipboard.writeText(props.threadId)}
+                className={itemClass}
+              >
+                <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">
+                  <IconClipboard className="size-3" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1 truncate">Copy Thread ID</span>
               </ContextMenu.Item>
               <ContextMenu.Separator className="my-0.5 h-px shrink-0 bg-glass-stroke/60" />
               <ContextMenu.Item label="Archive" onClick={props.onArchive} className={itemClass}>
