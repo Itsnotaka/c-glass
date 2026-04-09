@@ -5,6 +5,7 @@ import {
   type GlassSidebarSection,
 } from "../lib/glass-view-model";
 import { useGlassChatDraftStore } from "../lib/glass-chat-draft-store";
+import { useGlassThreadUnreadStore } from "../lib/glass-thread-unread-store";
 import { useThreadSummaries, useThreadSummariesStatus } from "../lib/thread-session-store";
 import { useRouteThreadId } from "./use-route-thread-id";
 
@@ -16,10 +17,14 @@ export function useGlassAgents(cwd: string | null, home: string | null) {
   const items = useGlassChatDraftStore((state) => state.items);
   const drafts = useMemo(() => Object.values(items), [items]);
   const selectedId = routeThreadId ?? draftId;
+  const unread = useGlassThreadUnreadStore((s) => s.unread);
+  const unreadIds = useMemo(() => {
+    return new Set(Object.keys(unread).filter((id) => unread[id]));
+  }, [unread]);
 
   const sections = useMemo(
-    () => buildWorkspaceChatSections(status === "ready" ? sums : {}, drafts, cwd, home),
-    [cwd, drafts, home, status, sums],
+    () => buildWorkspaceChatSections(status === "ready" ? sums : {}, drafts, cwd, home, unreadIds),
+    [cwd, drafts, home, status, sums, unreadIds],
   );
 
   const selected = useMemo(

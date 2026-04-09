@@ -265,11 +265,63 @@ function normalizeRuntimeTurnState(
   }
 }
 
+function toolName(data: unknown, fallback: { title?: string; itemType?: string }): string {
+  const rec = obj(data);
+  const direct = str(rec?.toolName) ?? str(rec?.tool_name) ?? str(rec?.name);
+  if (direct) return direct;
+  const item = obj(rec?.item);
+  const nested =
+    item &&
+    (str(item.toolName) ??
+      str(item.tool_name) ??
+      str(item.name) ??
+      str(item.type) ??
+      str(item.kind));
+  return nested || fallback.title || fallback.itemType || "tool";
+}
+
+function toolArgs(data: unknown): Record<string, unknown> | undefined {
+  const rec = obj(data);
+  if (!rec) return undefined;
+  const direct = obj(rec.input) ?? obj(rec.arguments) ?? obj(rec.args);
+  if (direct) return direct;
+  const item = obj(rec.item);
+  if (!item) return undefined;
+  const nested = obj(item.input) ?? obj(item.arguments) ?? obj(item.args);
+  if (nested) return nested;
+  // Codex items carry command/path/etc. directly on the item — surface the rest.
+  const { id: _id, type: _type, kind: _kind, ...rest } = item;
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
+function toolResult(data: unknown): { text: string; details?: unknown } {
+  const rec = obj(data);
+  if (!rec) return { text: "" };
+  const result = rec.result ?? rec.output ?? obj(rec.item)?.output ?? obj(rec.item)?.result;
+  if (typeof result === "string") return { text: result, details: result };
+  const o = obj(result);
+  if (o) {
+    const text = str(o.text) ?? str(o.content) ?? str(o.output);
+    if (text) return { text, details: result };
+  }
+  if (Array.isArray(result)) {
+    const parts = result
+      .map((entry) => obj(entry))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map((entry) => str(entry.text) ?? str(entry.content))
+      .filter((text): text is string => text !== undefined);
+    if (parts.length > 0) return { text: parts.join("\n"), details: result };
+  }
+  return result !== undefined ? { text: "", details: result } : { text: "" };
+}
+
 type BufferedAssistantContent = {
   blocks: Record<string, OrchestrationAssistantContentBlock>;
   summary: Record<string, string>;
   textSlot: number | null;
   thinkingSlot: number | null;
+  toolSlots: Record<string, number>;
+  reservedThinkingSlots: Record<string, true>;
 };
 
 function emptyAssistantContent(): BufferedAssistantContent {
@@ -278,6 +330,8 @@ function emptyAssistantContent(): BufferedAssistantContent {
     summary: {},
     textSlot: null,
     thinkingSlot: null,
+    toolSlots: {},
+    reservedThinkingSlots: {},
   };
 }
 
@@ -333,39 +387,74 @@ function assistantSlot(
   return slot;
 }
 
-function patchAssistantContent(
-  state: BufferedAssistantContent,
-  input: {
-    kind: "assistant_text" | "reasoning_text" | "reasoning_summary_text";
-    delta: string;
-    contentIndex?: number;
-    summaryIndex?: number;
-  },
-) {
+type AssistantContentOp =
+  | {
+      kind: "assistant_text" | "reasoning_text" | "reasoning_summary_text";
+      delta: string;
+      contentIndex?: number;
+      summaryIndex?: number;
+    }
+  | {
+      kind: "reserve_thinking";
+      contentIndex?: number;
+    }
+  | {
+      kind: "tool_call";
+      itemId: string;
+      name: string;
+      arguments?: Record<string, unknown>;
+    };
+
+function applyAssistantContent(state: BufferedAssistantContent, op: AssistantContentOp) {
   const next: BufferedAssistantContent = {
     blocks: { ...state.blocks },
     summary: { ...state.summary },
     textSlot: state.textSlot,
     thinkingSlot: state.thinkingSlot,
+    toolSlots: { ...state.toolSlots },
+    reservedThinkingSlots: { ...state.reservedThinkingSlots },
   };
 
-  if (input.kind === "assistant_text") {
-    const slot = assistantSlot(next, "text", input.contentIndex);
-    const cur = next.blocks[String(slot)];
+  if (op.kind === "tool_call") {
+    const existing = next.toolSlots[op.itemId];
+    const slot = existing ?? nextAssistantSlot(next);
+    next.toolSlots[op.itemId] = slot;
     next.blocks[String(slot)] = {
-      type: "text",
-      text: `${cur?.type === "text" ? cur.text : ""}${input.delta}`,
+      type: "toolCall",
+      id: op.itemId,
+      name: op.name,
+      ...(op.arguments !== undefined ? { arguments: op.arguments } : {}),
     };
     return next;
   }
 
-  const slot = assistantSlot(next, "thinking", input.contentIndex);
+  if (op.kind === "reserve_thinking") {
+    const slot = assistantSlot(next, "thinking", op.contentIndex);
+    next.reservedThinkingSlots[String(slot)] = true;
+    const cur = next.blocks[String(slot)];
+    if (!cur || cur.type !== "thinking") {
+      next.blocks[String(slot)] = { type: "thinking", thinking: "" };
+    }
+    return next;
+  }
+
+  if (op.kind === "assistant_text") {
+    const slot = assistantSlot(next, "text", op.contentIndex);
+    const cur = next.blocks[String(slot)];
+    next.blocks[String(slot)] = {
+      type: "text",
+      text: `${cur?.type === "text" ? cur.text : ""}${op.delta}`,
+    };
+    return next;
+  }
+
+  const slot = assistantSlot(next, "thinking", op.contentIndex);
   const cur = next.blocks[String(slot)];
   const summary =
-    input.kind === "reasoning_summary_text"
+    op.kind === "reasoning_summary_text"
       ? (() => {
-          next.summary[String(input.summaryIndex ?? 0)] =
-            `${next.summary[String(input.summaryIndex ?? 0)] ?? ""}${input.delta}`;
+          next.summary[String(op.summaryIndex ?? 0)] =
+            `${next.summary[String(op.summaryIndex ?? 0)] ?? ""}${op.delta}`;
           return joinAssistantSummary(next.summary);
         })()
       : cur?.type === "thinking"
@@ -375,8 +464,8 @@ function patchAssistantContent(
   next.blocks[String(slot)] = {
     type: "thinking",
     thinking:
-      input.kind === "reasoning_text"
-        ? `${cur?.type === "thinking" ? cur.thinking : ""}${input.delta}`
+      op.kind === "reasoning_text"
+        ? `${cur?.type === "thinking" ? cur.thinking : ""}${op.delta}`
         : cur?.type === "thinking"
           ? cur.thinking
           : "",
@@ -393,15 +482,26 @@ function materializeAssistantContent(
   }
 
   return Object.entries(state.blocks)
-    .map(([key, block]) => [Number.parseInt(key, 10), block] as const)
+    .map(([key, block]) => [Number.parseInt(key, 10), block, key] as const)
     .filter(([key]) => Number.isFinite(key))
     .toSorted((left, right) => left[0] - right[0])
-    .map(([, block]) => block)
-    .filter((block) =>
-      block.type === "text"
-        ? block.text.length > 0
-        : block.thinking.length > 0 || (block.summary?.length ?? 0) > 0,
-    );
+    .filter(([, block, key]) => {
+      if (block.type === "text") {
+        return block.text.length > 0;
+      }
+      if (block.type === "thinking") {
+        return (
+          block.thinking.length > 0 ||
+          (block.summary?.length ?? 0) > 0 ||
+          state.reservedThinkingSlots[key] === true
+        );
+      }
+      if (block.type === "toolCall") {
+        return true;
+      }
+      return false;
+    })
+    .map(([, block]) => block);
 }
 
 function orchestrationSessionStatusFromRuntimeState(
@@ -921,21 +1021,10 @@ const make = Effect.fn("make")(function* () {
   const clearBufferedAssistantText = (messageId: MessageId) =>
     Cache.invalidate(bufferedAssistantTextByMessageId, messageId);
 
-  const patchBufferedAssistantContent = (
-    messageId: MessageId,
-    input: {
-      kind: "assistant_text" | "reasoning_text" | "reasoning_summary_text";
-      delta: string;
-      contentIndex?: number;
-      summaryIndex?: number;
-    },
-  ) =>
+  const applyBufferedAssistantContent = (messageId: MessageId, op: AssistantContentOp) =>
     Cache.getOption(bufferedAssistantContentByMessageId, messageId).pipe(
       Effect.flatMap((existing) => {
-        const next = patchAssistantContent(
-          Option.getOrElse(existing, emptyAssistantContent),
-          input,
-        );
+        const next = applyAssistantContent(Option.getOrElse(existing, emptyAssistantContent), op);
         return Cache.set(bufferedAssistantContentByMessageId, messageId, next).pipe(
           Effect.as(materializeAssistantContent(next)),
         );
@@ -1353,28 +1442,40 @@ const make = Effect.fn("make")(function* () {
     const proposedPlanDelta =
       event.type === "turn.proposed.delta" ? event.payload.delta : undefined;
 
-    if (assistantStream && assistantStream.delta.length > 0) {
+    if (
+      assistantStream &&
+      (assistantStream.delta.length > 0 || assistantStream.streamKind === "reasoning_text")
+    ) {
       const assistantMessage = assistantMessageId(event);
       const turnId = toTurnId(event.turnId);
       if (turnId) {
         yield* rememberAssistantMessageId(thread.id, turnId, assistantMessage);
       }
 
-      const content = yield* patchBufferedAssistantContent(assistantMessage, {
-        kind:
-          assistantStream.streamKind === "assistant_text"
-            ? "assistant_text"
-            : assistantStream.streamKind === "reasoning_text"
-              ? "reasoning_text"
-              : "reasoning_summary_text",
-        delta: assistantStream.delta,
-        ...(assistantStream.contentIndex !== undefined
-          ? { contentIndex: assistantStream.contentIndex }
-          : {}),
-        ...(assistantStream.summaryIndex !== undefined
-          ? { summaryIndex: assistantStream.summaryIndex }
-          : {}),
-      });
+      const op: AssistantContentOp =
+        assistantStream.delta.length === 0 && assistantStream.streamKind === "reasoning_text"
+          ? {
+              kind: "reserve_thinking",
+              ...(assistantStream.contentIndex !== undefined
+                ? { contentIndex: assistantStream.contentIndex }
+                : {}),
+            }
+          : {
+              kind:
+                assistantStream.streamKind === "assistant_text"
+                  ? "assistant_text"
+                  : assistantStream.streamKind === "reasoning_text"
+                    ? "reasoning_text"
+                    : "reasoning_summary_text",
+              delta: assistantStream.delta,
+              ...(assistantStream.contentIndex !== undefined
+                ? { contentIndex: assistantStream.contentIndex }
+                : {}),
+              ...(assistantStream.summaryIndex !== undefined
+                ? { summaryIndex: assistantStream.summaryIndex }
+                : {}),
+            };
+      const content = yield* applyBufferedAssistantContent(assistantMessage, op);
 
       let delta = "";
       let tag = "assistant-delta";
@@ -1408,6 +1509,67 @@ const make = Effect.fn("make")(function* () {
     if (proposedPlanDelta && proposedPlanDelta.length > 0) {
       const planId = proposedPlanIdFromEvent(event, thread.id);
       yield* appendBufferedProposedPlan(planId, proposedPlanDelta, now);
+    }
+
+    const isTool =
+      (event.type === "item.started" ||
+        event.type === "item.updated" ||
+        event.type === "item.completed") &&
+      isToolLifecycleItemType(event.payload.itemType);
+
+    if (isTool) {
+      const id = String(event.itemId ?? event.eventId);
+      const assistantMessage = assistantMessageId(event);
+      const turnId = toTurnId(event.turnId);
+      if (turnId) {
+        yield* rememberAssistantMessageId(thread.id, turnId, assistantMessage);
+      }
+
+      const name = toolName(event.payload.data, {
+        ...(event.payload.title ? { title: event.payload.title } : {}),
+        itemType: event.payload.itemType,
+      });
+      const args = toolArgs(event.payload.data);
+
+      const content = yield* applyBufferedAssistantContent(assistantMessage, {
+        kind: "tool_call",
+        itemId: id,
+        name,
+        ...(args !== undefined ? { arguments: args } : {}),
+      });
+
+      yield* orchestrationEngine.dispatch({
+        type: "thread.message.assistant.delta",
+        commandId: providerCommandId(event, "tool-call-delta"),
+        threadId: thread.id,
+        messageId: assistantMessage,
+        delta: "",
+        content,
+        ...(turnId ? { turnId } : {}),
+        createdAt: now,
+      });
+
+      if (event.type === "item.completed") {
+        const { text, details } = toolResult(event.payload.data);
+        yield* orchestrationEngine.dispatch({
+          type: "thread.message.tool-result.append",
+          commandId: providerCommandId(event, "tool-result-append"),
+          threadId: thread.id,
+          messageId: MessageId.makeUnsafe(`toolResult:${id}`),
+          toolCallId: id,
+          toolName: name,
+          ...(text.length > 0
+            ? {
+                content: [{ type: "text", text }] as OrchestrationAssistantContent,
+                text,
+              }
+            : {}),
+          isError: event.payload.status === "failed",
+          ...(details !== undefined ? { details } : {}),
+          ...(turnId ? { turnId } : {}),
+          createdAt: now,
+        });
+      }
     }
 
     const assistantCompletion =

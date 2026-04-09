@@ -43,7 +43,7 @@ export type ChatAttachment = ChatImageAttachment;
 
 export interface ChatMessage {
   id: MessageId;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "toolResult";
   text: string;
   content?: OrchestrationAssistantContent;
   attachments?: ChatAttachment[];

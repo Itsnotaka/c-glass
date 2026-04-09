@@ -579,6 +579,38 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
     }
 
+    case "thread.message.tool-result.append": {
+      yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt: command.createdAt,
+          commandId: command.commandId,
+        }),
+        type: "thread.message-sent",
+        payload: {
+          threadId: command.threadId,
+          messageId: command.messageId,
+          role: "toolResult",
+          text: command.text ?? "",
+          ...(command.content !== undefined ? { content: command.content } : {}),
+          turnId: command.turnId ?? null,
+          streaming: false,
+          createdAt: command.createdAt,
+          updatedAt: command.createdAt,
+          toolCallId: command.toolCallId,
+          ...(command.toolName !== undefined ? { toolName: command.toolName } : {}),
+          ...(command.isError !== undefined ? { isError: command.isError } : {}),
+          ...(command.details !== undefined ? { details: command.details } : {}),
+        },
+      };
+    }
+
     case "thread.proposed-plan.upsert": {
       yield* requireThread({
         readModel,

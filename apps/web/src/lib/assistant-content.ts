@@ -34,6 +34,10 @@ export function assistantBlocks(message: Pick<ChatMessage, "text" | "content">):
       continue;
     }
 
+    if (block.type !== "text") {
+      continue;
+    }
+
     const size = Math.min(rest.length, block.text.length);
     if (size <= 0) {
       continue;

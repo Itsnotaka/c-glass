@@ -382,6 +382,10 @@ export function projectEvent(
             streaming: payload.streaming,
             createdAt: payload.createdAt,
             updatedAt: payload.updatedAt,
+            ...(payload.toolCallId !== undefined ? { toolCallId: payload.toolCallId } : {}),
+            ...(payload.toolName !== undefined ? { toolName: payload.toolName } : {}),
+            ...(payload.isError !== undefined ? { isError: payload.isError } : {}),
+            ...(payload.details !== undefined ? { details: payload.details } : {}),
           },
           event.type,
           "message",
@@ -405,6 +409,10 @@ export function projectEvent(
                     ...(message.attachments !== undefined
                       ? { attachments: message.attachments }
                       : {}),
+                    ...(message.toolCallId !== undefined ? { toolCallId: message.toolCallId } : {}),
+                    ...(message.toolName !== undefined ? { toolName: message.toolName } : {}),
+                    ...(message.isError !== undefined ? { isError: message.isError } : {}),
+                    ...(message.details !== undefined ? { details: message.details } : {}),
                   }
                 : entry,
             )

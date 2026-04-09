@@ -47,13 +47,13 @@ function draftTitle(draft: GlassDraftChat) {
   return `${head} +${draft.files.length - 1}`;
 }
 
-function buildThreadChat(sum: GlassSessionSummary) {
+function buildThreadChat(sum: GlassSessionSummary, unreadIds?: ReadonlySet<string>) {
   return {
     id: sum.id,
     kind: "thread",
     title: sum.name?.trim() || sum.firstMessage.trim() || "Untitled",
     state: sum.isStreaming ? "running" : "idle",
-    unread: false,
+    unread: unreadIds?.has(sum.id) ?? false,
     updatedAt: sum.modifiedAt,
     ago: timeAgo(sum.modifiedAt),
     cwd: sum.cwd || "/",
@@ -78,9 +78,10 @@ export function buildWorkspaceChatSections(
   drafts: readonly GlassDraftChat[],
   cwd: string | null,
   home: string | null,
+  unreadIds?: ReadonlySet<string>,
 ) {
   const list = [
-    ...Object.values(sums).map((sum) => buildThreadChat(sum)),
+    ...Object.values(sums).map((sum) => buildThreadChat(sum, unreadIds)),
     ...drafts.map((draft) => buildDraftChat(draft)),
   ];
   if (list.length === 0) return [];

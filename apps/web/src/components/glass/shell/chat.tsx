@@ -9,6 +9,7 @@ import { useGlassGitPanel } from "~/hooks/use-glass-git";
 import { useGlassShellPanels } from "~/hooks/use-glass-shell-panels";
 import { useShellState } from "~/hooks/use-shell-cwd";
 import { useGlassChatDraftStore, hasDraft } from "~/lib/glass-chat-draft-store";
+import { useGlassThreadUnreadStore } from "~/lib/glass-thread-unread-store";
 import { switchWorkspace } from "~/lib/glass-workspace";
 import { cn } from "~/lib/utils";
 import { useDefaultHarness } from "~/lib/harness-picker";
@@ -90,6 +91,8 @@ export function GlassChatShell() {
     [cur, cwd, kind, navigate, park, pick, projects, root.files, root.text, routeThreadId],
   );
 
+  const clearThreadUnread = useGlassThreadUnreadStore((s) => s.clear);
+
   const select = useCallback(
     (id: string) => {
       if (id in items) {
@@ -97,10 +100,11 @@ export function GlassChatShell() {
         void navigate({ to: "/" });
         return;
       }
+      clearThreadUnread(id);
       pick(null);
       void navigate({ to: "/$threadId", params: { threadId: id } });
     },
-    [items, navigate, pick],
+    [clearThreadUnread, items, navigate, pick],
   );
 
   const left = (

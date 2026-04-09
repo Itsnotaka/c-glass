@@ -1630,6 +1630,26 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         });
         return;
       }
+      if (block.type === "thinking" || block.type === "redacted_thinking") {
+        if (!context.turnState) return;
+        const stamp = yield* makeEventStamp();
+        yield* offerRuntimeEvent({
+          type: "content.delta",
+          eventId: stamp.eventId,
+          provider: PROVIDER,
+          createdAt: stamp.createdAt,
+          threadId: context.session.threadId,
+          turnId: context.turnState.turnId,
+          payload: { streamKind: "reasoning_text", delta: "", contentIndex: index },
+          providerRefs: nativeProviderRefs(context),
+          raw: {
+            source: "claude.sdk.message",
+            method: "claude/stream_event/content_block_start",
+            payload: message,
+          },
+        });
+        return;
+      }
       if (
         block.type !== "tool_use" &&
         block.type !== "server_tool_use" &&

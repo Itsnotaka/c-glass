@@ -3,6 +3,7 @@ import {
   IconAgent,
   IconAppearanceLightMode,
   IconArchive,
+  IconBell,
   IconArrowCornerDownRight,
   IconArrowLeft,
   IconArrowOutOfBox,
@@ -22,6 +23,7 @@ import {
   IconCloudDownload,
   IconConsole,
   IconCrossSmall,
+  IconEditSmall1,
   IconFileBend,
   IconFolder1,
   IconFolderOpen,
@@ -51,7 +53,8 @@ export type GlassCentralIconEntry = {
 export const glassCentralIcons: GlassCentralIconEntry[] = [
   { name: "IconAgent", Cmp: IconAgent, usage: "Settings: Agents" },
   { name: "IconAppearanceLightMode", Cmp: IconAppearanceLightMode, usage: "Settings: Appearance" },
-  { name: "IconArchive", Cmp: IconArchive, usage: "Settings: Archived" },
+  { name: "IconArchive", Cmp: IconArchive, usage: "Settings: Archived, thread context menu" },
+  { name: "IconBell", Cmp: IconBell, usage: "Thread rail: unread" },
   {
     name: "IconArrowCornerDownRight",
     Cmp: IconArrowCornerDownRight,
@@ -87,6 +90,7 @@ export const glassCentralIcons: GlassCentralIconEntry[] = [
   { name: "IconCloudDownload", Cmp: IconCloudDownload, usage: "Update pill: download" },
   { name: "IconConsole", Cmp: IconConsole, usage: "Chat rows: terminal attachment" },
   { name: "IconCrossSmall", Cmp: IconCrossSmall, usage: "Close, destructive, dialogs, composer" },
+  { name: "IconEditSmall1", Cmp: IconEditSmall1, usage: "Thread context menu: rename" },
   { name: "IconFileBend", Cmp: IconFileBend, usage: "Files, git, slash, fallback file icon" },
   { name: "IconFolder1", Cmp: IconFolder1, usage: "Workspace picker, slash: folder" },
   { name: "IconFolderOpen", Cmp: IconFolderOpen, usage: "Open picker: open folder" },

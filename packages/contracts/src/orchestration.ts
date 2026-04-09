@@ -192,7 +192,12 @@ export const OrchestrationProject = Schema.Struct({
 });
 export type OrchestrationProject = typeof OrchestrationProject.Type;
 
-export const OrchestrationMessageRole = Schema.Literals(["user", "assistant", "system"]);
+export const OrchestrationMessageRole = Schema.Literals([
+  "user",
+  "assistant",
+  "system",
+  "toolResult",
+]);
 export type OrchestrationMessageRole = typeof OrchestrationMessageRole.Type;
 
 export const OrchestrationAssistantTextBlock = Schema.Struct({
@@ -208,9 +213,18 @@ export const OrchestrationAssistantThinkingBlock = Schema.Struct({
 });
 export type OrchestrationAssistantThinkingBlock = typeof OrchestrationAssistantThinkingBlock.Type;
 
+export const OrchestrationAssistantToolCallBlock = Schema.Struct({
+  type: Schema.Literal("toolCall"),
+  id: Schema.optional(Schema.String),
+  name: Schema.String,
+  arguments: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+});
+export type OrchestrationAssistantToolCallBlock = typeof OrchestrationAssistantToolCallBlock.Type;
+
 export const OrchestrationAssistantContentBlock = Schema.Union([
   OrchestrationAssistantTextBlock,
   OrchestrationAssistantThinkingBlock,
+  OrchestrationAssistantToolCallBlock,
 ]);
 export type OrchestrationAssistantContentBlock = typeof OrchestrationAssistantContentBlock.Type;
 
@@ -227,6 +241,10 @@ export const OrchestrationMessage = Schema.Struct({
   streaming: Schema.Boolean,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
+  toolCallId: Schema.optional(Schema.String),
+  toolName: Schema.optional(Schema.String),
+  isError: Schema.optional(Schema.Boolean),
+  details: Schema.optional(Schema.Unknown),
 });
 export type OrchestrationMessage = typeof OrchestrationMessage.Type;
 
@@ -625,6 +643,21 @@ const ThreadMessageAssistantCompleteCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const ThreadMessageToolResultAppendCommand = Schema.Struct({
+  type: Schema.Literal("thread.message.tool-result.append"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  messageId: MessageId,
+  toolCallId: Schema.String,
+  toolName: Schema.optional(Schema.String),
+  content: Schema.optional(OrchestrationAssistantContent),
+  text: Schema.optional(Schema.String),
+  isError: Schema.optional(Schema.Boolean),
+  details: Schema.optional(Schema.Unknown),
+  turnId: Schema.optional(TurnId),
+  createdAt: IsoDateTime,
+});
+
 const ThreadProposedPlanUpsertCommand = Schema.Struct({
   type: Schema.Literal("thread.proposed-plan.upsert"),
   commandId: CommandId,
@@ -667,6 +700,7 @@ const InternalOrchestrationCommand = Schema.Union([
   ThreadSessionSetCommand,
   ThreadMessageAssistantDeltaCommand,
   ThreadMessageAssistantCompleteCommand,
+  ThreadMessageToolResultAppendCommand,
   ThreadProposedPlanUpsertCommand,
   ThreadTurnDiffCompleteCommand,
   ThreadActivityAppendCommand,
@@ -799,6 +833,10 @@ export const ThreadMessageSentPayload = Schema.Struct({
   streaming: Schema.Boolean,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
+  toolCallId: Schema.optional(Schema.String),
+  toolName: Schema.optional(Schema.String),
+  isError: Schema.optional(Schema.Boolean),
+  details: Schema.optional(Schema.Unknown),
 });
 
 export const ThreadTurnStartRequestedPayload = Schema.Struct({
