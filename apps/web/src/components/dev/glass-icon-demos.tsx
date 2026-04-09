@@ -1,4 +1,4 @@
-import type { PiAskState } from "@glass/contracts";
+import type { GlassAskState } from "@glass/contracts";
 import type { ShellFileHit } from "@glass/contracts";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -16,27 +16,26 @@ import { GlassSelect } from "~/components/ui/select";
 import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { SidebarTrigger } from "~/components/ui/sidebar";
 
-import { GlassDiffSidebar } from "~/components/glass/diff-sidebar";
 import { GlassAgentList } from "~/components/glass/agent-list";
 import { GlassAppShell, type GlassAppShellPanels } from "~/components/glass/app-shell";
 import { GlassAskTool } from "~/components/glass/ask-tool";
 import {
   GlassComposerAttachmentChipDemo,
   GlassComposerToolbarIconDemo,
-} from "~/components/glass/pi-composer";
+} from "~/components/glass/chat-composer";
 import { GlassComposerFilePreview } from "~/components/glass/composer-file-preview";
 import { GlassCommandPalette } from "~/components/glass/command-palette";
 import { GlassGitFileRow, GlassGitGroupHeader } from "~/components/glass/git-panel";
 import { GlassWorkbenchLayout } from "~/components/glass/layout";
 import { GlassOpenPicker } from "~/components/glass/open-picker";
-import { GlassPiChatRowsIconStripDemo } from "~/components/glass/pi-chat-rows";
+import { GlassChatRowsIconStripDemo } from "~/components/glass/chat-rows";
 import { GlassSettingsNavRail } from "~/components/glass/settings-nav-rail";
 import { GlassSidebarFooter } from "~/components/glass/sidebar-footer";
 import { GlassSidebarHeader } from "~/components/glass/sidebar-header";
 import { GlassComposerTokenMenu } from "~/components/glass/slash-menu";
 import { GlassUpdatePill } from "~/components/glass/update-pill";
 import type { GlassSlashItem, SlashMenuRow } from "~/components/glass/slash-registry";
-import { PiModelPicker } from "~/components/glass/pi-model-picker";
+import { GlassModelPicker } from "~/components/glass/model-picker";
 import {
   GlassCombobox,
   GlassComboboxItem,
@@ -47,7 +46,7 @@ import {
 } from "~/components/glass/combobox";
 import type { DiffRow } from "~/hooks/use-glass-git";
 import type { GlassSidebarSection } from "~/lib/glass-view-model";
-import type { PiModelItem } from "~/lib/pi-models";
+import type { RuntimeModelItem } from "~/lib/runtime-models";
 
 function useDemoPanels(): GlassAppShellPanels {
   const [leftOpen, setLeftOpen] = useState(true);
@@ -71,23 +70,6 @@ function useDemoPanels(): GlassAppShellPanels {
   );
 }
 
-const diffFiles = [
-  {
-    id: "d1",
-    name: "nested.ts",
-    path: "src/pkg/nested.ts",
-    type: "change" as const,
-    stats: { additions: 2, deletions: 1 },
-  },
-  {
-    id: "d2",
-    name: "readme.md",
-    path: "readme.md",
-    type: "new" as const,
-    stats: { additions: 10, deletions: 0 },
-  },
-];
-
 const gitRow: DiffRow = {
   id: "g1",
   path: "src/a.ts",
@@ -97,14 +79,13 @@ const gitRow: DiffRow = {
   unstaged: false,
   add: 2,
   del: 1,
-  diff: null,
 };
 
 const slashSkill: GlassSlashItem = {
   id: "demo-skill",
   kind: "skill",
   name: "skill",
-  source: "pi",
+  source: "runtime",
   pill: "skill",
   section: "skills",
   run: { type: "insert", value: "skill" },
@@ -124,7 +105,7 @@ const slashSub: GlassSlashItem = {
   id: "demo-sub",
   kind: "subagent",
   name: "plan",
-  source: "pi",
+  source: "runtime",
   pill: "subagent",
   section: "subagents",
   run: { type: "insert", value: "plan" },
@@ -143,7 +124,7 @@ const fileHits: ShellFileHit[] = [
   { path: "/proj/readme.md", name: "readme.md", kind: "file" },
 ];
 
-const reasoningModel: PiModelItem = {
+const reasoningModel: RuntimeModelItem = {
   key: "openai/o1",
   provider: "openai",
   id: "o1",
@@ -152,9 +133,10 @@ const reasoningModel: PiModelItem = {
   reasoning: true,
 };
 
-const askDemo: PiAskState = {
+const askDemo: GlassAskState = {
   sessionId: "demo",
   toolCallId: "t1",
+  kind: "select",
   questions: [
     {
       id: "q1",
@@ -172,7 +154,24 @@ const askDemo: PiAskState = {
 };
 
 const agentSections: GlassSidebarSection[] = [
-  { id: "sec", label: "Today", cwd: "/", active: true, ids: ["missing-thread"] },
+  {
+    id: "sec",
+    label: "Today",
+    cwd: "/",
+    active: true,
+    items: [
+      {
+        id: "missing-thread",
+        kind: "draft",
+        title: "Draft chat",
+        state: "draft",
+        unread: false,
+        updatedAt: new Date().toISOString(),
+        ago: "now",
+        cwd: "/",
+      },
+    ],
+  },
 ];
 
 function DemoSection(props: { title: string; hint?: string; children: ReactNode }) {
@@ -236,6 +235,7 @@ function SlashAndFileMenus() {
         anchor={slashRef}
         variant="hero"
         mode="slash"
+        query=""
         slashRows={slashRows}
         slashActive={0}
         onSlashHover={() => {}}
@@ -255,6 +255,7 @@ function SlashAndFileMenus() {
         anchor={fileRef}
         variant="hero"
         mode="file"
+        query=""
         slashRows={slashRows}
         slashActive={0}
         onSlashHover={() => {}}
@@ -288,16 +289,10 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/diff-sidebar.tsx">
-        <div className="h-72 max-w-md overflow-hidden rounded-lg border border-border">
-          <GlassDiffSidebar files={diffFiles} selectedFileId="d1" className="h-full" />
-        </div>
-      </DemoSection>
-
       <DemoSection title="components/glass/app-shell.tsx">
         <div className="h-[min(22rem,70vh)] overflow-hidden rounded-lg border border-border">
           <GlassAppShell
-            left={<div className="p-2 text-detail text-muted-foreground">Threads</div>}
+            left={<div className="p-2 text-detail text-muted-foreground">Chats</div>}
             center={<div className="p-2 text-detail">Editor</div>}
             right={<div className="p-2 text-detail text-muted-foreground">Changes</div>}
             title="Demo"
@@ -333,7 +328,7 @@ export function GlassIconDemosPanel() {
 
       <DemoSection title="components/glass/sidebar-header.tsx">
         <div className="max-w-xs rounded-lg border border-border bg-glass-surface">
-          <GlassSidebarHeader onNewAgent={() => {}} />
+          <GlassSidebarHeader onNewChat={() => {}} />
         </div>
       </DemoSection>
 
@@ -364,11 +359,11 @@ export function GlassIconDemosPanel() {
       </DemoSection>
 
       <DemoSection
-        title="components/glass/pi-model-picker.tsx"
+        title="components/glass/model-picker.tsx"
         hint="Open the model menu — Brain, Checkmark1Small, ChevronRight in list and thinking submenu."
       >
         <div className="max-w-sm rounded-lg border border-border p-2">
-          <PiModelPicker
+          <GlassModelPicker
             items={[reasoningModel]}
             status="ready"
             selection={{
@@ -396,16 +391,16 @@ export function GlassIconDemosPanel() {
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/pi-composer.tsx (toolbar + chips)">
+      <DemoSection title="components/glass/chat-composer.tsx (toolbar + chips)">
         <div className="space-y-3">
           <GlassComposerToolbarIconDemo />
           <GlassComposerAttachmentChipDemo />
         </div>
       </DemoSection>
 
-      <DemoSection title="components/glass/pi-chat-rows.tsx">
+      <DemoSection title="components/glass/chat-rows.tsx">
         <div className="max-w-xl overflow-hidden rounded-lg border border-border">
-          <GlassPiChatRowsIconStripDemo />
+          <GlassChatRowsIconStripDemo />
         </div>
       </DemoSection>
 

@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from "react";
 
-import { readGlass } from "../host";
 import { GlassSettingsProvider, useGlassSettings } from "./glass/settings-context";
 
 import { SidebarProvider } from "./ui/sidebar";
@@ -9,9 +8,9 @@ function DesktopMenuBridge(props: { children: ReactNode }) {
   const settings = useGlassSettings();
 
   useEffect(() => {
-    const glass = readGlass();
-    if (!glass) return;
-    const unsub = glass.desktop.onMenuAction((action) => {
+    const bridge = window.desktopBridge;
+    if (!bridge) return;
+    const unsub = bridge.onMenuAction((action) => {
       if (action !== "open-settings") return;
       settings.openSettings();
     });

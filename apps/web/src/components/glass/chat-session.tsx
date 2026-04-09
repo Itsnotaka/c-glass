@@ -1,61 +1,169 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
-
-import { usePiSummary } from "../../lib/pi-session-store";
-import { GlassOpenPicker } from "./open-picker";
-import { GlassPiComposer } from "./pi-composer";
-import { GlassPiMessages } from "./pi-messages";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useHarnessDescriptor } from "../../lib/harness-store";
+import { useThreadSessionStore, useThreadSummary } from "../../lib/thread-session-store";
+import { useStore } from "../../store";
+import { GlassAskTool } from "./ask-tool";
+import { GlassHeroComposerFooter } from "./hero-composer-footer";
+import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
+import { GlassHeroStage } from "./hero-stage";
+import { GlassChatMessages } from "./chat-messages";
+import { GlassProviderNoticeBanner } from "./provider-notice-banner";
 import { GlassShell } from "./shell";
-import { usePiSession } from "./use-pi-session";
+import { useRuntimeSession } from "./use-runtime-session";
+import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {
-  const sum = usePiSummary(props.sessionId);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const boot = useStore((state) => state.bootstrapComplete);
+  const thread = useStore(
+    (state) => state.threads.find((item) => item.id === props.sessionId) ?? null,
+  );
+  const count = sum?.messageCount ?? snap?.messages.length ?? thread?.messages.length ?? 0;
+  const live =
+    Boolean(snap?.live) ||
+    Boolean(snap?.isStreaming) ||
+    thread?.session?.orchestrationStatus === "starting" ||
+    thread?.session?.orchestrationStatus === "running";
+  const provider = thread?.session?.provider ?? thread?.modelSelection.provider ?? null;
+  const load = !boot && !thread && !sum && !snap;
 
-  if (sum?.messageCount === 0) {
-    return <HeroSession sessionId={props.sessionId} />;
-  }
+  return (
+    <GlassShell>
+      <GlassProviderNoticeBanner
+        sessionId={props.sessionId}
+        provider={provider}
+        activities={thread?.activities ?? []}
+      />
+      {load ? (
+        <BootView />
+      ) : count === 0 && !live ? (
+        <HeroSession sessionId={props.sessionId} />
+      ) : (
+        <DockSession sessionId={props.sessionId} />
+      )}
+    </GlassShell>
+  );
+}
 
-  return <DockSession sessionId={props.sessionId} />;
+function BootView() {
+  return (
+    <div className="mx-auto flex min-h-0 w-full max-w-[43.875rem] flex-1 flex-col gap-6 px-4 py-4 md:px-8 md:py-6">
+      <div className="flex flex-1 flex-col gap-4 pt-4">
+        <Skeleton className="h-18 w-[78%] rounded-glass-card bg-muted/24" />
+        <Skeleton className="h-28 w-[90%] rounded-glass-card bg-muted/18" />
+        <Skeleton className="h-22 w-[72%] rounded-glass-card bg-muted/16" />
+      </div>
+      <div className="shrink-0 rounded-[1.75rem] border border-white/8 bg-black/10 p-3 shadow-glass-card backdrop-blur-xl">
+        <Skeleton className="h-28 w-full rounded-[1.25rem] bg-muted/18" />
+      </div>
+    </div>
+  );
 }
 
 function HeroSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
-  const session = usePiSession(props.sessionId);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const thread = useStore(
+    (state) => state.threads.find((item) => item.id === props.sessionId) ?? null,
+  );
+  const kind = sum?.harness ?? snap?.harness ?? "codex";
+  const harnessDescriptor = useHarnessDescriptor(kind);
+  const session = useRuntimeSession(props.sessionId, kind);
+  const composerRef = useRef<GlassChatComposerHandle>(null);
+  const prevSession = useRef(props.sessionId);
+
+  const planMode = useCallback(() => {
+    if (!thread) return;
+    session.setInteractionMode(thread.interactionMode === "plan" ? "default" : "plan");
+  }, [session, thread]);
+
+  useHotkey(
+    "Shift+Tab",
+    (event) => {
+      event.preventDefault();
+      planMode();
+    },
+    { preventDefault: true },
+  );
 
   useLayoutEffect(() => {
     setDraft("");
   }, [props.sessionId]);
 
+  useEffect(() => {
+    if (prevSession.current !== props.sessionId) {
+      prevSession.current = props.sessionId;
+      composerRef.current?.focus();
+    }
+  }, [props.sessionId]);
+
   return (
-    <GlassShell>
-      <div className="flex h-full flex-1 flex-col items-center justify-center px-6 py-12 outline-hidden">
-        <div className="flex w-full max-w-[640px] flex-col items-start gap-2 px-4 pt-2 pb-8">
-          <GlassPiComposer
-            sessionId={props.sessionId}
-            draft={draft}
-            onDraft={setDraft}
-            busy={session.busy}
-            model={session.model}
-            modelLoading={session.modelLoading}
-            variant="hero"
-            onAbort={session.abort}
-            onModel={session.setModel}
-            onThinkingLevel={session.setThinkingLevel}
-            onSend={session.send}
-          />
-          <GlassOpenPicker variant="hero" />
-        </div>
+    <GlassHeroStage
+      scene={props.sessionId}
+      footer={
+        <GlassHeroComposerFooter
+          onPlanMode={planMode}
+          planActive={thread?.interactionMode === "plan"}
+        />
+      }
+    >
+      <div className="relative w-full">
+        <GlassChatComposer
+          ref={composerRef}
+          sessionId={props.sessionId}
+          draft={draft}
+          onDraft={setDraft}
+          busy={session.busy}
+          model={session.model}
+          modelLoading={session.modelLoading}
+          variant="hero"
+          onAbort={session.abort}
+          onModel={session.setModel}
+          onThinkingLevel={session.setThinkingLevel}
+          onPlanMode={() => session.setInteractionMode("plan")}
+          onSend={session.send}
+          harness={kind}
+          harnessDescriptor={harnessDescriptor}
+        />
+        <AnimatePresence>
+          {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}
+        </AnimatePresence>
       </div>
-    </GlassShell>
+    </GlassHeroStage>
   );
 }
 
 function DockSession(props: { sessionId: string }) {
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const session = usePiSession(props.sessionId);
+  const sum = useThreadSummary(props.sessionId);
+  const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
+  const thread = useStore(
+    (state) => state.threads.find((item) => item.id === props.sessionId) ?? null,
+  );
+  const kind = sum?.harness ?? snap?.harness ?? "codex";
+  const harnessDescriptor = useHarnessDescriptor(kind);
+  const session = useRuntimeSession(props.sessionId, kind);
+
+  const planMode = useCallback(() => {
+    if (!thread) return;
+    session.setInteractionMode(thread.interactionMode === "plan" ? "default" : "plan");
+  }, [session, thread]);
+
+  useHotkey(
+    "Shift+Tab",
+    (event) => {
+      event.preventDefault();
+      planMode();
+    },
+    { preventDefault: true },
+  );
 
   useEffect(() => {
     setDraft("");
@@ -72,21 +180,38 @@ function DockSession(props: { sessionId: string }) {
   );
 
   return (
-    <GlassShell>
-      <GlassPiMessages messages={session.messages} live={session.live} expanded={expanded} />
-      <GlassPiComposer
-        sessionId={props.sessionId}
-        draft={draft}
-        onDraft={setDraft}
+    <>
+      <GlassChatMessages
+        messages={session.messages}
+        live={session.live}
+        work={session.work}
         busy={session.busy}
-        model={session.model}
-        modelLoading={session.modelLoading}
-        variant="dock"
-        onAbort={session.abort}
-        onModel={session.setModel}
-        onThinkingLevel={session.setThinkingLevel}
-        onSend={session.send}
+        since={session.since}
+        expanded={expanded}
       />
-    </GlassShell>
+      <div className="relative">
+        <GlassChatComposer
+          sessionId={props.sessionId}
+          draft={draft}
+          onDraft={setDraft}
+          busy={session.busy}
+          model={session.model}
+          modelLoading={session.modelLoading}
+          variant="dock"
+          onAbort={session.abort}
+          onModel={session.setModel}
+          onThinkingLevel={session.setThinkingLevel}
+          onPlanMode={() => session.setInteractionMode("plan")}
+          planActive={thread?.interactionMode === "plan"}
+          onPlanToggle={planMode}
+          onSend={session.send}
+          harness={kind}
+          harnessDescriptor={harnessDescriptor}
+        />
+        <AnimatePresence>
+          {session.ask ? <GlassAskTool state={session.ask} onReply={session.answerAsk} /> : null}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }

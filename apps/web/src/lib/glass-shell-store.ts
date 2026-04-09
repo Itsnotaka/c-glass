@@ -25,9 +25,11 @@ export const useGlassShellStore = create<State>()((set) => ({
     set({ paths: [] });
   },
   mute: (cwd) => {
-    set((state) => ({ mutes: { ...state.mutes, [cwd]: true } }));
+    set((state) => (state.mutes[cwd] ? state : { mutes: { ...state.mutes, [cwd]: true } }));
   },
   unmute: (cwd) => {
-    set((state) => ({ mutes: { ...state.mutes, [cwd]: false } }));
+    set((state) =>
+      state.mutes[cwd] === false ? state : { mutes: { ...state.mutes, [cwd]: false } },
+    );
   },
 }));

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { GlassBridge } from "@glass/contracts";
+import type { NativeApi, DesktopBridge } from "@glass/contracts";
 
 interface ImportMetaEnv {
   readonly APP_VERSION: string;
@@ -12,6 +12,7 @@ interface ImportMeta {
 
 declare global {
   interface Window {
-    glass?: GlassBridge;
+    nativeApi?: NativeApi;
+    desktopBridge?: DesktopBridge;
   }
 }

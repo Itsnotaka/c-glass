@@ -28,14 +28,14 @@ export function useGlassShellPanels(cwdKey: string | null) {
 
   const setLeftOpen = useCallback(
     (leftOpen: boolean) => {
-      set((state) => ({ ...state, leftOpen }));
+      set((state) => (state.leftOpen === leftOpen ? state : { ...state, leftOpen }));
     },
     [set],
   );
 
   const setRightOpen = useCallback(
     (rightOpen: boolean) => {
-      set((state) => ({ ...state, rightOpen }));
+      set((state) => (state.rightOpen === rightOpen ? state : { ...state, rightOpen }));
     },
     [set],
   );
@@ -50,20 +50,20 @@ export function useGlassShellPanels(cwdKey: string | null) {
 
   const setLeftWidth = useCallback(
     (leftW: number) => {
-      set((state) => ({
-        ...state,
-        leftW: Math.min(leftMax, Math.max(leftMin, leftW)),
-      }));
+      set((state) => {
+        const next = Math.min(leftMax, Math.max(leftMin, leftW));
+        return state.leftW === next ? state : { ...state, leftW: next };
+      });
     },
     [set],
   );
 
   const setRightWidth = useCallback(
     (rightW: number) => {
-      set((state) => ({
-        ...state,
-        rightW: Math.min(rightMax, Math.max(rightMin, rightW)),
-      }));
+      set((state) => {
+        const next = Math.min(rightMax, Math.max(rightMin, rightW));
+        return state.rightW === next ? state : { ...state, rightW: next };
+      });
     },
     [set],
   );

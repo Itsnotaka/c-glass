@@ -1,0 +1,46 @@
+{
+  "name": "@glass/server",
+  "version": "0.0.15",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itsnotaka/c-glass",
+    "directory": "apps/server"
+  },
+  "bin": {
+    "glass-server": "./dist/bin.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx src/bin.ts",
+    "build": "node scripts/cli.ts build",
+    "start": "node dist/bin.mjs",
+    "prepare": "effect-language-service patch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.97",
+    "@effect/platform-node": "catalog:",
+    "@pierre/diffs": "^1.1.12",
+    "effect": "catalog:",
+    "node-pty": "^1.1.0",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@effect/language-service": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@glass/contracts": "workspace:*",
+    "@glass/shared": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "^22.16 || ^23.11 || >=24.10"
+  }
+}

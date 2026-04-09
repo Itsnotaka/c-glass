@@ -1,3 +1,4 @@
+import * as ChildProcess from "node:child_process";
 import * as Crypto from "node:crypto";
 import * as FS from "node:fs";
 import * as OS from "node:os";
@@ -17,34 +18,19 @@ import {
 import type { MenuItemConstructorOptions } from "electron";
 import * as Effect from "effect/Effect";
 import type {
-  ContextMenuItem,
-  DesktopBootSnapshot,
   DesktopTheme,
   DesktopUpdateActionResult,
   DesktopUpdateCheckResult,
-  PiAskReply,
-  PiPromptInput,
   DesktopUpdateState,
-  PiSessionActiveEvent,
-  PiSessionSummaryEvent,
-  PiThinkingLevel,
 } from "@glass/contracts";
 import { autoUpdater } from "electron-updater";
+
+import type { ContextMenuItem } from "@glass/contracts";
+import { MACOS_TRAFFIC_LIGHTS } from "@glass/shared/desktop-chrome";
+import { NetService } from "@glass/shared/Net";
 import { RotatingFileSink } from "@glass/shared/logging";
+import { parsePersistedServerObservabilitySettings } from "@glass/shared/serverSettings";
 import { showDesktopConfirmDialog } from "./confirmDialog";
-import {
-  EXT_UI_COMPOSER_DRAFT_CHANNEL,
-  EXT_UI_NOTIFY_CHANNEL,
-  EXT_UI_REPLY_CHANNEL,
-  EXT_UI_REQUEST_CHANNEL,
-  EXT_UI_SET_EDITOR_CHANNEL,
-  type ExtUiReply,
-} from "./ext-ui-bridge";
-import { GitService } from "./git-service";
-import { PiConfigService } from "./pi-config-service";
-import { PiRuntimeService } from "./pi-runtime/pi-runtime-service";
-import { ShellService } from "./shell-service";
-import { probeSign } from "./sign";
 import { syncShellEnvironment } from "./syncShellEnvironment";
 import { getAutoUpdateDisabledReason, shouldBroadcastDownloadProgress } from "./updateState";
 import {
@@ -63,59 +49,18 @@ import { isArm64HostRunningIntelBuild, resolveDesktopRuntimeInfo } from "./runti
 
 syncShellEnvironment();
 
+const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
-const SET_VIBRANCY_CHANNEL = "desktop:set-vibrancy";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
+const OPEN_EXTERNAL_CHANNEL = "desktop:open-external";
 const MENU_ACTION_CHANNEL = "desktop:menu-action";
 const UPDATE_STATE_CHANNEL = "desktop:update-state";
 const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
-const GLASS_READ_BOOT_CHANNEL = "glass:boot.read";
-const SESSION_LIST_CHANNEL = "glass:session.list";
-const SESSION_LIST_ALL_CHANNEL = "glass:session.list-all";
-const SESSION_CREATE_CHANNEL = "glass:session.create";
-const SESSION_GET_CHANNEL = "glass:session.get";
-const SESSION_READ_CHANNEL = "glass:session.read";
-const SESSION_WATCH_CHANNEL = "glass:session.watch";
-const SESSION_UNWATCH_CHANNEL = "glass:session.unwatch";
-const SESSION_PROMPT_CHANNEL = "glass:session.prompt";
-const SESSION_ABORT_CHANNEL = "glass:session.abort";
-const SESSION_SET_MODEL_CHANNEL = "glass:session.set-model";
-const SESSION_SET_THINKING_LEVEL_CHANNEL = "glass:session.set-thinking-level";
-const SESSION_COMMANDS_CHANNEL = "glass:session.commands";
-const SESSION_READ_ASK_CHANNEL = "glass:session.read-ask";
-const SESSION_ANSWER_ASK_CHANNEL = "glass:session.answer-ask";
-const SESSION_ASK_CHANNEL = "glass:session.ask";
-const SESSION_SUMMARY_CHANNEL = "glass:session.summary";
-const SESSION_ACTIVE_CHANNEL = "glass:session.active";
-const PI_GET_CONFIG_CHANNEL = "glass:pi.get-config";
-const PI_SET_DEFAULT_MODEL_CHANNEL = "glass:pi.set-default-model";
-const PI_CLEAR_DEFAULT_MODEL_CHANNEL = "glass:pi.clear-default-model";
-const PI_SET_DEFAULT_THINKING_CHANNEL = "glass:pi.set-default-thinking";
-const PI_GET_API_KEY_CHANNEL = "glass:pi.get-api-key";
-const PI_SET_API_KEY_CHANNEL = "glass:pi.set-api-key";
-const PI_START_OAUTH_LOGIN_CHANNEL = "glass:pi.start-oauth-login";
-const PI_OAUTH_PROMPT_CHANNEL = "glass:pi.oauth-prompt";
-const PI_OAUTH_PROMPT_REPLY_CHANNEL = "glass:pi.oauth-prompt-reply";
-const SHELL_GET_STATE_CHANNEL = "glass:shell.get-state";
-const SHELL_PICK_WORKSPACE_CHANNEL = "glass:shell.pick-workspace";
-const SHELL_SET_WORKSPACE_CHANNEL = "glass:shell.set-workspace";
-const SHELL_OPEN_IN_EDITOR_CHANNEL = "glass:shell.open-in-editor";
-const SHELL_OPEN_EXTERNAL_CHANNEL = "glass:shell.open-external";
-const SHELL_SUGGEST_FILES_CHANNEL = "glass:shell.suggest-files";
-const SHELL_PREVIEW_FILE_CHANNEL = "glass:shell.preview-file";
-const SHELL_PICK_FILES_CHANNEL = "glass:shell.pick-files";
-const SHELL_INSPECT_FILES_CHANNEL = "glass:shell.inspect-files";
-const SHELL_GET_EDITOR_ICONS_CHANNEL = "glass:shell.get-editor-icons";
-const GIT_GET_STATE_CHANNEL = "glass:git.get-state";
-const GIT_REFRESH_CHANNEL = "glass:git.refresh";
-const GIT_INIT_CHANNEL = "glass:git.init";
-const GIT_DISCARD_CHANNEL = "glass:git.discard";
-const GIT_STATE_CHANNEL = "glass:git.state";
-const GLASS_BOOT_REFRESH_CHANNEL = "glass:boot.refresh";
+const GET_WS_URL_CHANNEL = "desktop:get-ws-url";
 const BASE_DIR = process.env.GLASS_HOME?.trim() || Path.join(OS.homedir(), ".glass");
 const STATE_DIR = Path.join(BASE_DIR, "userdata");
 const DESKTOP_SCHEME = "glass";
@@ -123,6 +68,8 @@ const ROOT_DIR = Path.resolve(__dirname, "../../..");
 const isDevelopment = Boolean(process.env.VITE_DEV_SERVER_URL);
 const APP_DISPLAY_NAME = isDevelopment ? "Glass (Dev)" : "Glass";
 const APP_USER_MODEL_ID = "com.glass.app";
+const LINUX_DESKTOP_ENTRY_NAME = isDevelopment ? "glass-dev.desktop" : "glass.desktop";
+const LINUX_WM_CLASS = isDevelopment ? "glass-dev" : "glass";
 const USER_DATA_DIR_NAME = isDevelopment ? "glass-dev" : "glass";
 const LEGACY_USER_DATA_DIR_NAME = isDevelopment ? "Glass (Dev)" : "Glass";
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
@@ -131,48 +78,34 @@ const LOG_DIR = Path.join(STATE_DIR, "logs");
 const LOG_FILE_MAX_BYTES = 10 * 1024 * 1024;
 const LOG_FILE_MAX_FILES = 10;
 const APP_RUN_ID = Crypto.randomBytes(6).toString("hex");
+const SERVER_SETTINGS_PATH = Path.join(STATE_DIR, "settings.json");
 const AUTO_UPDATE_STARTUP_DELAY_MS = 15_000;
 const AUTO_UPDATE_POLL_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const DESKTOP_UPDATE_CHANNEL = "latest";
 const DESKTOP_UPDATE_ALLOW_PRERELEASE = false;
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
+type LinuxDesktopNamedApp = Electron.App & {
+  setDesktopName?: (desktopName: string) => void;
+};
 
 let mainWindow: BrowserWindow | null = null;
-let gitWatch: FS.FSWatcher | null = null;
+let backendProcess: ChildProcess.ChildProcess | null = null;
+let backendPort = 0;
+let backendAuthToken = "";
+let backendWsUrl = "";
+let restartAttempt = 0;
+let restartTimer: ReturnType<typeof setTimeout> | null = null;
 let isQuitting = false;
 let desktopProtocolRegistered = false;
 let aboutCommitHashCache: string | null | undefined;
 let desktopLogSink: RotatingFileSink | null = null;
+let backendLogSink: RotatingFileSink | null = null;
 let restoreStdIoCapture: (() => void) | null = null;
-let removeSessionEvents: (() => void) | null = null;
-let removeAskEvents: (() => void) | null = null;
-let removeUiReqEvents: (() => void) | null = null;
-let removeUiNotifyEvents: (() => void) | null = null;
-let removeUiSetEditorEvents: (() => void) | null = null;
-let removeGitEvents: (() => void) | null = null;
-let sessionEventTimer: ReturnType<typeof setTimeout> | null = null;
-let bootState: DesktopBootSnapshot | null = null;
-
-const pendingSessionSummaries = new Map<string, PiSessionSummaryEvent>();
-const pendingSessionActives = new Map<number, PiSessionActiveEvent[]>();
-const watchedSessions = new Map<number, string>();
-const watchedSenders = new Set<number>();
-
-const pi = new PiConfigService();
-
-let oauthPromptResolve: ((value: string) => void) | null = null;
-
-function oauthPromptReplyHandler(_event: Electron.IpcMainEvent, value: unknown) {
-  if (typeof value !== "string") return;
-  oauthPromptResolve?.(value);
-  oauthPromptResolve = null;
-}
-const shellService = new ShellService(Path.join(resolveUserDataPath(), "shell.json"));
-const sessionService = new PiRuntimeService(shellService);
-const gitService = new GitService();
+let backendObservabilitySettings = readPersistedBackendObservabilitySettings();
 
 let destructiveMenuIconCache: Electron.NativeImage | null | undefined;
+const expectedBackendExitChildren = new WeakSet<ChildProcess.ChildProcess>();
 const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
   platform: process.platform,
   processArch: process.arch,
@@ -181,13 +114,55 @@ const desktopRuntimeInfo = resolveDesktopRuntimeInfo({
 const initialUpdateState = (): DesktopUpdateState =>
   createInitialDesktopUpdateState(app.getVersion(), desktopRuntimeInfo);
 
+function logTimestamp(): string {
+  return new Date().toISOString();
+}
+
 function logScope(scope: string): string {
   return `${scope} run=${APP_RUN_ID}`;
 }
 
+function sanitizeLogValue(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function readPersistedBackendObservabilitySettings(): {
+  readonly otlpTracesUrl: string | undefined;
+  readonly otlpMetricsUrl: string | undefined;
+} {
+  try {
+    if (!FS.existsSync(SERVER_SETTINGS_PATH)) {
+      return { otlpTracesUrl: undefined, otlpMetricsUrl: undefined };
+    }
+    return parsePersistedServerObservabilitySettings(FS.readFileSync(SERVER_SETTINGS_PATH, "utf8"));
+  } catch (error) {
+    console.warn("[desktop] failed to read persisted backend observability settings", error);
+    return { otlpTracesUrl: undefined, otlpMetricsUrl: undefined };
+  }
+}
+
+function backendChildEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.GLASS_PORT;
+  delete env.GLASS_AUTH_TOKEN;
+  delete env.GLASS_MODE;
+  delete env.GLASS_NO_BROWSER;
+  delete env.GLASS_HOST;
+  delete env.GLASS_DESKTOP_WS_URL;
+  return env;
+}
+
 function writeDesktopLogHeader(message: string): void {
   if (!desktopLogSink) return;
-  desktopLogSink.write(`[${new Date().toISOString()}] [${logScope("desktop")}] ${message}\n`);
+  desktopLogSink.write(`[${logTimestamp()}] [${logScope("desktop")}] ${message}\n`);
+}
+
+function writeBackendSessionBoundary(phase: "START" | "END", details: string): void {
+  if (!backendLogSink) return;
+  const normalizedDetails = sanitizeLogValue(details);
+  backendLogSink.write(
+    `[${logTimestamp()}] ---- APP SESSION ${phase} run=${APP_RUN_ID} ${normalizedDetails} ----\n`,
+  );
 }
 
 function formatErrorMessage(error: unknown): string {
@@ -233,7 +208,7 @@ function writeDesktopStreamChunk(
   const buffer = Buffer.isBuffer(chunk)
     ? chunk
     : Buffer.from(String(chunk), typeof chunk === "string" ? encoding : undefined);
-  desktopLogSink.write(`[${new Date().toISOString()}] [${logScope(streamName)}] `);
+  desktopLogSink.write(`[${logTimestamp()}] [${logScope(streamName)}] `);
   desktopLogSink.write(buffer);
   if (buffer.length === 0 || buffer[buffer.length - 1] !== 0x0a) {
     desktopLogSink.write("\n");
@@ -287,6 +262,11 @@ function initializePackagedLogging(): void {
       maxBytes: LOG_FILE_MAX_BYTES,
       maxFiles: LOG_FILE_MAX_FILES,
     });
+    backendLogSink = new RotatingFileSink({
+      filePath: Path.join(LOG_DIR, "server-child.log"),
+      maxBytes: LOG_FILE_MAX_BYTES,
+      maxFiles: LOG_FILE_MAX_FILES,
+    });
     installStdIoCapture();
     writeDesktopLogHeader(`runtime log capture enabled logDir=${LOG_DIR}`);
   } catch (error) {
@@ -295,7 +275,22 @@ function initializePackagedLogging(): void {
   }
 }
 
+function captureBackendOutput(child: ChildProcess.ChildProcess): void {
+  if (!app.isPackaged || backendLogSink === null) return;
+  const writeChunk = (chunk: unknown): void => {
+    if (!backendLogSink) return;
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8");
+    backendLogSink.write(buffer);
+  };
+  child.stdout?.on("data", writeChunk);
+  child.stderr?.on("data", writeChunk);
+}
+
 initializePackagedLogging();
+
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("class", LINUX_WM_CLASS);
+}
 
 function getDestructiveMenuIcon(): Electron.NativeImage | undefined {
   if (process.platform !== "darwin") return undefined;
@@ -423,9 +418,33 @@ function resolveAboutCommitHash(): string | null {
   return aboutCommitHashCache;
 }
 
+function resolveBackendEntry(): string {
+  if (!app.isPackaged) {
+    return Path.join(resolveAppRoot(), "apps/server/src/bin.ts");
+  }
+  return Path.join(resolveAppRoot(), "apps/server/dist/bin.mjs");
+}
+
+function resolveBackendArgs(entry: string): string[] {
+  if (!app.isPackaged) {
+    return ["--import", "tsx", entry, "--bootstrap-fd", "3"];
+  }
+  return [entry, "--bootstrap-fd", "3"];
+}
+
+function resolveBackendCwd(): string {
+  if (!app.isPackaged) {
+    return resolveAppRoot();
+  }
+  return OS.homedir();
+}
+
 function resolveDesktopStaticDir(): string | null {
   const appRoot = resolveAppRoot();
-  const candidates = [Path.join(appRoot, "apps/web/dist")];
+  const candidates = [
+    Path.join(appRoot, "apps/server/dist/client"),
+    Path.join(appRoot, "apps/web/dist"),
+  ];
 
   for (const candidate of candidates) {
     if (FS.existsSync(Path.join(candidate, "index.html"))) {
@@ -478,7 +497,7 @@ function handleFatalStartupError(stage: string, error: unknown): void {
     isQuitting = true;
     dialog.showErrorBox("Glass failed to start", `Stage: ${stage}\n${message}${detail}`);
   }
-  sessionService.dispose();
+  stopBackend();
   restoreStdIoCapture?.();
   app.quit();
 }
@@ -488,7 +507,9 @@ function registerDesktopProtocol(): void {
 
   const staticRoot = resolveDesktopStaticDir();
   if (!staticRoot) {
-    throw new Error("Desktop static bundle missing. Build apps/web first.");
+    throw new Error(
+      "Desktop static bundle missing. Build apps/server (with bundled client) first.",
+    );
   }
 
   const staticRootResolved = Path.resolve(staticRoot);
@@ -688,11 +709,15 @@ function resolveResourcePath(fileName: string): string | null {
   return null;
 }
 
+function resolveIconPath(ext: "ico" | "icns" | "png"): string | null {
+  return resolveResourcePath(`icon.${ext}`);
+}
+
 /**
  * Resolve the Electron userData directory path.
  *
  * Electron derives the default userData path from `productName` in
- * package.json, which can produce directories with spaces and
+ * package.json, which currently produces directories with spaces and
  * parentheses (e.g. `~/.config/Glass` on Linux). This is
  * unfriendly for shell usage and violates Linux naming conventions.
  *
@@ -729,8 +754,12 @@ function configureAppIdentity(): void {
     app.setAppUserModelId(APP_USER_MODEL_ID);
   }
 
+  if (process.platform === "linux") {
+    (app as LinuxDesktopNamedApp).setDesktopName?.(LINUX_DESKTOP_ENTRY_NAME);
+  }
+
   if (process.platform === "darwin" && app.dock) {
-    const iconPath = resolveResourcePath("icon.png");
+    const iconPath = resolveIconPath("png");
     if (iconPath) {
       app.dock.setIcon(iconPath);
     }
@@ -770,20 +799,6 @@ function shouldEnableAutoUpdates(): boolean {
       disabledByEnv: process.env.GLASS_DISABLE_AUTO_UPDATE === "1",
     }) === null
   );
-}
-
-function getMockInstallBlock(): string | null {
-  if (process.platform !== "darwin") {
-    return null;
-  }
-  if (!process.env.GLASS_DESKTOP_MOCK_UPDATES) {
-    return null;
-  }
-  const sign = probeSign(process.execPath);
-  if (sign === "signed") {
-    return null;
-  }
-  return "Local macOS mock updates require both the installed app and the downloaded update to be signed with the same identity. This build is unsigned or ad-hoc signed, so Squirrel.Mac will reject the install.";
 }
 
 async function checkForUpdates(reason: string): Promise<boolean> {
@@ -840,23 +855,14 @@ async function installDownloadedUpdate(): Promise<{ accepted: boolean; completed
     return { accepted: false, completed: false };
   }
 
-  const block = getMockInstallBlock();
-  if (block) {
-    setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, block));
-    console.error(`[desktop-updater] Failed to install update: ${block}`);
-    return { accepted: true, completed: false };
-  }
-
   isQuitting = true;
   updateInstallInFlight = true;
   clearUpdatePollTimer();
   try {
-    sessionService.dispose();
-    if (process.platform === "win32") {
-      // Destroy all windows before launching the NSIS installer to avoid the installer finding live windows it needs to close.
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.destroy();
-      }
+    await stopBackendAndWaitForExit();
+    // Destroy all windows before launching the NSIS installer to avoid the installer finding live windows it needs to close.
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.destroy();
     }
     // `quitAndInstall()` only starts the handoff to the updater. The actual
     // install may still fail asynchronously, so keep the action incomplete
@@ -887,24 +893,18 @@ function configureAutoUpdater(): void {
 
   const githubToken =
     process.env.GLASS_DESKTOP_UPDATE_GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim() || "";
-  const appUpdateYml = readAppUpdateYml();
-  if (appUpdateYml?.provider === "github") {
-    if (githubToken) {
-      // When a token is provided, re-configure the feed with `private: true` so
-      // electron-updater uses the GitHub API (api.github.com) instead of the
-      // public Atom feed (github.com/…/releases.atom) which rejects Bearer auth.
+  if (githubToken) {
+    // When a token is provided, re-configure the feed with `private: true` so
+    // electron-updater uses the GitHub API (api.github.com) instead of the
+    // public Atom feed (github.com/…/releases.atom) which rejects Bearer auth.
+    const appUpdateYml = readAppUpdateYml();
+    if (appUpdateYml?.provider === "github") {
       autoUpdater.setFeedURL({
         ...appUpdateYml,
         provider: "github" as const,
         private: true,
         token: githubToken,
       });
-    } else {
-      // Warn that private repos require a token - the default Atom feed will 404
-      console.warn(
-        "[desktop-updater] No GLASS_DESKTOP_UPDATE_GITHUB_TOKEN or GH_TOKEN provided. " +
-          "Updates may fail if the repository is private.",
-      );
     }
   }
 
@@ -912,16 +912,6 @@ function configureAutoUpdater(): void {
     autoUpdater.setFeedURL({
       provider: "generic",
       url: `http://localhost:${process.env.GLASS_DESKTOP_MOCK_UPDATE_SERVER_PORT ?? 3000}`,
-    });
-  }
-
-  // Runtime override: GLASS_DESKTOP_UPDATE_URL can point to any generic server
-  const runtimeUpdateUrl = process.env.GLASS_DESKTOP_UPDATE_URL?.trim();
-  if (runtimeUpdateUrl) {
-    console.info(`[desktop-updater] Using runtime update URL: ${runtimeUpdateUrl}`);
-    autoUpdater.setFeedURL({
-      provider: "generic",
-      url: runtimeUpdateUrl,
     });
   }
 
@@ -961,25 +951,17 @@ function configureAutoUpdater(): void {
   });
   autoUpdater.on("error", (error) => {
     const message = formatErrorMessage(error);
-    const isPrivateRepo404 =
-      message.includes("404") &&
-      message.includes("releases.atom") &&
-      !process.env.GLASS_DESKTOP_UPDATE_GITHUB_TOKEN;
-    const displayMessage = isPrivateRepo404
-      ? "Update check failed: Private repository requires GLASS_DESKTOP_UPDATE_GITHUB_TOKEN"
-      : message;
-
     if (updateInstallInFlight) {
       updateInstallInFlight = false;
       isQuitting = false;
-      setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, displayMessage));
+      setUpdateState(reduceDesktopUpdateStateOnInstallFailure(updateState, message));
       console.error(`[desktop-updater] Updater error: ${message}`);
       return;
     }
     if (!updateCheckInFlight && !updateDownloadInFlight) {
       setUpdateState({
         status: "error",
-        message: displayMessage,
+        message,
         checkedAt: new Date().toISOString(),
         downloadPercent: null,
         errorContext: resolveUpdaterErrorContext(),
@@ -1020,165 +1002,200 @@ function configureAutoUpdater(): void {
   }, AUTO_UPDATE_POLL_INTERVAL_MS);
   updatePollTimer.unref();
 }
+function scheduleBackendRestart(reason: string): void {
+  if (isQuitting || restartTimer) return;
 
-function flushSessionEvents(): void {
-  sessionEventTimer = null;
-  if (pendingSessionSummaries.size === 0 && pendingSessionActives.size === 0) return;
+  const delayMs = Math.min(500 * 2 ** restartAttempt, 10_000);
+  restartAttempt += 1;
+  console.error(`[desktop] backend exited unexpectedly (${reason}); restarting in ${delayMs}ms`);
 
-  const sums = [...pendingSessionSummaries.values()];
-  const acts = [...pendingSessionActives.entries()];
-  pendingSessionSummaries.clear();
-  pendingSessionActives.clear();
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (window.isDestroyed()) continue;
-    for (const event of sums) {
-      window.webContents.send(SESSION_SUMMARY_CHANNEL, event);
-    }
-  }
-
-  for (const [id, events] of acts) {
-    const window = BrowserWindow.getAllWindows().find((item) => item.webContents.id === id);
-    if (!window || window.isDestroyed()) continue;
-    for (const event of events) {
-      window.webContents.send(SESSION_ACTIVE_CHANNEL, event);
-    }
-  }
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    startBackend();
+  }, delayMs);
 }
 
-function emitSessionEvent(event: unknown): void {
-  if (!event || typeof event !== "object" || !("lane" in event)) return;
+function startBackend(): void {
+  if (isQuitting || backendProcess) return;
 
-  if (event.lane === "summary") {
-    const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
-    if (!id) return;
-    pendingSessionSummaries.set(id, event as PiSessionSummaryEvent);
+  backendObservabilitySettings = readPersistedBackendObservabilitySettings();
+  const backendEntry = resolveBackendEntry();
+  if (!FS.existsSync(backendEntry)) {
+    scheduleBackendRestart(`missing server entry at ${backendEntry}`);
+    return;
   }
+  const args = resolveBackendArgs(backendEntry);
 
-  if (event.lane === "active") {
-    const id = "sessionId" in event && typeof event.sessionId === "string" ? event.sessionId : null;
-    if (!id) return;
-    for (const [wid, sid] of watchedSessions) {
-      if (sid !== id) continue;
-      const list = pendingSessionActives.get(wid) ?? [];
-      list.push(event as PiSessionActiveEvent);
-      pendingSessionActives.set(wid, list);
-    }
-  }
-
-  if (sessionEventTimer) return;
-
-  sessionEventTimer = setTimeout(flushSessionEvents, 16);
-  sessionEventTimer.unref();
-}
-
-function clearWatchedSession(id: number): void {
-  const cur = watchedSessions.get(id);
-  watchedSessions.delete(id);
-  pendingSessionActives.delete(id);
-  if (!cur) return;
-  Effect.runSync(sessionService.unwatch(cur));
-}
-
-function bindWatchedSession(sender: Electron.WebContents): void {
-  if (watchedSenders.has(sender.id)) return;
-  watchedSenders.add(sender.id);
-  sender.once("destroyed", () => {
-    watchedSenders.delete(sender.id);
-    clearWatchedSession(sender.id);
+  const captureBackendLogs = app.isPackaged && backendLogSink !== null;
+  const child = ChildProcess.spawn(process.execPath, args, {
+    cwd: resolveBackendCwd(),
+    // In Electron main, process.execPath points to the Electron binary.
+    // Run the child in Node mode so this backend process does not become a GUI app instance.
+    env: {
+      ...backendChildEnv(),
+      ELECTRON_RUN_AS_NODE: "1",
+    },
+    stdio: captureBackendLogs
+      ? ["ignore", "pipe", "pipe", "pipe"]
+      : ["ignore", "inherit", "inherit", "pipe"],
   });
-}
-
-function clearAllWatchedSessions(): void {
-  for (const id of watchedSessions.keys()) {
-    clearWatchedSession(id);
+  const bootstrapStream = child.stdio[3];
+  if (bootstrapStream && "write" in bootstrapStream) {
+    bootstrapStream.write(
+      `${JSON.stringify({
+        mode: "desktop",
+        noBrowser: true,
+        port: backendPort,
+        t3Home: BASE_DIR,
+        authToken: backendAuthToken,
+        ...(backendObservabilitySettings.otlpTracesUrl
+          ? { otlpTracesUrl: backendObservabilitySettings.otlpTracesUrl }
+          : {}),
+        ...(backendObservabilitySettings.otlpMetricsUrl
+          ? { otlpMetricsUrl: backendObservabilitySettings.otlpMetricsUrl }
+          : {}),
+      })}\n`,
+    );
+    bootstrapStream.end();
+  } else {
+    child.kill("SIGTERM");
+    scheduleBackendRestart("missing desktop bootstrap pipe");
+    return;
   }
-}
-
-async function readBootSnapshot(): Promise<DesktopBootSnapshot> {
-  await Effect.runPromise(pi.prepare(shellService.cwd));
-  return {
-    electron: true,
-    shell: Effect.runSync(shellService.getState()),
-    pi: Effect.runSync(pi.getConfig(shellService.cwd)),
-    sessions: sessionService.peek(),
-    snapshots: sessionService.bootSnapshots(),
-    asks: sessionService.bootAsks(),
+  backendProcess = child;
+  let backendSessionClosed = false;
+  const closeBackendSession = (details: string) => {
+    if (backendSessionClosed) return;
+    backendSessionClosed = true;
+    writeBackendSessionBoundary("END", details);
   };
-}
+  writeBackendSessionBoundary(
+    "START",
+    `pid=${child.pid ?? "unknown"} port=${backendPort} cwd=${resolveBackendCwd()}`,
+  );
+  captureBackendOutput(child);
 
-async function refreshBootSnapshot(): Promise<void> {
-  bootState = await readBootSnapshot();
-}
+  child.once("spawn", () => {
+    restartAttempt = 0;
+  });
 
-async function publishGlassBootRefresh(): Promise<void> {
-  await refreshBootSnapshot();
-  emitGlassBootRefresh();
-}
+  child.on("error", (error) => {
+    const wasExpected = expectedBackendExitChildren.has(child);
+    if (backendProcess === child) {
+      backendProcess = null;
+    }
+    closeBackendSession(`pid=${child.pid ?? "unknown"} error=${error.message}`);
+    if (wasExpected) {
+      return;
+    }
+    scheduleBackendRestart(error.message);
+  });
 
-function restartGitWatch(root: string | null) {
-  if (gitWatch) {
-    gitWatch.close();
-    gitWatch = null;
-  }
-  if (!root) return;
-  const gitDir = Path.join(root, ".git");
-  if (!FS.existsSync(gitDir)) return;
-  let t: ReturnType<typeof setTimeout> | null = null;
-  gitWatch = FS.watch(gitDir, { persistent: true }, () => {
-    if (t) clearTimeout(t);
-    t = setTimeout(() => {
-      void Effect.runPromise(gitService.refresh(shellService.cwd)).catch(() => {});
-    }, 250);
+  child.on("exit", (code, signal) => {
+    const wasExpected = expectedBackendExitChildren.has(child);
+    if (backendProcess === child) {
+      backendProcess = null;
+    }
+    closeBackendSession(
+      `pid=${child.pid ?? "unknown"} code=${code ?? "null"} signal=${signal ?? "null"}`,
+    );
+    if (isQuitting || wasExpected) return;
+    const reason = `code=${code ?? "null"} signal=${signal ?? "null"}`;
+    scheduleBackendRestart(reason);
   });
 }
 
-function emitGlassBootRefresh() {
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (w.isDestroyed()) continue;
-    w.webContents.send(GLASS_BOOT_REFRESH_CHANNEL);
+function stopBackend(): void {
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
   }
+
+  const child = backendProcess;
+  backendProcess = null;
+  if (!child) return;
+
+  if (child.exitCode === null && child.signalCode === null) {
+    expectedBackendExitChildren.add(child);
+    child.kill("SIGTERM");
+    setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGKILL");
+      }
+    }, 2_000).unref();
+  }
+}
+
+async function stopBackendAndWaitForExit(timeoutMs = 5_000): Promise<void> {
+  if (restartTimer) {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+  }
+
+  const child = backendProcess;
+  backendProcess = null;
+  if (!child) return;
+  const backendChild = child;
+  if (backendChild.exitCode !== null || backendChild.signalCode !== null) return;
+  expectedBackendExitChildren.add(backendChild);
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let forceKillTimer: ReturnType<typeof setTimeout> | null = null;
+    let exitTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function settle(): void {
+      if (settled) return;
+      settled = true;
+      backendChild.off("exit", onExit);
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
+      if (exitTimeoutTimer) {
+        clearTimeout(exitTimeoutTimer);
+      }
+      resolve();
+    }
+
+    function onExit(): void {
+      settle();
+    }
+
+    backendChild.once("exit", onExit);
+    backendChild.kill("SIGTERM");
+
+    forceKillTimer = setTimeout(() => {
+      if (backendChild.exitCode === null && backendChild.signalCode === null) {
+        backendChild.kill("SIGKILL");
+      }
+    }, 2_000);
+    forceKillTimer.unref();
+
+    exitTimeoutTimer = setTimeout(() => {
+      settle();
+    }, timeoutMs);
+    exitTimeoutTimer.unref();
+  });
 }
 
 function registerIpcHandlers(): void {
-  removeSessionEvents?.();
-  removeSessionEvents = sessionService.listen((event) => {
-    emitSessionEvent(event);
+  ipcMain.removeAllListeners(GET_WS_URL_CHANNEL);
+  ipcMain.on(GET_WS_URL_CHANNEL, (event) => {
+    event.returnValue = backendWsUrl;
   });
-  removeAskEvents?.();
-  removeAskEvents = sessionService.listenAsk((event) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      window.webContents.send(SESSION_ASK_CHANNEL, event);
-    }
-  });
-  removeUiReqEvents?.();
-  removeUiReqEvents = sessionService.listenUiRequest((req) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      window.webContents.send(EXT_UI_REQUEST_CHANNEL, req);
-    }
-  });
-  removeUiNotifyEvents?.();
-  removeUiNotifyEvents = sessionService.listenUiNotify((item) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      window.webContents.send(EXT_UI_NOTIFY_CHANNEL, item);
-    }
-  });
-  removeUiSetEditorEvents?.();
-  removeUiSetEditorEvents = sessionService.listenUiSetEditor((item) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      window.webContents.send(EXT_UI_SET_EDITOR_CHANNEL, item.text);
-    }
-  });
-  removeGitEvents?.();
-  removeGitEvents = gitService.listen((state) => {
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      window.webContents.send(GIT_STATE_CHANNEL, state);
-    }
+
+  ipcMain.removeHandler(PICK_FOLDER_CHANNEL);
+  ipcMain.handle(PICK_FOLDER_CHANNEL, async () => {
+    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const result = owner
+      ? await dialog.showOpenDialog(owner, {
+          properties: ["openDirectory", "createDirectory"],
+        })
+      : await dialog.showOpenDialog({
+          properties: ["openDirectory", "createDirectory"],
+        });
+    if (result.canceled) return null;
+    return result.filePaths[0] ?? null;
   });
 
   ipcMain.removeHandler(CONFIRM_CHANNEL);
@@ -1199,19 +1216,6 @@ function registerIpcHandlers(): void {
     }
 
     nativeTheme.themeSource = theme;
-  });
-
-  ipcMain.removeHandler(SET_VIBRANCY_CHANNEL);
-  ipcMain.handle(SET_VIBRANCY_CHANNEL, async (_event, enabled: unknown) => {
-    const useVibrancy = enabled === true;
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) continue;
-      if (process.platform === "darwin") {
-        window.setVibrancy(useVibrancy ? "sidebar" : null);
-      } else if (process.platform === "win32") {
-        window.setBackgroundMaterial(useVibrancy ? "acrylic" : "none");
-      }
-    }
   });
 
   ipcMain.removeHandler(CONTEXT_MENU_CHANNEL);
@@ -1277,401 +1281,19 @@ function registerIpcHandlers(): void {
     },
   );
 
-  ipcMain.removeAllListeners(GLASS_READ_BOOT_CHANNEL);
-  ipcMain.on(GLASS_READ_BOOT_CHANNEL, (event) => {
-    event.returnValue = bootState;
-  });
-
-  ipcMain.removeHandler(SESSION_LIST_CHANNEL);
-  ipcMain.handle(SESSION_LIST_CHANNEL, async () => Effect.runPromise(sessionService.list()));
-
-  ipcMain.removeHandler(SESSION_LIST_ALL_CHANNEL);
-  ipcMain.handle(SESSION_LIST_ALL_CHANNEL, async () => Effect.runPromise(sessionService.listAll()));
-
-  ipcMain.removeHandler(SESSION_CREATE_CHANNEL);
-  ipcMain.handle(SESSION_CREATE_CHANNEL, async () => Effect.runPromise(sessionService.create()));
-
-  ipcMain.removeHandler(SESSION_GET_CHANNEL);
-  ipcMain.handle(SESSION_GET_CHANNEL, async (_event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    return Effect.runPromise(sessionService.get(sessionId));
-  });
-
-  ipcMain.removeHandler(SESSION_READ_CHANNEL);
-  ipcMain.handle(SESSION_READ_CHANNEL, async (_event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    const snap = sessionService.read(sessionId);
-    if (snap) return snap;
-    return Effect.runPromise(sessionService.get(sessionId));
-  });
-
-  ipcMain.removeHandler(SESSION_WATCH_CHANNEL);
-  ipcMain.handle(SESSION_WATCH_CHANNEL, async (event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-
-    bindWatchedSession(event.sender);
-
-    const current = watchedSessions.get(event.sender.id);
-    if (current === sessionId) {
-      return Effect.runPromise(sessionService.get(sessionId));
-    }
-    if (current) {
-      clearWatchedSession(event.sender.id);
-    }
-    watchedSessions.set(event.sender.id, sessionId);
-    return Effect.runPromise(
-      sessionService.watch(sessionId).pipe(
-        Effect.tapError(() =>
-          Effect.sync(() => {
-            watchedSessions.delete(event.sender.id);
-            pendingSessionActives.delete(event.sender.id);
-          }).pipe(Effect.andThen(sessionService.unwatch(sessionId))),
-        ),
-      ),
-    );
-  });
-
-  ipcMain.removeHandler(SESSION_UNWATCH_CHANNEL);
-  ipcMain.handle(SESSION_UNWATCH_CHANNEL, async (event) => {
-    clearWatchedSession(event.sender.id);
-  });
-
-  ipcMain.removeHandler(SESSION_PROMPT_CHANNEL);
-  ipcMain.handle(SESSION_PROMPT_CHANNEL, async (_event, sessionId: unknown, input: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    if (typeof input !== "string" && (typeof input !== "object" || input === null)) {
-      throw new Error("Missing prompt input");
-    }
-    await Effect.runPromise(sessionService.prompt(sessionId, input as string | PiPromptInput));
-  });
-
-  ipcMain.removeHandler(SESSION_COMMANDS_CHANNEL);
-  ipcMain.handle(SESSION_COMMANDS_CHANNEL, async (_event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    return Effect.runPromise(sessionService.commands(sessionId));
-  });
-
-  ipcMain.removeHandler(SESSION_READ_ASK_CHANNEL);
-  ipcMain.handle(SESSION_READ_ASK_CHANNEL, async (_event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    return sessionService.readAsk(sessionId);
-  });
-
-  ipcMain.removeHandler(SESSION_ANSWER_ASK_CHANNEL);
-  ipcMain.handle(SESSION_ANSWER_ASK_CHANNEL, async (_event, sessionId: unknown, reply: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    if (!reply || typeof reply !== "object") {
-      throw new Error("Missing ask reply");
-    }
-    await Effect.runPromise(sessionService.answerAsk(sessionId, reply as PiAskReply));
-  });
-
-  ipcMain.removeHandler(SESSION_ABORT_CHANNEL);
-  ipcMain.handle(SESSION_ABORT_CHANNEL, async (_event, sessionId: unknown) => {
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
-      throw new Error("Missing session id");
-    }
-    await Effect.runPromise(sessionService.abort(sessionId));
-  });
-
-  ipcMain.removeHandler(SESSION_SET_MODEL_CHANNEL);
-  ipcMain.handle(
-    SESSION_SET_MODEL_CHANNEL,
-    async (_event, sessionId: unknown, provider: unknown, model: unknown) => {
-      if (typeof sessionId !== "string" || !sessionId.trim()) {
-        throw new Error("Missing session id");
-      }
-      if (typeof provider !== "string" || !provider.trim()) {
-        throw new Error("Missing provider");
-      }
-      if (typeof model !== "string" || !model.trim()) {
-        throw new Error("Missing model");
-      }
-      await Effect.runPromise(sessionService.setModel(sessionId, provider, model));
-    },
-  );
-
-  const thinkingLevels = new Set<PiThinkingLevel>([
-    "off",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ]);
-  ipcMain.removeHandler(SESSION_SET_THINKING_LEVEL_CHANNEL);
-  ipcMain.handle(
-    SESSION_SET_THINKING_LEVEL_CHANNEL,
-    async (_event, sessionId: unknown, level: unknown) => {
-      if (typeof sessionId !== "string" || !sessionId.trim()) {
-        throw new Error("Missing session id");
-      }
-      if (typeof level !== "string" || !thinkingLevels.has(level as PiThinkingLevel)) {
-        throw new Error("Invalid thinking level");
-      }
-      await Effect.runPromise(sessionService.setThinkingLevel(sessionId, level as PiThinkingLevel));
-    },
-  );
-
-  ipcMain.removeHandler(PI_GET_CONFIG_CHANNEL);
-  ipcMain.handle(PI_GET_CONFIG_CHANNEL, async () => {
-    await Effect.runPromise(pi.prepare(shellService.cwd));
-    return Effect.runSync(pi.getConfig(shellService.cwd));
-  });
-
-  ipcMain.removeHandler(PI_SET_DEFAULT_MODEL_CHANNEL);
-  ipcMain.handle(
-    PI_SET_DEFAULT_MODEL_CHANNEL,
-    async (_event, provider: unknown, model: unknown) => {
-      if (typeof provider !== "string" || !provider.trim()) {
-        throw new Error("Missing provider");
-      }
-      if (typeof model !== "string" || !model.trim()) {
-        throw new Error("Missing model");
-      }
-      await Effect.runPromise(pi.setDefaultModel(shellService.cwd, provider, model));
-      await publishGlassBootRefresh();
-    },
-  );
-
-  ipcMain.removeHandler(PI_CLEAR_DEFAULT_MODEL_CHANNEL);
-  ipcMain.handle(PI_CLEAR_DEFAULT_MODEL_CHANNEL, async () => {
-    await Effect.runPromise(pi.clearDefaultModel(shellService.cwd));
-    await publishGlassBootRefresh();
-  });
-
-  ipcMain.removeHandler(PI_SET_DEFAULT_THINKING_CHANNEL);
-  ipcMain.handle(PI_SET_DEFAULT_THINKING_CHANNEL, async (_event, thinking: unknown) => {
-    if (typeof thinking !== "string" || !thinking.trim()) {
-      throw new Error("Missing thinking level");
-    }
-    await Effect.runPromise(pi.setDefaultThinkingLevel(shellService.cwd, thinking));
-    await publishGlassBootRefresh();
-  });
-
-  ipcMain.removeHandler(PI_GET_API_KEY_CHANNEL);
-  ipcMain.handle(PI_GET_API_KEY_CHANNEL, async (_event, provider: unknown) => {
-    if (typeof provider !== "string" || !provider.trim()) {
-      throw new Error("Missing provider");
-    }
-    return Effect.runPromise(pi.getApiKey(provider));
-  });
-
-  ipcMain.removeHandler(PI_SET_API_KEY_CHANNEL);
-  ipcMain.handle(PI_SET_API_KEY_CHANNEL, async (_event, provider: unknown, key: unknown) => {
-    if (typeof provider !== "string" || !provider.trim()) {
-      throw new Error("Missing provider");
-    }
-    if (typeof key !== "string" || !key.trim()) {
-      throw new Error("Missing key");
-    }
-    await Effect.runPromise(pi.setApiKey(provider, key));
-    await publishGlassBootRefresh();
-  });
-
-  ipcMain.removeListener(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
-  ipcMain.on(PI_OAUTH_PROMPT_REPLY_CHANNEL, oauthPromptReplyHandler);
-
-  ipcMain.removeAllListeners(EXT_UI_REPLY_CHANNEL);
-  ipcMain.on(EXT_UI_REPLY_CHANNEL, (_event, data: ExtUiReply) => {
-    if (!data || typeof data !== "object") return;
-    if (typeof data.id !== "string" || !data.id) return;
-    void Effect.runPromise(sessionService.replyUi(data));
-  });
-
-  ipcMain.removeAllListeners(EXT_UI_COMPOSER_DRAFT_CHANNEL);
-  ipcMain.on(EXT_UI_COMPOSER_DRAFT_CHANNEL, (_event, text: unknown) => {
-    if (typeof text !== "string") return;
-    sessionService.setComposerDraft(text);
-  });
-
-  ipcMain.removeHandler(PI_START_OAUTH_LOGIN_CHANNEL);
-  ipcMain.handle(PI_START_OAUTH_LOGIN_CHANNEL, async (_event, provider: unknown) => {
-    if (typeof provider !== "string" || !provider.trim()) {
-      throw new Error("Missing provider");
-    }
-    const id = provider.trim();
-    await Effect.runPromise(
-      pi.oauthLogin(shellService.cwd, id, {
-        onAuth: (info) => {
-          if (info.url) void shell.openExternal(info.url);
-        },
-        onPrompt: async (p) => {
-          return new Promise((resolve, reject) => {
-            const w = BrowserWindow.getFocusedWindow() ?? mainWindow;
-            if (!w) {
-              reject(new Error("No window"));
-              return;
-            }
-            oauthPromptResolve = resolve;
-            w.webContents.send(PI_OAUTH_PROMPT_CHANNEL, {
-              message: p.message,
-              placeholder: p.placeholder ?? "",
-            });
-          });
-        },
-        onManualCodeInput: () => {
-          return new Promise((resolve, reject) => {
-            const w = BrowserWindow.getFocusedWindow() ?? mainWindow;
-            if (!w) {
-              reject(new Error("No window"));
-              return;
-            }
-            oauthPromptResolve = resolve;
-            w.webContents.send(PI_OAUTH_PROMPT_CHANNEL, {
-              message: "Paste redirect URL or code:",
-              placeholder: "",
-            });
-          });
-        },
-      }),
-    );
-    await publishGlassBootRefresh();
-  });
-
-  ipcMain.removeHandler(SHELL_GET_STATE_CHANNEL);
-  ipcMain.handle(SHELL_GET_STATE_CHANNEL, async () => Effect.runPromise(shellService.getState()));
-
-  ipcMain.removeHandler(SHELL_GET_EDITOR_ICONS_CHANNEL);
-  ipcMain.handle(SHELL_GET_EDITOR_ICONS_CHANNEL, async () =>
-    Effect.runPromise(shellService.getEditorIcons()),
-  );
-
-  ipcMain.removeHandler(SHELL_PICK_WORKSPACE_CHANNEL);
-  ipcMain.handle(SHELL_PICK_WORKSPACE_CHANNEL, async () => {
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const next = await Effect.runPromise(shellService.pickWorkspace(owner));
-    if (next) {
-      await pi.init(next.cwd);
-      clearAllWatchedSessions();
-      sessionService.dispose();
-      const state = await Effect.runPromise(gitService.refresh(next.cwd));
-      restartGitWatch(state.gitRoot);
-      await publishGlassBootRefresh();
-    }
-    return next;
-  });
-
-  ipcMain.removeHandler(SHELL_SET_WORKSPACE_CHANNEL);
-  ipcMain.handle(SHELL_SET_WORKSPACE_CHANNEL, async (_event, cwd: unknown) => {
-    if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Missing cwd");
-    }
-    clearAllWatchedSessions();
-    sessionService.dispose();
-    const next = await Effect.runPromise(shellService.setWorkspace(cwd));
-    await pi.init(next.cwd);
-    const state = await Effect.runPromise(gitService.refresh(next.cwd));
-    restartGitWatch(state.gitRoot);
-    await publishGlassBootRefresh();
-    return next;
-  });
-
-  ipcMain.removeHandler(SHELL_OPEN_IN_EDITOR_CHANNEL);
-  ipcMain.handle(SHELL_OPEN_IN_EDITOR_CHANNEL, async (_event, path: unknown, editor: unknown) => {
-    if (typeof path !== "string" || !path.trim()) {
-      throw new Error("Missing path");
-    }
-    if (typeof editor !== "string" || !editor.trim()) {
-      throw new Error("Missing editor");
-    }
-    await Effect.runPromise(shellService.openInEditor(path, editor));
-  });
-
-  ipcMain.removeHandler(SHELL_OPEN_EXTERNAL_CHANNEL);
-  ipcMain.handle(SHELL_OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
+  ipcMain.removeHandler(OPEN_EXTERNAL_CHANNEL);
+  ipcMain.handle(OPEN_EXTERNAL_CHANNEL, async (_event, rawUrl: unknown) => {
     const externalUrl = getSafeExternalUrl(rawUrl);
     if (!externalUrl) {
       return false;
     }
-    return Effect.runPromise(shellService.openExternal(externalUrl));
-  });
 
-  ipcMain.removeHandler(SHELL_SUGGEST_FILES_CHANNEL);
-  ipcMain.handle(SHELL_SUGGEST_FILES_CHANNEL, async (_event, query: unknown) => {
-    if (typeof query !== "string") {
-      throw new Error("Missing query");
+    try {
+      await shell.openExternal(externalUrl);
+      return true;
+    } catch {
+      return false;
     }
-    return Effect.runPromise(shellService.suggestFiles(query));
-  });
-
-  ipcMain.removeHandler(SHELL_PREVIEW_FILE_CHANNEL);
-  ipcMain.handle(SHELL_PREVIEW_FILE_CHANNEL, async (_event, path: unknown) => {
-    if (typeof path !== "string" || !path.trim()) {
-      throw new Error("Missing path");
-    }
-    return Effect.runPromise(shellService.previewFile(path));
-  });
-
-  ipcMain.removeHandler(SHELL_PICK_FILES_CHANNEL);
-  ipcMain.handle(SHELL_PICK_FILES_CHANNEL, async () => {
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    return Effect.runPromise(shellService.pickFiles(owner));
-  });
-
-  ipcMain.removeHandler(SHELL_INSPECT_FILES_CHANNEL);
-  ipcMain.handle(SHELL_INSPECT_FILES_CHANNEL, async (_event, paths: unknown) => {
-    if (!Array.isArray(paths) || paths.some((item) => typeof item !== "string" || !item.trim())) {
-      throw new Error("Missing paths");
-    }
-    return Effect.runPromise(shellService.inspectFiles(paths));
-  });
-
-  ipcMain.removeHandler(GIT_GET_STATE_CHANNEL);
-  ipcMain.handle(GIT_GET_STATE_CHANNEL, async (_event, cwd: unknown) => {
-    if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Missing cwd");
-    }
-    const state = await Effect.runPromise(gitService.get(cwd));
-    restartGitWatch(state.gitRoot);
-    return state;
-  });
-
-  ipcMain.removeHandler(GIT_REFRESH_CHANNEL);
-  ipcMain.handle(GIT_REFRESH_CHANNEL, async (_event, cwd: unknown) => {
-    if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Missing cwd");
-    }
-    const state = await Effect.runPromise(gitService.refresh(cwd));
-    restartGitWatch(state.gitRoot);
-    return state;
-  });
-
-  ipcMain.removeHandler(GIT_INIT_CHANNEL);
-  ipcMain.handle(GIT_INIT_CHANNEL, async (_event, cwd: unknown) => {
-    if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Missing cwd");
-    }
-    const state = await Effect.runPromise(gitService.init(cwd));
-    restartGitWatch(state.gitRoot);
-    return state;
-  });
-
-  ipcMain.removeHandler(GIT_DISCARD_CHANNEL);
-  ipcMain.handle(GIT_DISCARD_CHANNEL, async (_event, cwd: unknown, paths: unknown) => {
-    if (typeof cwd !== "string" || !cwd.trim()) {
-      throw new Error("Missing cwd");
-    }
-    if (!Array.isArray(paths) || !paths.every((p) => typeof p === "string")) {
-      throw new Error("Missing paths");
-    }
-    const state = await Effect.runPromise(gitService.discard(cwd, paths as string[]));
-    restartGitWatch(state.gitRoot);
-    return state;
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
@@ -1723,25 +1345,23 @@ function registerIpcHandlers(): void {
 function getIconOption(): { icon: string } | Record<string, never> {
   if (process.platform === "darwin") return {}; // macOS uses .icns from app bundle
   const ext = process.platform === "win32" ? "ico" : "png";
-  const iconPath = resolveResourcePath(`icon.${ext}`);
+  const iconPath = resolveIconPath(ext);
   return iconPath ? { icon: iconPath } : {};
 }
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1400,
-    height: 880,
-    minWidth: 1000,
-    minHeight: 680,
+    width: 1472,
+    height: 828,
+    minWidth: 1472,
+    minHeight: 828,
+    center: true,
     show: false,
     autoHideMenuBar: true,
-    transparent: true,
-    backgroundColor: "#00000000",
-    vibrancy: "sidebar",
     ...getIconOption(),
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 14 },
+    trafficLightPosition: { x: MACOS_TRAFFIC_LIGHTS.x, y: MACOS_TRAFFIC_LIGHTS.y },
     webPreferences: {
       preload: Path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -1823,17 +1443,21 @@ configureAppIdentity();
 
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
-  await Effect.runPromise(pi.prepare(shellService.cwd));
+  backendPort = await Effect.service(NetService).pipe(
+    Effect.flatMap((net) => net.reserveLoopbackPort()),
+    Effect.provide(NetService.layer),
+    Effect.runPromise,
+  );
+  writeDesktopLogHeader(`reserved backend port via NetService port=${backendPort}`);
+  backendAuthToken = Crypto.randomBytes(24).toString("hex");
+  const baseUrl = `ws://127.0.0.1:${backendPort}`;
+  backendWsUrl = `${baseUrl}/?token=${encodeURIComponent(backendAuthToken)}`;
+  writeDesktopLogHeader(`bootstrap resolved websocket endpoint baseUrl=${baseUrl}`);
+
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");
-  await Effect.runPromise(
-    Effect.match(sessionService.listAll(), {
-      onFailure: () => [],
-      onSuccess: (items) => items,
-    }),
-  );
-  await refreshBootSnapshot();
-  writeDesktopLogHeader("bootstrap session summaries primed");
+  startBackend();
+  writeDesktopLogHeader("bootstrap backend start requested");
   mainWindow = createWindow();
   writeDesktopLogHeader("bootstrap main window created");
 }
@@ -1843,21 +1467,7 @@ app.on("before-quit", () => {
   updateInstallInFlight = false;
   writeDesktopLogHeader("before-quit received");
   clearUpdatePollTimer();
-  gitWatch?.close();
-  gitWatch = null;
-  removeGitEvents?.();
-  removeGitEvents = null;
-  removeSessionEvents?.();
-  removeSessionEvents = null;
-  removeAskEvents?.();
-  removeAskEvents = null;
-  removeUiReqEvents?.();
-  removeUiReqEvents = null;
-  removeUiNotifyEvents?.();
-  removeUiNotifyEvents = null;
-  removeUiSetEditorEvents?.();
-  removeUiSetEditorEvents = null;
-  sessionService.dispose();
+  stopBackend();
   restoreStdIoCapture?.();
 });
 
@@ -1895,21 +1505,7 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGINT received");
     clearUpdatePollTimer();
-    gitWatch?.close();
-    gitWatch = null;
-    removeGitEvents?.();
-    removeGitEvents = null;
-    removeSessionEvents?.();
-    removeSessionEvents = null;
-    removeAskEvents?.();
-    removeAskEvents = null;
-    removeUiReqEvents?.();
-    removeUiReqEvents = null;
-    removeUiNotifyEvents?.();
-    removeUiNotifyEvents = null;
-    removeUiSetEditorEvents?.();
-    removeUiSetEditorEvents = null;
-    sessionService.dispose();
+    stopBackend();
     restoreStdIoCapture?.();
     app.quit();
   });
@@ -1919,21 +1515,7 @@ if (process.platform !== "win32") {
     isQuitting = true;
     writeDesktopLogHeader("SIGTERM received");
     clearUpdatePollTimer();
-    gitWatch?.close();
-    gitWatch = null;
-    removeGitEvents?.();
-    removeGitEvents = null;
-    removeSessionEvents?.();
-    removeSessionEvents = null;
-    removeAskEvents?.();
-    removeAskEvents = null;
-    removeUiReqEvents?.();
-    removeUiReqEvents = null;
-    removeUiNotifyEvents?.();
-    removeUiNotifyEvents = null;
-    removeUiSetEditorEvents?.();
-    removeUiSetEditorEvents = null;
-    sessionService.dispose();
+    stopBackend();
     restoreStdIoCapture?.();
     app.quit();
   });

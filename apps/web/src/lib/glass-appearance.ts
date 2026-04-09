@@ -1,4 +1,3 @@
-import { readGlass } from "../host";
 import { ALL_PRESET_VAR_KEYS, PIERRE_DARK_VARS, PIERRE_LIGHT_VARS } from "./pierre-color-presets";
 
 export const STORAGE_COLOR_PALETTE = "glass:color-preset";
@@ -105,9 +104,11 @@ function wantsOsVibrancy() {
 }
 
 function syncVibrancy() {
-  const bridge = readGlass();
-  if (!bridge) return;
-  void bridge.desktop.setVibrancy(wantsOsVibrancy());
+  const bridge = window.desktopBridge as
+    | (typeof window.desktopBridge & { setVibrancy?: (enabled: boolean) => Promise<void> })
+    | undefined;
+  if (!bridge?.setVibrancy) return;
+  void bridge.setVibrancy(wantsOsVibrancy());
 }
 
 function applyGlassRoot() {

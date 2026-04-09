@@ -16,21 +16,22 @@ export function GlassSettingsShell() {
   const { cwd } = useShellState();
   const p = useGlassShellPanels(cwd);
   const mute = useGlassShellStore((state) => state.mute);
+  const rightOpen = p.rightOpen;
   const setRightOpen = p.setRightOpen;
   const title = match({ to: "/settings/appearance" })
     ? "Appearance"
     : match({ to: "/settings/agents" })
       ? "Agents"
-      : match({ to: "/settings/extensions" })
-        ? "Extensions"
-        : match({ to: "/settings/archived" })
-          ? "Archived"
-          : "Settings";
+      : match({ to: "/settings/archived" })
+        ? "Archived"
+        : "Settings";
 
   useEffect(() => {
     if (cwd) mute(cwd);
-    setRightOpen(false);
-  }, [cwd, mute, setRightOpen]);
+    if (rightOpen) {
+      setRightOpen(false);
+    }
+  }, [cwd, mute, rightOpen, setRightOpen]);
 
   return (
     <GlassAppShell

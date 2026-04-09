@@ -4,7 +4,6 @@ import {
   IconAppearanceLightMode,
   IconArchive,
   IconArrowRotateCounterClockwise,
-  IconPuzzle,
 } from "central-icons";
 import type { ComponentType } from "react";
 
@@ -13,13 +12,12 @@ import { useSettingsRestore } from "../settings/settings-panels";
 import { cn } from "../../lib/utils";
 
 const items: {
-  to: "/settings/appearance" | "/settings/agents" | "/settings/extensions" | "/settings/archived";
+  to: "/settings/appearance" | "/settings/agents" | "/settings/archived";
   label: string;
   icon: ComponentType<{ className?: string }>;
 }[] = [
   { to: "/settings/appearance", label: "Appearance", icon: IconAppearanceLightMode },
   { to: "/settings/agents", label: "Agents", icon: IconAgent },
-  { to: "/settings/extensions", label: "Extensions", icon: IconPuzzle },
   { to: "/settings/archived", label: "Archived", icon: IconArchive },
 ];
 

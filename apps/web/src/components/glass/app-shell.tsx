@@ -247,50 +247,50 @@ export function GlassAppShell(props: {
           electron && "drag-region",
         )}
       >
-        <div className="pointer-events-none absolute inset-y-0 left-(--glass-workbench-toggle-left) flex items-center gap-1">
+        <div className="pointer-events-none absolute top-(--glass-titlebar-control-row-top) left-(--glass-workbench-toggle-left) flex gap-1">
           {props.onBack ? (
             <button
               type="button"
               onClick={() => props.onBack?.()}
-              className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-glass-control bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
+              className="pointer-events-auto no-drag flex h-(--glass-titlebar-control-height) w-(--glass-titlebar-control-height) shrink-0 items-center justify-center rounded-glass-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-glass-hover hover:text-foreground"
               aria-label="Back to chat"
             >
-              <IconArrowLeft className="size-4" />
+              <IconArrowLeft className="size-4 shrink-0" />
             </button>
           ) : null}
           <button
             type="button"
             onClick={() => p.toggleLeft()}
-            className="pointer-events-auto no-drag flex size-6 shrink-0 items-center justify-center rounded-glass-control bg-transparent text-muted-foreground hover:bg-glass-hover hover:text-foreground"
-            aria-label={p.leftOpen ? "Collapse threads" : "Expand threads"}
+            className="pointer-events-auto no-drag flex h-(--glass-titlebar-control-height) w-(--glass-titlebar-control-height) shrink-0 items-center justify-center rounded-glass-control bg-transparent p-0 leading-none text-muted-foreground [&_svg]:block hover:bg-glass-hover hover:text-foreground"
+            aria-label={p.leftOpen ? "Collapse chats" : "Expand chats"}
           >
             {p.leftOpen ? (
-              <IconSidebarHiddenLeftWide className="size-4" />
+              <IconSidebarHiddenLeftWide className="size-4 shrink-0" />
             ) : (
-              <IconSidebar className="size-4" />
+              <IconSidebar className="size-4 shrink-0" />
             )}
           </button>
         </div>
         {showRight ? (
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-(--glass-workbench-toggle-right)">
+          <div className="pointer-events-none absolute top-(--glass-titlebar-control-row-top) right-0 flex pr-(--glass-workbench-toggle-right)">
             <button
               type="button"
               onClick={() => p.toggleRight()}
               className={cn(
-                "pointer-events-auto no-drag font-glass glass-sidebar-label flex min-h-7 items-center gap-1 rounded-glass-control px-2 transition-colors",
+                "pointer-events-auto no-drag font-glass glass-sidebar-label flex h-(--glass-titlebar-control-height) items-center gap-1 rounded-glass-control px-2 leading-none transition-colors [&_svg]:block",
                 p.rightOpen
                   ? "bg-glass-active/60 text-foreground"
                   : "text-muted-foreground/70 hover:bg-glass-hover hover:text-foreground",
               )}
             >
-              <span>Changes</span>
-              <span className="flex min-w-4 items-center justify-center rounded bg-muted-foreground/20 px-1 py-0.5 text-inherit tabular-nums">
+              <span className="leading-none">Changes</span>
+              <span className="flex min-w-4 items-center justify-center rounded bg-muted-foreground/20 px-1 py-0 leading-none text-inherit tabular-nums">
                 {props.changesCount}
               </span>
               {p.rightOpen ? (
-                <IconSidebarHiddenRightWide className="glass-composer-icon opacity-60" />
+                <IconSidebarHiddenRightWide className="size-4 shrink-0 opacity-60" />
               ) : (
-                <IconSidebar className="glass-composer-icon opacity-60" />
+                <IconSidebar className="size-4 shrink-0 opacity-60" />
               )}
             </button>
           </div>

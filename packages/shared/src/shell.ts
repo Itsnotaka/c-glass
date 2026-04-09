@@ -46,8 +46,7 @@ export function readPathFromLoginShell(
   shell: string,
   execFile: ExecFileSyncLike = execFileSync,
 ): string | undefined {
-  const env = readEnvironmentFromLoginShell(shell, ["PATH"], execFile);
-  return env.PATH;
+  return readEnvironmentFromLoginShell(shell, ["PATH"], execFile).PATH;
 }
 
 function envCaptureStart(name: string): string {

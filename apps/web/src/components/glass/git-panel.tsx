@@ -1,10 +1,13 @@
 "use client";
 
 import type { GitFileState } from "@glass/contracts";
-import type { DiffRow, GlassGitPanelModel } from "../../hooks/use-glass-git";
+import {
+  type DiffRow,
+  type GlassGitPanelModel,
+  useGlassDiffStylePreference,
+} from "../../hooks/use-glass-git";
 import { useGitViewed } from "../../hooks/use-glass-git-viewed";
 import { isElectron } from "../../env";
-import { readGlass } from "../../host";
 import { cn } from "../../lib/utils";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -16,7 +19,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { ScrollArea } from "~/components/ui/scroll-area";
+import { GlassDiffHeader } from "./diff-header";
 import { GlassDiffViewer } from "./diff-viewer";
 import {
   IconArrowRotateCounterClockwise,
@@ -47,7 +50,10 @@ const kindLabel: Record<string, string> = {
 
 function KindBadge(props: { state: GitFileState }) {
   return (
-    <Badge variant={kindVariant[props.state] ?? "neutral"}>
+    <Badge
+      variant={kindVariant[props.state] ?? "neutral"}
+      className="px-1 py-0 text-[11px] leading-4 font-medium"
+    >
       {kindLabel[props.state] ?? "modified"}
     </Badge>
   );
@@ -101,8 +107,10 @@ export const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-1 rounded-glass-control p-1 transition-colors duration-75",
-        props.selected ? "bg-glass-active/50" : "hover:bg-glass-hover/40",
+        "flex min-h-[22px] w-full items-center gap-1.5 rounded-glass-control px-1.5 py-1 text-[12px] leading-4 transition-colors duration-100",
+        props.selected
+          ? "bg-glass-active/44 text-foreground"
+          : "hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]",
       )}
     >
       <input
@@ -119,19 +127,19 @@ export const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps
       <button
         type="button"
         onClick={props.onSelect}
-        className="flex min-w-0 flex-1 items-center gap-1 text-left"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
       >
         <IconFileBend className="size-4 shrink-0 text-muted-foreground/50" />
         <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
           {prefix ? (
-            <span className="min-w-0 flex-1 truncate text-detail text-muted-foreground/40 direction-rtl text-left">
-              {prefix}
+            <span className="min-w-0 flex-1 truncate text-left text-[11px] text-muted-foreground/40 direction-rtl">
+              <span className="inline [unicode-bidi:embed] direction-ltr">{prefix}</span>
             </span>
           ) : null}
-          <span className="shrink-0 text-body font-medium">{name}</span>
+          <span className="shrink-0 text-[12px] text-foreground">{name}</span>
         </span>
         <KindBadge state={props.file.state} />
-        <div className="flex shrink-0 items-center gap-1 text-detail/[1]">
+        <div className="flex shrink-0 items-center gap-0.5 tabular-nums">
           {props.file.add > 0 && (
             <span className="font-medium text-[var(--glass-diff-addition)]">+{props.file.add}</span>
           )}
@@ -146,7 +154,7 @@ export const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps
           e.stopPropagation();
           props.onRevert();
         }}
-        className="flex size-7 shrink-0 items-center justify-center rounded-glass-control text-muted-foreground hover:bg-glass-hover hover:text-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)] hover:text-foreground"
         aria-label="Revert file"
       >
         <IconArrowRotateCounterClockwise className="size-4" />
@@ -167,17 +175,19 @@ export const GlassGitGroupHeader = memo(function GlassGitGroupHeader(props: Grou
     <button
       type="button"
       onClick={props.onToggle}
-      className="sticky top-0 z-[13] flex w-full items-center gap-1 bg-glass-surface/95 py-1 text-left backdrop-blur-sm"
+      className="sticky top-0 z-[13] flex w-full cursor-pointer items-center gap-1.5 bg-glass-bubble/90 py-1 text-left backdrop-blur-xl"
     >
-      <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/50">
+      <span className="inline-flex size-4 shrink-0 items-center justify-center text-muted-foreground/60">
         {props.open ? (
           <IconChevronDownSmall className="size-3.5" />
         ) : (
           <IconChevronRight className="size-3.5" />
         )}
       </span>
-      <span className="min-w-0 flex-1 truncate text-body font-medium">{props.dir}</span>
-      <span className="pr-1 text-detail text-muted-foreground/40">{props.count}</span>
+      <span className="min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-[18px] text-foreground">
+        {props.dir}
+      </span>
+      <span className="shrink-0 pr-0.5 text-[12px] text-muted-foreground/50">{props.count}</span>
     </button>
   );
 });
@@ -209,7 +219,7 @@ function FileTree(props: TreeProps) {
   const flat = props.groups.length === 1 && props.groups[0]!.dir === "";
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-3">
       {props.groups.map((grp) => (
         <div key={grp.dir} className="isolate">
           {!flat && (
@@ -221,7 +231,7 @@ function FileTree(props: TreeProps) {
             />
           )}
           {(flat || open.has(grp.dir)) && (
-            <div className={cn("flex flex-col gap-1", !flat && "pl-[18px]")}>
+            <div className={cn("flex flex-col", !flat && "pl-[18px]")}>
               {grp.files.map((file) => (
                 <GlassGitFileRow
                   key={file.id}
@@ -279,9 +289,8 @@ function DiscardDialog(props: {
 
 export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   const git = props.git;
-  const bridge = readGlass()?.git;
 
-  if (!isElectron || !bridge) {
+  if (!isElectron) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 py-8 text-center">
         <p className="text-body/[1.4] font-medium text-foreground/85">Source control</p>
@@ -292,7 +301,7 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
     );
   }
 
-  if (git.loading && !git.snap) {
+  if (!git.snap && !git.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 py-3">
         <div className="h-3 w-24 animate-pulse rounded bg-muted/40" />
@@ -316,9 +325,9 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
   if (snap && !snap.repo) {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center">
-        <div className="rounded-glass-card border border-glass-border/50 bg-glass-hover/20 px-4 py-3">
+        <div className="space-y-1 px-4 py-3">
           <p className="text-body/[1.4] font-medium text-foreground/85">No repository</p>
-          <p className="mt-1 max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
+          <p className="max-w-[18rem] text-detail/[1.45] text-muted-foreground/72">
             Initialize Git in this workspace to track changes and review diffs.
           </p>
         </div>
@@ -353,11 +362,13 @@ function GitPanelInner(props: { git: GlassGitPanelModel }) {
   const groups = useMemo(() => group(files), [files]);
   const root = git.snap?.gitRoot ?? null;
   const viewed = useGitViewed(root);
+  const [diffStyle, setDiffStyle] = useGlassDiffStylePreference();
   const [pending, setPending] = useState<DiffRow | null>(null);
 
-  const headerPad = isElectron
-    ? "pr-[calc(var(--glass-workbench-toggle-right)+var(--glass-workbench-changes-toggle-w))]"
-    : "";
+  const selectedRow = useMemo(
+    () => (git.selected ? (files.find((row) => row.id === git.selected) ?? null) : null),
+    [files, git.selected],
+  );
 
   const onRevert = useCallback((file: DiffRow) => {
     setPending(file);
@@ -370,29 +381,29 @@ function GitPanelInner(props: { git: GlassGitPanelModel }) {
   }, [git, pending]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col py-3 pl-8" data-glass-review-panel>
       <div
         className={cn(
-          "flex h-[var(--glass-header-height)] shrink-0 items-center justify-between border-b border-glass-border/40 px-3",
-          headerPad,
+          "flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 pt-4 pb-3 text-[13px] font-medium leading-[18px] text-muted-foreground",
+          isElectron
+            ? "pr-[calc(var(--glass-workbench-toggle-right)+var(--glass-workbench-changes-toggle-w))]"
+            : "pr-8",
         )}
       >
-        <div className="flex min-w-0 items-center gap-3 text-detail/[1.2] text-muted-foreground/72">
-          <span className="truncate">
-            {files.length} file{files.length === 1 ? "" : "s"} changed
-          </span>
-          {git.totalAdd > 0 && (
-            <span className="text-[var(--glass-diff-addition)]">+{git.totalAdd}</span>
-          )}
-          {git.totalDel > 0 && (
-            <span className="text-[var(--glass-diff-deletion)]">-{git.totalDel}</span>
-          )}
-        </div>
+        <span className="min-w-0 truncate text-foreground/90">
+          {files.length} file{files.length === 1 ? "" : "s"} changed
+        </span>
+        {git.totalAdd > 0 && (
+          <span className="tabular-nums text-[var(--glass-diff-addition)]">+{git.totalAdd}</span>
+        )}
+        {git.totalDel > 0 && (
+          <span className="tabular-nums text-[var(--glass-diff-deletion)]">-{git.totalDel}</span>
+        )}
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-        <ScrollArea className="w-[min(260px,42%)] shrink-0 border-glass-border/40 border-r">
-          <div className="p-2">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-8">
+        <div className="flex min-h-0 max-h-[min(18rem,42vh)] shrink-0 flex-col overflow-hidden border-b border-[color-mix(in_srgb,var(--foreground)_6%,transparent)]">
+          <div className="glass-review-changes-list min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 [scrollbar-gutter:stable]">
             <FileTree
               groups={groups}
               selected={git.selected}
@@ -402,13 +413,58 @@ function GitPanelInner(props: { git: GlassGitPanelModel }) {
               onRevert={onRevert}
             />
           </div>
-        </ScrollArea>
+        </div>
 
-        <div className="diff-panel-viewport min-h-0 min-w-0 flex-1 overflow-hidden">
-          {git.patch ? (
-            <GlassDiffViewer fileDiff={git.patch} className="h-full min-h-0" />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {selectedRow ? (
+            <>
+              <GlassDiffHeader
+                path={selectedRow.path}
+                state={selectedRow.state}
+                add={selectedRow.add}
+                del={selectedRow.del}
+                diffStyle={diffStyle}
+                onDiffStyleChange={setDiffStyle}
+                viewed={viewed.isViewed(selectedRow.path)}
+                onToggleViewed={() => viewed.toggleViewed(selectedRow.path)}
+                onRevert={() => setPending(selectedRow)}
+                className="shrink-0"
+              />
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                {git.fileDiffLoading ? (
+                  <div className="flex flex-1 flex-col gap-2 px-3 py-3">
+                    <div className="h-3 w-full max-w-[14rem] animate-pulse rounded bg-muted/35" />
+                    <div className="h-3 w-full animate-pulse rounded bg-muted/28" />
+                    <div className="h-3 w-[92%] animate-pulse rounded bg-muted/28" />
+                    <div className="h-3 w-full animate-pulse rounded bg-muted/22" />
+                  </div>
+                ) : git.fileDiffError ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 py-6 text-center">
+                    <p className="text-body text-destructive/90">{git.fileDiffError}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void git.refresh()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : (
+                  <GlassDiffViewer
+                    fileDiff={git.fileDiff}
+                    filePatch={git.filePatch}
+                    path={selectedRow.path}
+                    state={selectedRow.state}
+                    prevPath={selectedRow.prevPath}
+                    diffStyle={diffStyle}
+                    className="min-h-0 flex-1 px-3 pb-3 pt-2"
+                  />
+                )}
+              </div>
+            </>
           ) : (
-            <div className="flex h-full items-center justify-center px-4">
+            <div className="flex flex-1 items-center justify-center px-4">
               <p className="text-body text-muted-foreground/60">Select a file to view changes</p>
             </div>
           )}

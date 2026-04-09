@@ -1,0 +1,63 @@
+import type { HarnessModelRef, ModelSelection, ThinkingLevel } from "@glass/contracts";
+import { useMemo } from "react";
+
+import { useServerProviders } from "../rpc/server-state";
+import { useStore } from "../store";
+import {
+  listRuntimeModelsFromProviders,
+  readRuntimeDefaults,
+  selectionToThinking,
+  type RuntimeModelItem,
+} from "../lib/runtime-models";
+
+export type ThreadBootStatus = "loading" | "ready" | "error";
+
+interface RuntimeModelState {
+  items: RuntimeModelItem[];
+  loading: boolean;
+  status: ThreadBootStatus;
+  thinkingLevel: ThinkingLevel;
+}
+
+interface RuntimeDefaultState extends RuntimeModelState {
+  selection: ModelSelection;
+  model: RuntimeModelItem | HarnessModelRef | null;
+  stored: boolean;
+}
+
+export function useRuntimeModels(cur?: HarnessModelRef | null) {
+  const providers = useServerProviders();
+  const projects = useStore((state) => state.projects);
+
+  return useMemo(() => {
+    const status: ThreadBootStatus =
+      projects.length > 0 || providers.length > 0 ? "ready" : "loading";
+    const defs = readRuntimeDefaults(projects, providers, undefined, cur);
+    return {
+      items: listRuntimeModelsFromProviders(providers, cur),
+      loading: status === "loading",
+      status,
+      thinkingLevel: selectionToThinking(defs.selection),
+    } satisfies RuntimeModelState;
+  }, [cur, projects, providers]);
+}
+
+export function useRuntimeDefaults() {
+  const providers = useServerProviders();
+  const projects = useStore((state) => state.projects);
+
+  return useMemo(() => {
+    const status: ThreadBootStatus =
+      projects.length > 0 || providers.length > 0 ? "ready" : "loading";
+    const defs = readRuntimeDefaults(projects, providers);
+    return {
+      items: defs.items,
+      selection: defs.selection,
+      model: defs.modelRef,
+      thinkingLevel: defs.thinkingLevel,
+      stored: defs.stored,
+      loading: status === "loading",
+      status,
+    } satisfies RuntimeDefaultState;
+  }, [projects, providers]);
+}

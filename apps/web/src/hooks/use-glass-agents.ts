@@ -1,40 +1,48 @@
-import { useMatchRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { buildWorkspaceThreadSections, type GlassSidebarSection } from "../lib/glass-view-model";
-import { usePiSums, usePiSumsStatus } from "../lib/pi-session-store";
-
-const THREAD_ROUTE = "/$threadId";
-
-function useShellThreadId() {
-  const match = useMatchRoute();
-  const pend = match({ to: THREAD_ROUTE, pending: true });
-  if (pend && typeof pend.threadId === "string") return pend.threadId;
-
-  const cur = match({ to: THREAD_ROUTE });
-  return cur && typeof cur.threadId === "string" ? cur.threadId : null;
-}
+import {
+  buildWorkspaceChatSections,
+  type GlassSidebarChat,
+  type GlassSidebarSection,
+} from "../lib/glass-view-model";
+import { useGlassChatDraftStore } from "../lib/glass-chat-draft-store";
+import { useThreadSummaries, useThreadSummariesStatus } from "../lib/thread-session-store";
+import { useRouteThreadId } from "./use-route-thread-id";
 
 export function useGlassAgents(cwd: string | null, home: string | null) {
-  const sums = usePiSums();
-  const status = usePiSumsStatus();
-  const routeThreadId = useShellThreadId();
+  const sums = useThreadSummaries();
+  const status = useThreadSummariesStatus();
+  const routeThreadId = useRouteThreadId();
+  const draftId = useGlassChatDraftStore((state) => state.cur);
+  const items = useGlassChatDraftStore((state) => state.items);
+  const drafts = useMemo(() => Object.values(items), [items]);
+  const selectedId = routeThreadId ?? draftId;
 
   const sections = useMemo(
+    () => buildWorkspaceChatSections(status === "ready" ? sums : {}, drafts, cwd, home),
+    [cwd, drafts, home, status, sums],
+  );
+
+  const selected = useMemo(
     () =>
-      status === "ready"
-        ? buildWorkspaceThreadSections(sums, cwd, home)
-        : ([] satisfies GlassSidebarSection[]),
-    [cwd, home, status, sums],
+      selectedId
+        ? (sections.flatMap((section) => section.items).find((item) => item.id === selectedId) ??
+          null)
+        : null,
+    [sections, selectedId],
   );
 
   return {
     sections,
     routeThreadId,
-    loading: status === "loading",
-    error: status === "error",
+    selectedId,
+    selected,
+    loading: status === "loading" && drafts.length === 0,
+    error: status === "error" && drafts.length === 0,
   } satisfies {
     sections: GlassSidebarSection[];
     routeThreadId: string | null;
+    selectedId: string | null;
+    selected: GlassSidebarChat | null;
     loading: boolean;
     error: boolean;
   };

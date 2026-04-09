@@ -1,22 +1,8 @@
 import { Schema } from "effect";
 import { TrimmedNonEmptyString } from "./baseSchemas";
 
-export interface PiModelRef {
-  provider: string;
-  id: string;
-  name?: string | null;
-  reasoning?: boolean;
-}
-
-export const PiThinkingLevel = Schema.Literals([
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-]);
-export type PiThinkingLevel = typeof PiThinkingLevel.Type;
+export const ThinkingLevel = Schema.Literals(["off", "minimal", "low", "medium", "high", "xhigh"]);
+export type ThinkingLevel = typeof ThinkingLevel.Type;
 
 export const PiModelCost = Schema.Struct({
   input: Schema.Number,
@@ -61,6 +47,7 @@ export const PiExtension = Schema.Struct({
   path: Schema.String,
   resolvedPath: Schema.String,
   scope: PiExtensionScope,
+  enabled: Schema.Boolean,
 });
 export type PiExtension = typeof PiExtension.Type;
 
@@ -73,7 +60,7 @@ export type PiExtensionError = typeof PiExtensionError.Type;
 export const PiDefaults = Schema.Struct({
   provider: Schema.NullOr(TrimmedNonEmptyString),
   model: Schema.NullOr(TrimmedNonEmptyString),
-  thinkingLevel: Schema.NullOr(PiThinkingLevel),
+  thinkingLevel: Schema.NullOr(ThinkingLevel),
 });
 export type PiDefaults = typeof PiDefaults.Type;
 
@@ -110,18 +97,24 @@ export const PiApiKeyInput = Schema.Struct({
 });
 export type PiApiKeyInput = typeof PiApiKeyInput.Type;
 
-export const PiThinkingLevelInput = Schema.Struct({
-  thinkingLevel: PiThinkingLevel,
+export const ThinkingLevelInput = Schema.Struct({
+  thinkingLevel: ThinkingLevel,
 });
-export type PiThinkingLevelInput = typeof PiThinkingLevelInput.Type;
+export type ThinkingLevelInput = typeof ThinkingLevelInput.Type;
 
 export interface PiBridge {
   getConfig: () => Promise<PiConfig>;
   setDefaultModel: (provider: string, model: string) => Promise<void>;
   clearDefaultModel: () => Promise<void>;
-  setDefaultThinkingLevel: (thinkingLevel: PiThinkingLevel) => Promise<void>;
+  setDefaultThinkingLevel: (thinkingLevel: ThinkingLevel) => Promise<void>;
+  setExtensionEnabled: (
+    resolvedPath: string,
+    scope: PiExtensionScope,
+    enabled: boolean,
+  ) => Promise<void>;
   getApiKey: (provider: string) => Promise<string | null>;
   setApiKey: (provider: string, key: string) => Promise<void>;
+  clearAuth: (provider: string) => Promise<void>;
   /** Desktop: run Pi OAuth login for a provider (opens browser / prompts as needed). */
   startOAuthLogin: (provider: string) => Promise<void>;
 }

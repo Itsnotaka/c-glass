@@ -24,6 +24,39 @@ Imports:
 - Primitives: `~/components/ui/...`.
 - Dependency direction: domain code imports primitives; primitives do not import feature layers.
 
+### Canonical naming (Glass runtime)
+
+The renderer and shared IPC types use **Glass**, **thread**, and **harness** vocabulary (`@glass/contracts`: `GlassSessionSnapshot`, `ThreadSummary`, `HarnessKind`, …). Do not prefix shared UI or cross-package DTOs with `pi-` unless the value is strictly Pi-adapter internals. Pi subprocess code lives under `apps/desktop` adapter paths (e.g. `pi-runtime/`); the web app imports `thread-session-store`, `chat-composer`, `use-runtime-session`, and `runtime-models` — not `pi-session-store` / `pi-composer` for product chrome.
+
+### Tailwind CSS
+
+Keep utility strings where the editor Tailwind extension can see them: **inline** on the element as `className={cn("…", "…", className)}` (multiple string-literal arguments for logical groups), not long module-level `const` blobs. Same pattern as `apps/web/src/components/glass/settings-nav-rail.tsx` (`activeProps` / `inactiveProps`). That preserves autocomplete, lint, and hover for class names.
+
+## Package roles
+
+Aligned with [t3code](https://github.com/pingdotgg/t3code) package boundaries (adapted for Glass):
+
+- `apps/server`: Node.js HTTP + WebSocket server. Wraps Codex `app-server` (JSON-RPC over stdio) for Codex sessions, serves the web app, and runs orchestration, persistence, and provider adapters.
+- `apps/web`: React/Vite UI. Owns session UX, conversation rendering, and client state. Talks to the server over WebSocket RPC (`apps/web/src/ws-rpc-client.ts`, `ws-native-api.ts`).
+- `apps/desktop`: Electron shell (loads the renderer and native integrations).
+- `packages/contracts`: Shared Effect schemas and TypeScript contracts for orchestration, RPC method names, provider events, and session types. Keep this package schema- and types-first — no ad-hoc business logic.
+- `packages/shared`: Shared runtime utilities used by server, web, or desktop.
+
+## Codex app server
+
+Glass is Codex-oriented for the Codex provider: the server spawns `codex app-server` (JSON-RPC over stdio) per Codex-backed session and folds provider output into orchestration.
+
+How it shows up in this repo:
+
+- Session lifecycle and Codex child management: `apps/server/src/codexAppServerManager.ts`; spawn/initialize helpers: `apps/server/src/provider/codexAppServer.ts`.
+- Provider wiring and adapters: `apps/server/src/provider/` (e.g. `Layers/ProviderService`, `Layers/CodexAdapter`).
+- WebSocket RPC surface (orchestration and related methods): `apps/server/src/ws.ts` (routes line up with `ORCHESTRATION_WS_METHODS` in `@glass/contracts`).
+- Web client: `apps/web/src/ws-rpc-client.ts` and `ws-native-api.ts` — use `orchestration.onDomainEvent` for live orchestration stream updates (and snapshot/replay APIs as needed).
+
+Docs: [Codex App Server (OpenAI)](https://developers.openai.com/codex/sdk/#app-server).
+
+Reference repos (implementation and protocol patterns): [openai/codex](https://github.com/openai/codex), [Dimillian/CodexMonitor](https://github.com/Dimillian/CodexMonitor).
+
 ## Task Completion Requirements
 
 - All of `pnpm run fmt`, `pnpm run lint`, and `pnpm run typecheck` must pass before considering tasks completed.
@@ -124,42 +157,12 @@ function foo() {
 }
 ```
 
-### Schema Definitions (Drizzle)
-
-Use `snake_case` for field names so column names don't need to be redefined as strings.
-
-```ts
-// Good
-const table = sqliteTable("session", {
-  id: text().primaryKey(),
-  project_id: text().notNull(),
-  created_at: integer().notNull(),
-});
-
-// Bad
-const table = sqliteTable("session", {
-  id: text("id").primaryKey(),
-  projectID: text("project_id").notNull(),
-  createdAt: integer("created_at").notNull(),
-});
-```
-
 ## Cursor Cloud specific instructions
 
 ### Environment
 
 - Requires Node.js `^24.13.1` (see `engines` in root `package.json`). Install via `nvm install 24`.
 - Package manager is `pnpm@10.33.0` (managed by corepack).
-
-### Monorepo structure
-
-| Package            | Path                 | Purpose                                                    |
-| ------------------ | -------------------- | ---------------------------------------------------------- |
-| `@glass/web`       | `apps/web`           | React/Vite frontend (renderer UI)                          |
-| `@glass/desktop`   | `apps/desktop`       | Electron main process                                      |
-| `@glass/contracts` | `packages/contracts` | Shared types/schemas (must be built before other packages) |
-| `@glass/shared`    | `packages/shared`    | Shared utilities                                           |
-| `@glass/scripts`   | `scripts/`           | Build/release tooling                                      |
 
 ### Key commands
 
@@ -171,10 +174,4 @@ All commands are in root `package.json`. Highlights:
 - `pnpm run lint` -- oxlint.
 - `pnpm run fmt` -- oxfmt.
 - `pnpm run typecheck` -- tsc across all packages.
-- `pnpm run test` -- vitest via turbo (note: `@glass/contracts` has no test files and its `vitest run` exits non-zero; run individual package tests to avoid this).
-
-### Gotchas
-
-- The web app outside Electron will show "Glass bridge not found" errors when actions requiring `window.glass` IPC are triggered. This is expected -- the full app requires Electron.
-- `pnpm run test` (turbo) will fail because `@glass/contracts` uses `vitest run` without `--passWithNoTests` and has no test files. Individual package tests all pass.
-- No Docker, databases, or external services required. All state is file-based (`~/.glass/`).
+- `pnpm run test` -- vitest via turbo.

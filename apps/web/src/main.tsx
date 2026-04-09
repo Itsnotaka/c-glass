@@ -1,7 +1,3 @@
-if (import.meta.env.DEV) {
-  import("react-grab");
-}
-
 import "./glass-appearance-boot";
 import "@xterm/xterm/css/xterm.css";
 import "./styles/tailwind.css";

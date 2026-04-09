@@ -1,43 +1,52 @@
-import type { ShellState } from "@glass/contracts";
-import { useEffect, useState } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
-import { readGlass, readGlassBoot } from "../host";
-import { PI_GLASS_SHELL_CHANGED_EVENT } from "../lib/pi-glass-constants";
+import { GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
+import { useServerAvailableEditors } from "../rpc/server-state";
+import { useStore } from "../store";
+import { useRouteThreadId } from "./use-route-thread-id";
+
+const WORKSPACE_KEY = "glass:workspace-cwd";
+
+function readStoredCwd() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(WORKSPACE_KEY)?.trim();
+  return raw && raw.length > 0 ? raw : null;
+}
+
+function basename(cwd: string | null) {
+  if (!cwd) return null;
+  const clean = cwd.replace(/[\\/]+$/, "");
+  const cut = Math.max(clean.lastIndexOf("/"), clean.lastIndexOf("\\"));
+  return cut >= 0 ? clean.slice(cut + 1) : clean;
+}
+
+function subscribe(listener: () => void) {
+  window.addEventListener(GLASS_SHELL_CHANGED_EVENT, listener);
+  return () => {
+    window.removeEventListener(GLASS_SHELL_CHANGED_EVENT, listener);
+  };
+}
 
 export function useShellState() {
-  const [state, setState] = useState<ShellState | null>(() => readGlassBoot()?.shell ?? null);
+  const editors = useServerAvailableEditors();
+  const routeThreadId = useRouteThreadId();
+  const projects = useStore((state) => state.projects);
+  const threads = useStore((state) => state.threads);
+  const stored = useSyncExternalStore(subscribe, readStoredCwd, () => null);
 
-  useEffect(() => {
-    const g = readGlass();
-    if (!g) {
-      setState(readGlassBoot()?.shell ?? null);
-      return;
-    }
+  return useMemo(() => {
+    const byId = new Map(projects.map((item) => [item.id, item]));
+    const thread = routeThreadId ? threads.find((item) => item.id === routeThreadId) : null;
+    const storedProject = projects.find((item) => item.cwd === stored) ?? null;
+    const threadProject = thread ? (byId.get(thread.projectId) ?? null) : null;
+    const project = storedProject ?? threadProject ?? projects[0] ?? null;
+    const cwd = thread?.worktreePath ?? project?.cwd ?? null;
 
-    let live = true;
-    const sync = () => {
-      void g.shell
-        .getState()
-        .then((s) => {
-          if (!live) return;
-          setState(s);
-        })
-        .catch(() => {});
+    return {
+      cwd,
+      name: basename(cwd),
+      home: null,
+      availableEditors: [...editors],
     };
-
-    sync();
-    window.addEventListener(PI_GLASS_SHELL_CHANGED_EVENT, sync);
-
-    return () => {
-      live = false;
-      window.removeEventListener(PI_GLASS_SHELL_CHANGED_EVENT, sync);
-    };
-  }, []);
-
-  return {
-    cwd: state?.cwd ?? null,
-    name: state?.name ?? null,
-    home: state?.home ?? null,
-    availableEditors: state?.availableEditors ?? [],
-  };
+  }, [editors, projects, routeThreadId, stored, threads]);
 }

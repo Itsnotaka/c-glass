@@ -1,16 +1,16 @@
-import type { GitFileSummary, GitState } from "@glass/contracts";
-import { parsePatchFiles, type FileDiffMetadata } from "@pierre/diffs";
+import type { GitFileSummary, GitState, GitStatusResult } from "@glass/contracts";
+import { type FileDiffMetadata, parsePatchFiles } from "@pierre/diffs";
 import * as Schema from "effect/Schema";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { readGlass } from "../host";
 import { useGlassShellStore } from "../lib/glass-shell-store";
+import { readNativeApi } from "../native-api";
+import { useStore } from "../store";
 import { useLocalStorage } from "./use-local-storage";
 import { useShellState } from "./use-shell-cwd";
 
 const DiffStyle = Schema.Literals(["unified", "split"]);
 
-/** Pi tool diff embeds (`glass-pi-chat-rows`); Changes panel is stacked (unified) only. */
 export function useGlassDiffStylePreference() {
   return useLocalStorage<"unified" | "split", "unified" | "split">(
     "glass:git-diff-style",
@@ -20,7 +20,6 @@ export function useGlassDiffStylePreference() {
 }
 
 export interface DiffRow extends GitFileSummary {
-  diff: FileDiffMetadata | null;
   add: number;
   del: number;
 }
@@ -31,7 +30,10 @@ export interface GlassGitPanelModel {
   error: string | null;
   count: number;
   selected: string | null;
-  patch: FileDiffMetadata | null;
+  fileDiff: FileDiffMetadata | null;
+  filePatch: string | null;
+  fileDiffLoading: boolean;
+  fileDiffError: string | null;
   hit: string | null;
   totalAdd: number;
   totalDel: number;
@@ -40,7 +42,22 @@ export interface GlassGitPanelModel {
   setSelected: (id: string) => void;
   refresh: () => Promise<GitState | null>;
   init: () => Promise<GitState | null>;
-  discard: (paths: string[]) => Promise<GitState | null>;
+  discard: (_paths: string[]) => Promise<GitState | null>;
+}
+
+function firstFileFromUnifiedDiff(unifiedDiff: string): FileDiffMetadata | null {
+  const trimmed = unifiedDiff.trim();
+  if (trimmed.length === 0) return null;
+
+  try {
+    const patches = parsePatchFiles(trimmed);
+    for (const patch of patches) {
+      const file = patch.files[0];
+      if (file) return file;
+    }
+  } catch {}
+
+  return null;
 }
 
 function clean(path: string) {
@@ -85,51 +102,6 @@ function pick(path: string, cwd: string, root: string | null) {
   return rel(file, root);
 }
 
-function same(file: GitFileSummary, diff: FileDiffMetadata) {
-  if (file.path === diff.name) return true;
-  if (file.prevPath && file.prevPath === diff.prevName && file.path === diff.name) return true;
-  if (file.prevPath && file.prevPath === diff.name) return true;
-  return false;
-}
-
-function stat(diff: FileDiffMetadata | null) {
-  if (!diff) return { add: 0, del: 0 };
-  return diff.hunks.reduce(
-    (sum, hunk) =>
-      hunk.hunkContent.reduce(
-        (cur, row) => {
-          if (row.type !== "change") return cur;
-          return {
-            add: cur.add + row.additions,
-            del: cur.del + row.deletions,
-          };
-        },
-        { add: sum.add, del: sum.del },
-      ),
-    { add: 0, del: 0 },
-  );
-}
-
-function diffs(snap: GitState | null) {
-  if (!snap || !snap.patch.trim()) return [] as FileDiffMetadata[];
-  return parsePatchFiles(snap.patch, snap.gitRoot ?? snap.cwd, true).flatMap((item) => item.files);
-}
-
-function rows(snap: GitState | null) {
-  const list = diffs(snap);
-  if (!snap) return [] as DiffRow[];
-  return snap.files.map((file) => {
-    const diff = list.find((item) => same(file, item)) ?? null;
-    const next = stat(diff);
-    return {
-      ...file,
-      diff,
-      add: next.add,
-      del: next.del,
-    } satisfies DiffRow;
-  });
-}
-
 function hit(paths: string[], cwd: string, root: string | null, files: DiffRow[]) {
   for (const path of paths) {
     const next = pick(path, cwd, root);
@@ -140,66 +112,137 @@ function hit(paths: string[], cwd: string, root: string | null, files: DiffRow[]
   return null;
 }
 
+function toItem(item: GitStatusResult["workingTree"]["files"][number]) {
+  return {
+    id: item.path,
+    path: item.path,
+    prevPath: item.prevPath,
+    state: item.state,
+    staged: false,
+    unstaged: true,
+  } satisfies GitFileSummary;
+}
+
+function toRow(item: GitStatusResult["workingTree"]["files"][number]) {
+  return {
+    ...toItem(item),
+    add: item.insertions,
+    del: item.deletions,
+  } satisfies DiffRow;
+}
+
+function toRows(status: GitStatusResult | null) {
+  if (!status) return [] as DiffRow[];
+  return status.workingTree.files.map(toRow);
+}
+
+function toSnap(cwd: string, status: GitStatusResult): GitState {
+  return {
+    cwd,
+    gitRoot: status.isRepo ? cwd : null,
+    repo: status.isRepo,
+    clean: !status.hasWorkingTreeChanges || status.workingTree.files.length === 0,
+    count: status.workingTree.files.length,
+    files: status.workingTree.files.map(toItem),
+    patch: "",
+  };
+}
+
 export function useGlassGitPanel(): GlassGitPanelModel {
   const { cwd } = useShellState();
-  const glass = readGlass();
+  const api = readNativeApi();
+  const boot = useStore((state) => state.bootstrapComplete);
   const paths = useGlassShellStore((state) => state.paths);
   const tick = useGlassShellStore((state) => state.tick);
-  const [snap, setSnap] = useState<GitState | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [git, setGit] = useState(() => ({
+    cwd: null as string | null,
+    snap: null as GitState | null,
+    status: null as GitStatusResult | null,
+    err: null as string | null,
+    loading: false,
+  }));
   const [selected, setSelected] = useState<string | null>(null);
+  const seq = useRef(0);
 
   const load = useCallback(
-    (kind: "getState" | "refresh") => {
-      if (!glass?.git || !cwd) return Promise.resolve(null);
-      setLoading(true);
-      return glass.git[kind](cwd)
-        .then((next) => {
-          setSnap(next);
-          setErr(null);
-          return next;
-        })
-        .catch((err) => {
-          setErr(err instanceof Error ? err.message : String(err));
-          return null;
-        })
-        .finally(() => {
-          setLoading(false);
+    async (opts?: { reset?: boolean }) => {
+      if (!api || !cwd) return null;
+      const id = ++seq.current;
+      setGit((state) =>
+        state.cwd === cwd && !opts?.reset
+          ? { ...state, loading: true }
+          : { cwd, snap: null, status: null, err: null, loading: true },
+      );
+      try {
+        const next = await api.git.refreshStatus({ cwd });
+        if (seq.current !== id) return null;
+        const snap = toSnap(cwd, next);
+        setGit({ cwd, snap, status: next, err: null, loading: false });
+        return snap;
+      } catch (err) {
+        if (seq.current !== id) return null;
+        setGit({
+          cwd,
+          snap: null,
+          status: null,
+          err: err instanceof Error ? err.message : String(err),
+          loading: false,
         });
+        return null;
+      }
     },
-    [cwd, glass],
+    [api, cwd],
   );
 
   useEffect(() => {
-    if (!cwd || !glass?.git) {
-      setSnap(null);
-      setErr(null);
-      setLoading(false);
+    if (!api || !cwd) {
+      seq.current += 1;
+      setGit({ cwd: null, snap: null, status: null, err: null, loading: false });
       setSelected(null);
       return;
     }
-    setSelected(null);
-    void load("getState");
-  }, [cwd, glass, load]);
 
-  useEffect(() => {
-    if (!cwd || !glass?.git) return;
-    const off = glass.git.onState((next) => {
-      if (next.cwd !== cwd) return;
-      setSnap(next);
-      setErr(null);
+    let active = true;
+    let off: () => void = () => {};
+
+    setSelected(null);
+    void load({ reset: true }).then(() => {
+      if (!active) return;
+      off = api.git.onStatus(
+        { cwd },
+        (next) => {
+          setGit((state) => {
+            if (state.cwd !== cwd) return state;
+            return {
+              cwd,
+              snap: toSnap(cwd, next),
+              status: next,
+              err: null,
+              loading: false,
+            };
+          });
+        },
+        {
+          onResubscribe: () => {
+            void load();
+          },
+        },
+      );
     });
+
     return () => {
+      active = false;
       off();
     };
-  }, [cwd, glass]);
+  }, [api, cwd, load]);
+
+  const cur = git.cwd === cwd ? git : null;
 
   useEffect(() => {
-    if (!cwd || !glass?.git) return;
+    if (!api || !cwd) return;
     const sync = () => {
       if (document.visibilityState === "hidden") return;
-      void load("refresh");
+      void load();
     };
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
@@ -207,108 +250,134 @@ export function useGlassGitPanel(): GlassGitPanelModel {
       window.removeEventListener("focus", sync);
       document.removeEventListener("visibilitychange", sync);
     };
-  }, [cwd, glass, load]);
+  }, [api, cwd, load]);
 
   useEffect(() => {
-    if (!cwd || !glass?.git) return;
-    if (tick < 1) return;
-    void load("refresh");
-  }, [cwd, glass, load, tick]);
+    if (!api || !cwd || tick < 1) return;
+    void load();
+  }, [api, cwd, load, tick]);
 
-  const parsed = useMemo(() => {
-    try {
-      return { rows: rows(snap), error: null } as const;
-    } catch (err) {
-      return {
-        rows: [] as DiffRow[],
-        error: err instanceof Error ? err.message : String(err),
-      } as const;
-    }
-  }, [snap]);
-
-  const files = parsed.rows;
-  const error = err ?? parsed.error;
+  const curSnap = cur?.snap ?? null;
+  const curErr = cur?.err ?? null;
+  const rows = useMemo(() => toRows(cur?.status ?? null), [cur?.status]);
+  const curRows = curSnap ? rows : [];
+  const pending =
+    Boolean(api) &&
+    ((cwd !== null && cur === null) || Boolean(cur?.loading) || (!boot && cwd === null));
   const recent = useMemo(() => {
-    if (!cwd) return null;
-    return hit(paths, cwd, snap?.gitRoot ?? null, files);
-  }, [cwd, files, paths, snap?.gitRoot]);
+    if (!cwd || !curSnap) return null;
+    return hit(paths, cwd, curSnap.gitRoot ?? null, curRows);
+  }, [curRows, curSnap, cwd, paths]);
 
   useEffect(() => {
-    if (files.length === 0) {
+    if (curRows.length === 0) {
       if (selected !== null) setSelected(null);
       return;
     }
-    if (selected && files.some((file) => file.id === selected)) return;
+    if (selected && curRows.some((row) => row.id === selected)) return;
     if (recent) {
       setSelected(recent.id);
       return;
     }
-    setSelected(files[0]?.id ?? null);
-  }, [files, recent, selected]);
+    setSelected(curRows[0]?.id ?? null);
+  }, [curRows, recent, selected]);
 
-  const statsById = useMemo(
-    () => new Map(files.map((file) => [file.id, { add: file.add, del: file.del }])),
-    [files],
+  const selectedRow = useMemo(
+    () => (selected ? (curRows.find((row) => row.id === selected) ?? null) : null),
+    [curRows, selected],
   );
-  const patch = useMemo(
-    () => files.find((file) => file.id === selected)?.diff ?? null,
-    [files, selected],
-  );
-  const totalAdd = useMemo(() => files.reduce((sum, file) => sum + file.add, 0), [files]);
-  const totalDel = useMemo(() => files.reduce((sum, file) => sum + file.del, 0), [files]);
 
-  const init = useCallback(() => {
-    if (!glass?.git || !cwd) return Promise.resolve(null);
-    setLoading(true);
-    return glass.git
-      .init(cwd)
-      .then((next) => {
-        setSnap(next);
-        setErr(null);
-        return next;
+  const [fileDiff, setFileDiff] = useState<FileDiffMetadata | null>(null);
+  const [filePatch, setFilePatch] = useState<string | null>(null);
+  const [fileDiffLoading, setFileDiffLoading] = useState(false);
+  const [fileDiffError, setFileDiffError] = useState<string | null>(null);
+  const fileSeq = useRef(0);
+
+  useEffect(() => {
+    if (!api || !cwd || !selectedRow) {
+      setFileDiff(null);
+      setFilePatch(null);
+      setFileDiffLoading(false);
+      setFileDiffError(null);
+      return;
+    }
+
+    const seq = ++fileSeq.current;
+    setFileDiffLoading(true);
+    setFileDiffError(null);
+
+    api.git
+      .getFilePatch({ cwd, path: selectedRow.path })
+      .then((result) => {
+        if (fileSeq.current !== seq) return;
+        setFilePatch(result.unifiedDiff);
+        setFileDiff(firstFileFromUnifiedDiff(result.unifiedDiff));
+        setFileDiffLoading(false);
       })
       .catch((err) => {
-        setErr(err instanceof Error ? err.message : String(err));
-        return null;
-      })
-      .finally(() => {
-        setLoading(false);
+        if (fileSeq.current !== seq) return;
+        setFileDiff(null);
+        setFilePatch(null);
+        setFileDiffLoading(false);
+        setFileDiffError(err instanceof Error ? err.message : String(err));
       });
-  }, [cwd, glass]);
+  }, [api, cwd, selectedRow]);
 
-  const discard = useCallback(
-    (paths: string[]) => {
-      if (!glass?.git || !cwd) return Promise.resolve(null);
-      return glass.git
-        .discard(cwd, paths)
-        .then((next) => {
-          setSnap(next);
-          setErr(null);
-          return next;
-        })
-        .catch((err) => {
-          setErr(err instanceof Error ? err.message : String(err));
-          return null;
-        });
-    },
-    [cwd, glass],
+  const statsById = useMemo(
+    () => new Map(curRows.map((row) => [row.id, { add: row.add, del: row.del }])),
+    [curRows],
   );
 
   return {
-    snap,
-    loading,
-    error,
-    count: snap?.count ?? 0,
+    snap: curSnap,
+    loading: pending,
+    error: curErr,
+    count: curSnap?.count ?? 0,
     selected,
-    patch,
+    fileDiff,
+    filePatch,
+    fileDiffLoading,
+    fileDiffError,
     hit: recent?.id ?? null,
-    totalAdd,
-    totalDel,
+    totalAdd: curRows.reduce((sum, row) => sum + row.add, 0),
+    totalDel: curRows.reduce((sum, row) => sum + row.del, 0),
     statsById,
-    rows: files,
+    rows: curRows,
     setSelected,
-    refresh: () => load("refresh"),
-    init,
-    discard,
+    refresh: load,
+    init: async () => {
+      if (!api || !cwd) return null;
+      try {
+        await api.git.init({ cwd });
+      } catch (err) {
+        setGit((state) =>
+          state.cwd !== cwd
+            ? state
+            : {
+                ...state,
+                err: err instanceof Error ? err.message : String(err),
+                loading: false,
+              },
+        );
+      }
+      return load();
+    },
+    discard: async (paths) => {
+      if (!api || !cwd) return curSnap;
+      try {
+        await api.git.discardPaths({ cwd, paths });
+      } catch (err) {
+        setGit((state) =>
+          state.cwd !== cwd
+            ? state
+            : {
+                ...state,
+                err: err instanceof Error ? err.message : String(err),
+                loading: false,
+              },
+        );
+      }
+      return load();
+    },
   };
 }

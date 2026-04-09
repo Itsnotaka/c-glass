@@ -43,9 +43,9 @@ export function GlassCommandPalette(props: Props) {
         <CommandPalette.Empty>No commands found.</CommandPalette.Empty>
 
         <CommandPalette.Group heading="Navigation">
-          <CommandPalette.Item value="new agent chat" onSelect={() => run(props.onNewChat)}>
+          <CommandPalette.Item value="new chat" onSelect={() => run(props.onNewChat)}>
             <IconPlusLarge className="size-4 shrink-0 text-muted-foreground/60" />
-            <span className="flex-1">New Agent Chat</span>
+            <span className="flex-1">New Chat</span>
             <Kbd keys={["⌘", "N"]} />
           </CommandPalette.Item>
           <CommandPalette.Item
