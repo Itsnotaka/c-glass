@@ -3,6 +3,8 @@ import type {
   GlassSessionItem,
   GlassSessionSnapshot,
   GlassSessionSummary,
+  GlassWorkingState,
+  GlassWorkingUpdate,
   HarnessKind,
   HarnessModelRef,
   ModelSelection,
@@ -11,8 +13,8 @@ import type {
 } from "@glass/contracts";
 import { create } from "zustand";
 
-import { readNativeApi } from "../nativeApi";
-import { getServerConfig } from "../rpc/serverState";
+import { readNativeApi } from "../native-api";
+import { getServerConfig } from "../rpc/server-state";
 import { shouldShowActivity } from "../session-logic";
 import { useStore } from "../store";
 import type { Project, Thread } from "../types";
@@ -28,11 +30,14 @@ type State = {
   sumsStatus: ThreadBootStatus;
   sumsError: string | null;
   snaps: Record<string, GlassSessionSnapshot>;
+  work: Record<string, GlassWorkingState>;
   ready: boolean;
   boot: () => Promise<void>;
   refreshCfg: () => Promise<void>;
   refreshSums: () => Promise<void>;
   putSnap: (snap: GlassSessionSnapshot) => void;
+  syncWork: (items: ReadonlyArray<GlassWorkingState>) => void;
+  putWork: (item: GlassWorkingUpdate) => void;
   applyActs: (_events: GlassSessionActiveEvent[]) => void;
   syncDomain: () => void;
 };
@@ -231,7 +236,11 @@ function toSummary(thread: Thread, project: Project | undefined): GlassSessionSu
   };
 }
 
-function toSnapshot(thread: Thread, project: Project | undefined): GlassSessionSnapshot {
+function toSnapshot(
+  thread: Thread,
+  project: Project | undefined,
+  work: GlassWorkingState | null | undefined,
+): GlassSessionSnapshot {
   return {
     id: thread.id,
     harness: toHarness(thread.session?.provider ?? thread.modelSelection.provider),
@@ -242,6 +251,7 @@ function toSnapshot(thread: Thread, project: Project | undefined): GlassSessionS
     thinkingLevel: toThinking(thread.modelSelection),
     messages: buildItems(thread),
     live: null,
+    working: work ?? null,
     tree: [],
     isStreaming: threadStreaming(thread),
     pending: { steering: [], followUp: [] },
@@ -256,7 +266,7 @@ function rank(sums: Record<string, GlassSessionSummary>) {
     .map((item) => item.id);
 }
 
-function domainState() {
+function domainState(work: Record<string, GlassWorkingState>) {
   const state = useStore.getState();
   const projectById = new Map(state.projects.map((item) => [item.id, item]));
   const threads = state.threads.filter((item) => item.archivedAt === null);
@@ -264,7 +274,10 @@ function domainState() {
     threads.map((item) => [item.id, toSummary(item, projectById.get(item.projectId))]),
   ) as Record<string, GlassSessionSummary>;
   const snaps = Object.fromEntries(
-    threads.map((item) => [item.id, toSnapshot(item, projectById.get(item.projectId))]),
+    threads.map((item) => [
+      item.id,
+      toSnapshot(item, projectById.get(item.projectId), work[item.id]),
+    ]),
   ) as Record<string, GlassSessionSnapshot>;
   return { sums, snaps, ids: rank(sums) };
 }
@@ -286,6 +299,7 @@ export const useThreadSessionStore = create<State>()((set) => ({
   sumsStatus: "loading",
   sumsError: null,
   snaps: {},
+  work: {},
   ready: false,
   boot: async () => {
     await Promise.all([
@@ -315,7 +329,7 @@ export const useThreadSessionStore = create<State>()((set) => ({
   },
   refreshSums: async () => {
     try {
-      const next = domainState();
+      const next = domainState(useThreadSessionStore.getState().work);
       set((state) => ({
         ...state,
         ...next,
@@ -333,13 +347,67 @@ export const useThreadSessionStore = create<State>()((set) => ({
     }
   },
   putSnap: (snap) => {
-    set((state) => ({ ...state, snaps: { ...state.snaps, [snap.id]: snap } }));
+    set((state) => ({
+      ...state,
+      snaps: {
+        ...state.snaps,
+        [snap.id]: {
+          ...snap,
+          working: state.work[snap.id] ?? snap.working ?? null,
+        },
+      },
+    }));
+  },
+  syncWork: (items) => {
+    set((state) => {
+      const work = Object.fromEntries(items.map((item) => [item.threadId, item])) as Record<
+        string,
+        GlassWorkingState
+      >;
+      const snaps = Object.fromEntries(
+        Object.entries(state.snaps).map(([id, snap]) => [
+          id,
+          {
+            ...snap,
+            working: work[id] ?? null,
+          },
+        ]),
+      ) as Record<string, GlassSessionSnapshot>;
+      return { ...state, work, snaps };
+    });
+  },
+  putWork: (item) => {
+    set((state) => {
+      const work = { ...state.work };
+      if (item.working) {
+        work[item.threadId] = item.working;
+      } else {
+        delete work[item.threadId];
+      }
+
+      const snap = state.snaps[item.threadId];
+      if (!snap) {
+        return { ...state, work };
+      }
+
+      return {
+        ...state,
+        work,
+        snaps: {
+          ...state.snaps,
+          [item.threadId]: {
+            ...snap,
+            working: item.working,
+          },
+        },
+      };
+    });
   },
   applyActs: () => {
     useThreadSessionStore.getState().syncDomain();
   },
   syncDomain: () => {
-    const next = domainState();
+    const next = domainState(useThreadSessionStore.getState().work);
     set((state) => ({
       ...state,
       ...next,

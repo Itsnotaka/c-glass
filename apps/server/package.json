@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "catalog:",
+    "@effect/vitest": "catalog:",
     "@glass/contracts": "workspace:*",
     "@glass/shared": "workspace:*",
     "@types/node": "catalog:",

@@ -168,7 +168,6 @@ const agentSections: GlassSidebarSection[] = [
         unread: false,
         updatedAt: new Date().toISOString(),
         ago: "now",
-        selected: false,
         cwd: "/",
       },
     ],

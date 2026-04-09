@@ -5,6 +5,7 @@ import type {
   ThreadInteractiveKind,
   ThreadRunState,
 } from "./harness";
+import type { GlassWorkingState } from "./orchestration";
 
 export interface ThreadTextBlock {
   type: "text";
@@ -214,6 +215,7 @@ export interface ThreadSnapshot extends ThreadSummary {
   interactive: ThreadInteractiveState | null;
   messages: ThreadItem[];
   live: ThreadItem | null;
+  working: GlassWorkingState | null;
 }
 
 export interface ThreadSummaryUpsert {

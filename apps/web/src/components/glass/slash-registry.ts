@@ -3,8 +3,6 @@ import { rank } from "./composer-search";
 import { recentBoost, type SlashRecentsSnapshot } from "./slash-recents";
 import type { GlassSlashItemKind } from "./slash-types";
 
-const cap = { global: 15, recent: 15 } as const;
-
 export type { GlassSlashItemKind } from "./slash-types";
 
 export type GlassSlashItem = {
@@ -18,12 +16,13 @@ export type GlassSlashItem = {
   section: "recent" | "commands" | "skills" | "subagents" | "app";
   keyword?: string[];
   run: {
-    type: "insert" | "navigate" | "open-settings" | "new-chat";
+    type: "insert" | "navigate" | "open-settings" | "new-chat" | "open-model-picker" | "plan-mode";
     value?: string;
   };
 };
 
 type Cmd = Omit<GlassSlashCommand, "source"> & {
+  id?: string;
   source: GlassSlashCommand["source"] | "app";
 };
 
@@ -34,6 +33,7 @@ function kindFrom(cmd: Cmd): GlassSlashItemKind {
 }
 
 function idFor(cmd: Cmd) {
+  if (cmd.id) return cmd.id;
   if (cmd.source === "app") return `app:${cmd.name}`;
   return `runtime:${cmd.source}:${cmd.name}`;
 }
@@ -48,6 +48,8 @@ function sectionFor(kind: GlassSlashItemKind): GlassSlashItem["section"] {
 function runFor(cmd: Cmd): GlassSlashItem["run"] {
   if (cmd.source === "app" && cmd.name === "new") return { type: "new-chat" };
   if (cmd.source === "app" && cmd.name === "settings") return { type: "open-settings" };
+  if (cmd.source === "app" && cmd.name === "model") return { type: "open-model-picker" };
+  if (cmd.source === "app" && cmd.name === "plan") return { type: "plan-mode" };
   return { type: "insert", value: cmd.name };
 }
 
@@ -100,25 +102,10 @@ export function buildSlashMenuRows(
   snap: SlashRecentsSnapshot,
 ): SlashMenuRow[] {
   const ranked = rankSlashItems(items, query, snap);
-  const showRecent = query.trim().length <= 1;
-  const recentIds = new Set(snap.global.slice(0, cap.global));
-  const recentItems = showRecent
-    ? ranked.filter((x) => recentIds.has(x.id)).slice(0, cap.recent)
-    : [];
-  const used = new Set(recentItems.map((x) => x.id));
-  const rest = ranked.filter((x) => !used.has(x.id));
-
-  const byKind = (k: GlassSlashItemKind) => rest.filter((x) => x.kind === k);
+  const byKind = (k: GlassSlashItemKind) => ranked.filter((x) => x.kind === k);
 
   const rows: SlashMenuRow[] = [];
   let optionIndex = 0;
-
-  if (recentItems.length > 0) {
-    rows.push({ kind: "header", key: "recent", label: "Recent" });
-    for (const item of recentItems) {
-      rows.push({ kind: "option", item, optionIndex: optionIndex++ });
-    }
-  }
 
   const pushKind = (k: GlassSlashItemKind, label: string, key: string) => {
     const list = byKind(k);

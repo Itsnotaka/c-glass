@@ -10,6 +10,7 @@ import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useGlassChatDraftStore, hasDraft } from "../../lib/glass-chat-draft-store";
 import { switchWorkspace } from "../../lib/glass-workspace";
+import { cn } from "../../lib/utils";
 import { useDefaultHarness } from "../../lib/harness-picker";
 import { useGlassShellStore } from "../../lib/glass-shell-store";
 import { useThreadSummariesStatus } from "../../lib/thread-session-store";
@@ -18,8 +19,8 @@ import { GlassAppShell } from "./app-shell";
 import { GlassCommandPalette } from "./command-palette";
 import { GlassGitPanel } from "./git-panel";
 import { GlassSidebarFooter } from "./sidebar-footer";
+import { GlassSidebarHeader } from "./sidebar-header";
 import { GlassThreadRail } from "./thread-rail";
-import { GlassWorkspacePicker } from "./workspace-picker";
 
 export function GlassChatShell() {
   const navigate = useNavigate();
@@ -63,20 +64,31 @@ export function GlassChatShell() {
         ? "Chat unavailable"
         : selected?.title || "New chat";
 
-  const create = useCallback(() => {
-    if (routeThreadId) {
-      pick(null);
-      void navigate({ to: "/" });
-      return;
-    }
-    if (cur) {
-      pick(null);
-      return;
-    }
-    if (!hasDraft(root.text, root.files)) return;
-    const dir = cwd ?? projects[0]?.cwd ?? "/";
-    park(dir, kind);
-  }, [cur, cwd, kind, navigate, park, pick, projects, root.files, root.text, routeThreadId]);
+  const create = useCallback(
+    (next?: string) => {
+      void (async () => {
+        const base = cwd ?? projects[0]?.cwd ?? null;
+        const target = next ?? base;
+
+        if (routeThreadId) {
+          pick(null);
+          await navigate({ to: "/" });
+          if (target && target !== cwd) await switchWorkspace(target);
+          return;
+        }
+        if (cur) {
+          pick(null);
+          if (target && target !== cwd) await switchWorkspace(target);
+          return;
+        }
+        if (hasDraft(root.text, root.files)) {
+          park(cwd ?? projects[0]?.cwd ?? target ?? "/", kind);
+        }
+        if (target && target !== cwd) await switchWorkspace(target);
+      })();
+    },
+    [cur, cwd, kind, navigate, park, pick, projects, root.files, root.text, routeThreadId],
+  );
 
   const select = useCallback(
     (id: string) => {
@@ -93,18 +105,16 @@ export function GlassChatShell() {
 
   const left = (
     <div className="glass-thread-rail-pad flex min-h-0 flex-1 flex-col px-0">
-      {isElectron ? (
-        <div className="no-drag shrink-0 px-2 py-1.5">
-          <GlassWorkspacePicker className="w-full justify-start" />
-        </div>
-      ) : null}
+      <div className={cn("shrink-0", isElectron && "no-drag")}>
+        <GlassSidebarHeader onNewChat={create} />
+      </div>
       <GlassThreadRail
         loading={loading}
         error={error}
         sections={sections}
         selectedId={selectedId}
         onSelectAgent={select}
-        onNewChat={create}
+        onNewAgent={create}
       />
       <GlassSidebarFooter />
     </div>

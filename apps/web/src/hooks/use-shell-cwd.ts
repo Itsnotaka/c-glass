@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 import { GLASS_SHELL_CHANGED_EVENT } from "../lib/glass-runtime-constants";
-import { useServerAvailableEditors } from "../rpc/serverState";
+import { useServerAvailableEditors } from "../rpc/server-state";
 import { useStore } from "../store";
 import { useRouteThreadId } from "./use-route-thread-id";
 

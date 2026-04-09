@@ -87,15 +87,28 @@ function resolveAvailableCommand(
   return null;
 }
 
-function fileManagerCommandForPlatform(platform: NodeJS.Platform): string {
-  switch (platform) {
-    case "darwin":
-      return "open";
-    case "win32":
-      return "explorer";
-    default:
-      return "xdg-open";
+/**
+ * Resolve the OS file manager launcher (Finder / Explorer / folder in file manager).
+ * Prefer absolute paths so PATH-stripped server processes still detect the binary; fall back
+ * to PATH (`open`, `xdg-open`) when needed.
+ */
+function resolveFileManagerCommand(
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv,
+): string | null {
+  if (platform === "darwin") {
+    if (isCommandAvailable("/usr/bin/open", { platform, env })) return "/usr/bin/open";
+    if (isCommandAvailable("open", { platform, env })) return "open";
+    return null;
   }
+  if (platform === "win32") {
+    const p = join(env.SystemRoot ?? "C:\\Windows", "explorer.exe");
+    if (isCommandAvailable(p, { platform, env })) return p;
+    return null;
+  }
+  if (isCommandAvailable("/usr/bin/xdg-open", { platform, env })) return "/usr/bin/xdg-open";
+  if (isCommandAvailable("xdg-open", { platform, env })) return "xdg-open";
+  return null;
 }
 
 function stripWrappingQuotes(value: string): string {
@@ -211,8 +224,7 @@ export function resolveAvailableEditors(
 
   for (const editor of EDITORS) {
     if (editor.commands === null) {
-      const command = fileManagerCommandForPlatform(platform);
-      if (isCommandAvailable(command, { platform, env })) {
+      if (resolveFileManagerCommand(platform, env) !== null) {
         available.push(editor.id);
       }
       continue;
@@ -281,7 +293,11 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
     return yield* new OpenError({ message: `Unsupported editor: ${input.editor}` });
   }
 
-  return { command: fileManagerCommandForPlatform(platform), args: [input.cwd] };
+  const fm = resolveFileManagerCommand(platform, env);
+  if (fm === null) {
+    return yield* new OpenError({ message: "File manager launcher not available" });
+  }
+  return { command: fm, args: [input.cwd] };
 });
 
 export const launchDetached = (launch: EditorLaunch) =>

@@ -8,7 +8,7 @@ import {
 } from "central-icons";
 
 import { usePreferredEditor } from "../../editor-preferences";
-import { ensureNativeApi } from "../../nativeApi";
+import { ensureNativeApi } from "../../native-api";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
 import { cn } from "../../lib/utils";

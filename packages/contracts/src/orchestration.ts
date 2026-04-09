@@ -10,6 +10,8 @@ import {
   NonNegativeInt,
   ProjectId,
   ProviderItemId,
+  RuntimeItemId,
+  RuntimeTaskId,
   ThreadId,
   TrimmedNonEmptyString,
   TurnId,
@@ -17,6 +19,7 @@ import {
 
 export const ORCHESTRATION_WS_METHODS = {
   getSnapshot: "orchestration.getSnapshot",
+  getWorkingState: "orchestration.getWorkingState",
   dispatchCommand: "orchestration.dispatchCommand",
   getTurnDiff: "orchestration.getTurnDiff",
   getFullThreadDiff: "orchestration.getFullThreadDiff",
@@ -40,6 +43,46 @@ export const ProviderSandboxMode = Schema.Literals([
 export type ProviderSandboxMode = typeof ProviderSandboxMode.Type;
 
 export const DEFAULT_PROVIDER_KIND: ProviderKind = "codex";
+
+export const GlassWorkingStatus = Schema.Literals(["running", "interrupted", "error"]);
+export type GlassWorkingStatus = typeof GlassWorkingStatus.Type;
+
+export const GlassWorkingTool = Schema.Struct({
+  itemId: RuntimeItemId,
+  title: Schema.NullOr(Schema.String),
+  detail: Schema.NullOr(Schema.String),
+});
+export type GlassWorkingTool = typeof GlassWorkingTool.Type;
+
+export const GlassWorkingTask = Schema.Struct({
+  id: RuntimeTaskId,
+  description: Schema.NullOr(Schema.String),
+  summary: Schema.NullOr(Schema.String),
+});
+export type GlassWorkingTask = typeof GlassWorkingTask.Type;
+
+export const GlassWorkingState = Schema.Struct({
+  threadId: ThreadId,
+  turnId: Schema.NullOr(TurnId),
+  provider: ProviderKind,
+  status: GlassWorkingStatus,
+  startedAt: Schema.NullOr(IsoDateTime),
+  updatedAt: IsoDateTime,
+  summary: Schema.NullOr(Schema.String),
+  text: Schema.String,
+  tool: Schema.NullOr(GlassWorkingTool),
+  task: Schema.NullOr(GlassWorkingTask),
+});
+export type GlassWorkingState = typeof GlassWorkingState.Type;
+
+export const GlassWorkingUpdate = Schema.Struct({
+  threadId: ThreadId,
+  working: Schema.NullOr(GlassWorkingState),
+});
+export type GlassWorkingUpdate = typeof GlassWorkingUpdate.Type;
+
+export const GlassWorkingSnapshot = Schema.Array(GlassWorkingState);
+export type GlassWorkingSnapshot = typeof GlassWorkingSnapshot.Type;
 
 export const CodexModelSelection = Schema.Struct({
   provider: Schema.Literal("codex"),
@@ -1012,6 +1055,11 @@ export type OrchestrationGetSnapshotInput = typeof OrchestrationGetSnapshotInput
 const OrchestrationGetSnapshotResult = OrchestrationReadModel;
 export type OrchestrationGetSnapshotResult = typeof OrchestrationGetSnapshotResult.Type;
 
+export const OrchestrationGetWorkingStateInput = Schema.Struct({});
+export type OrchestrationGetWorkingStateInput = typeof OrchestrationGetWorkingStateInput.Type;
+const OrchestrationGetWorkingStateResult = GlassWorkingSnapshot;
+export type OrchestrationGetWorkingStateResult = typeof OrchestrationGetWorkingStateResult.Type;
+
 export const OrchestrationGetTurnDiffInput = TurnCountRange.mapFields(
   Struct.assign({ threadId: ThreadId }),
   { unsafePreserveChecks: true },
@@ -1043,6 +1091,10 @@ export const OrchestrationRpcSchemas = {
     input: OrchestrationGetSnapshotInput,
     output: OrchestrationGetSnapshotResult,
   },
+  getWorkingState: {
+    input: OrchestrationGetWorkingStateInput,
+    output: OrchestrationGetWorkingStateResult,
+  },
   dispatchCommand: {
     input: ClientOrchestrationCommand,
     output: DispatchResult,
@@ -1063,6 +1115,14 @@ export const OrchestrationRpcSchemas = {
 
 export class OrchestrationGetSnapshotError extends Schema.TaggedErrorClass<OrchestrationGetSnapshotError>()(
   "OrchestrationGetSnapshotError",
+  {
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect),
+  },
+) {}
+
+export class OrchestrationGetWorkingStateError extends Schema.TaggedErrorClass<OrchestrationGetWorkingStateError>()(
+  "OrchestrationGetWorkingStateError",
   {
     message: TrimmedNonEmptyString,
     cause: Schema.optional(Schema.Defect),

@@ -6,9 +6,9 @@ import {
 } from "@glass/contracts";
 import { useMemo } from "react";
 
-import { readNativeApi } from "../nativeApi";
-import { getServerConfig, useServerProviders } from "../rpc/serverState";
-import { getDefaultServerModel } from "../providerModels";
+import { readNativeApi } from "../native-api";
+import { getServerConfig, useServerProviders } from "../rpc/server-state";
+import { getDefaultServerModel } from "../provider-models";
 import { useStore } from "../store";
 
 const WORKSPACE_KEY = "glass:workspace-cwd";

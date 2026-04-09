@@ -18,8 +18,8 @@ export function useGlassAgents(cwd: string | null, home: string | null) {
   const selectedId = routeThreadId ?? draftId;
 
   const sections = useMemo(
-    () => buildWorkspaceChatSections(status === "ready" ? sums : {}, drafts, selectedId, cwd, home),
-    [cwd, drafts, home, selectedId, status, sums],
+    () => buildWorkspaceChatSections(status === "ready" ? sums : {}, drafts, cwd, home),
+    [cwd, drafts, home, status, sums],
   );
 
   const selected = useMemo(

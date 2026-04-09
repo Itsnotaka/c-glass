@@ -1,6 +1,6 @@
 import type { NativeApi } from "@glass/contracts";
 
-import { __resetWsNativeApiForTests, createWsNativeApi } from "./wsNativeApi";
+import { __resetWsNativeApiForTests, createWsNativeApi } from "./ws-native-api";
 
 let cachedApi: NativeApi | undefined;
 

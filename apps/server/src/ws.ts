@@ -10,10 +10,12 @@ import {
   OrchestrationGetFullThreadDiffError,
   OrchestrationGetSnapshotError,
   OrchestrationGetTurnDiffError,
+  OrchestrationGetWorkingStateError,
   ORCHESTRATION_WS_METHODS,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
   OrchestrationReplayEventsError,
+  SkillListError,
   ThreadId,
   type TerminalEvent,
   WS_METHODS,
@@ -33,6 +35,7 @@ import { Open, resolveAvailableEditors } from "./open";
 import { normalizeDispatchCommand } from "./orchestration/Normalizer";
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
+import { WorkingState } from "./orchestration/Services/WorkingState";
 import {
   observeRpcEffect,
   observeRpcStream,
@@ -42,6 +45,7 @@ import { ProviderRegistry } from "./provider/Services/ProviderRegistry";
 import { ServerLifecycleEvents } from "./serverLifecycleEvents";
 import { ServerRuntimeStartup } from "./serverRuntimeStartup";
 import { ServerSettingsService } from "./serverSettings";
+import { SkillCatalog } from "./skills/Services/SkillCatalog";
 import { TerminalManager } from "./terminal/Services/Manager";
 import { WorkspaceEntries } from "./workspace/Services/WorkspaceEntries";
 import { WorkspaceFileSystem } from "./workspace/Services/WorkspaceFileSystem";
@@ -52,6 +56,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
   Effect.gen(function* () {
     const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
     const orchestrationEngine = yield* OrchestrationEngineService;
+    const workingState = yield* WorkingState;
     const checkpointDiffQuery = yield* CheckpointDiffQuery;
     const keybindings = yield* Keybindings;
     const open = yield* Open;
@@ -63,6 +68,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const config = yield* ServerConfig;
     const lifecycleEvents = yield* ServerLifecycleEvents;
     const serverSettings = yield* ServerSettingsService;
+    const skills = yield* SkillCatalog;
     const startup = yield* ServerRuntimeStartup;
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
@@ -369,6 +375,20 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           ),
           { "rpc.aggregate": "orchestration" },
         ),
+      [ORCHESTRATION_WS_METHODS.getWorkingState]: (_input) =>
+        observeRpcEffect(
+          ORCHESTRATION_WS_METHODS.getWorkingState,
+          workingState.getSnapshot.pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationGetWorkingStateError({
+                  message: "Failed to load working state",
+                  cause,
+                }),
+            ),
+          ),
+          { "rpc.aggregate": "orchestration" },
+        ),
       [ORCHESTRATION_WS_METHODS.dispatchCommand]: (command) =>
         observeRpcEffect(
           ORCHESTRATION_WS_METHODS.dispatchCommand,
@@ -504,6 +524,12 @@ const WsRpcLayer = WsRpcGroup.toLayer(
           }),
           { "rpc.aggregate": "orchestration" },
         ),
+      [WS_METHODS.subscribeOrchestrationWorkingState]: (_input) =>
+        observeRpcStream(
+          WS_METHODS.subscribeOrchestrationWorkingState,
+          workingState.streamChanges,
+          { "rpc.aggregate": "orchestration" },
+        ),
       [WS_METHODS.serverGetConfig]: (_input) =>
         observeRpcEffect(WS_METHODS.serverGetConfig, loadServerConfig, {
           "rpc.aggregate": "server",
@@ -531,6 +557,20 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         observeRpcEffect(WS_METHODS.serverUpdateSettings, serverSettings.updateSettings(patch), {
           "rpc.aggregate": "server",
         }),
+      [WS_METHODS.serverListSkills]: (_input) =>
+        observeRpcEffect(
+          WS_METHODS.serverListSkills,
+          skills.list().pipe(
+            Effect.mapError(
+              (cause) =>
+                new SkillListError({
+                  message: `Failed to list skills: ${cause.detail}`,
+                  cause,
+                }),
+            ),
+          ),
+          { "rpc.aggregate": "server" },
+        ),
       [WS_METHODS.projectsSearchEntries]: (input) =>
         observeRpcEffect(
           WS_METHODS.projectsSearchEntries,

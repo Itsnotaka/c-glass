@@ -1,4 +1,5 @@
-import type { HarnessKind } from "@glass/contracts";
+import type { HarnessKind, ProviderInteractionMode } from "@glass/contracts";
+import { DEFAULT_PROVIDER_INTERACTION_MODE } from "@glass/contracts";
 import { create } from "zustand";
 
 export type GlassDraftFile =
@@ -22,12 +23,21 @@ export type GlassDraftFile =
       size: number;
     };
 
+export type GlassDraftSkill = {
+  id: string;
+  name: string;
+  start: number;
+  end: number;
+};
+
 export interface GlassDraftChat {
   id: string;
   cwd: string;
   harness: HarnessKind;
   text: string;
   files: GlassDraftFile[];
+  skills: GlassDraftSkill[];
+  interactionMode: ProviderInteractionMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +45,8 @@ export interface GlassDraftChat {
 type Root = {
   text: string;
   files: GlassDraftFile[];
+  skills: GlassDraftSkill[];
+  interactionMode: ProviderInteractionMode;
 };
 
 type State = {
@@ -43,13 +55,20 @@ type State = {
   items: Record<string, GlassDraftChat>;
   pick: (id: string | null) => void;
   park: (cwd: string, harness: HarnessKind) => string | null;
-  save: (id: string, text: string, files: GlassDraftFile[]) => void;
-  saveRoot: (text: string, files: GlassDraftFile[]) => void;
+  save: (id: string, text: string, files: GlassDraftFile[], skills: GlassDraftSkill[]) => void;
+  saveRoot: (text: string, files: GlassDraftFile[], skills: GlassDraftSkill[]) => void;
+  toggleRootPlanInteraction: () => void;
+  setActiveInteractionMode: (mode: ProviderInteractionMode) => void;
   drop: (id: string) => void;
   promote: (id: string) => void;
 };
 
-const empty = (): Root => ({ text: "", files: [] });
+const empty = (): Root => ({
+  text: "",
+  files: [],
+  skills: [],
+  interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+});
 
 const now = () => new Date().toISOString();
 
@@ -79,6 +98,8 @@ export const useGlassChatDraftStore = create<State>()((set) => ({
           harness,
           text: state.root.text,
           files: state.root.files,
+          skills: state.root.skills,
+          interactionMode: state.root.interactionMode,
           createdAt: stamp,
           updatedAt: stamp,
         },
@@ -86,7 +107,7 @@ export const useGlassChatDraftStore = create<State>()((set) => ({
     });
     return id;
   },
-  save: (id, text, files) => {
+  save: (id, text, files, skills) => {
     set((state) => {
       const item = state.items[id];
       if (!item) return state;
@@ -107,21 +128,51 @@ export const useGlassChatDraftStore = create<State>()((set) => ({
             ...item,
             text,
             files,
+            skills,
+            interactionMode: item.interactionMode,
             updatedAt: now(),
           },
         },
       };
     });
   },
-  saveRoot: (text, files) => {
+  saveRoot: (text, files, skills) => {
     set((state) =>
-      state.root.text === text && state.root.files === files
+      state.root.text === text && state.root.files === files && state.root.skills === skills
         ? state
         : {
             ...state,
-            root: { text, files },
+            root: { text, files, skills, interactionMode: state.root.interactionMode },
           },
     );
+  },
+  toggleRootPlanInteraction: () => {
+    set((state) => ({
+      ...state,
+      root: {
+        ...state.root,
+        interactionMode: state.root.interactionMode === "plan" ? "default" : "plan",
+      },
+    }));
+  },
+  setActiveInteractionMode: (mode) => {
+    set((state) => {
+      if (state.cur === null) {
+        return {
+          ...state,
+          root: { ...state.root, interactionMode: mode },
+        };
+      }
+      const item = state.items[state.cur];
+      if (!item) return state;
+      return {
+        ...state,
+        items: {
+          ...state.items,
+          [state.cur]: { ...item, interactionMode: mode },
+        },
+      };
+    });
   },
   drop: (id) => {
     set((state) => {

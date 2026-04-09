@@ -38,11 +38,6 @@ export type ChatRow =
     }
   | {
       id: string;
-      kind: "thinking";
-      text: string;
-    }
-  | {
-      id: string;
       kind: "tool";
       name: string;
       args: string;
@@ -183,7 +178,7 @@ function plain(value: Json | undefined) {
   return list(value)
     .flatMap((item) => {
       if (item.type === "text") return [item.text];
-      if (item.type === "thinking") return [item.thinking];
+      if (item.type === "thinking") return [];
       if (item.type === "image") return ["[image]"];
       if (item.type === "toolCall") return [`[${item.name}]`];
       return [`[${item.type}]`];
@@ -210,7 +205,6 @@ function user(value: Json | undefined) {
   const text = blocks
     .flatMap((item) => {
       if (item.type === "text") return [item.text];
-      if (item.type === "thinking") return [item.thinking];
       return [];
     })
     .join("");
@@ -291,6 +285,7 @@ export function buildChatRows(items: GlassSessionItem[]) {
         typeof msg.errorMessage === "string" && msg.errorMessage.trim()
           ? String(msg.errorMessage)
           : "";
+      let thought = false;
 
       let acc = "";
       const flush = () => {
@@ -301,11 +296,8 @@ export function buildChatRows(items: GlassSessionItem[]) {
 
       for (const part of items) {
         if (part.type === "thinking") {
-          flush();
           const raw = typeof part.thinking === "string" ? part.thinking : "";
-          const t = clean(raw);
-          if (t)
-            rows.push({ id: `${entry.id}:thinking:${rows.length}`, kind: "thinking", text: t });
+          if (clean(raw)) thought = true;
           continue;
         }
         if (part.type === "text") {
@@ -335,12 +327,10 @@ export function buildChatRows(items: GlassSessionItem[]) {
         rows.push({ id: `${entry.id}:a:err`, kind: "assistantError", text: errText });
       }
 
-      const hadContent = items.some(
-        (part) =>
-          part.type === "thinking" ||
-          (part.type === "text" && String((part as { text?: string }).text).trim()),
+      const seen = items.some(
+        (part) => part.type === "text" && String((part as { text?: string }).text).trim(),
       );
-      if (!call && !hadContent && !errText) {
+      if (!call && !seen && !errText && !thought) {
         rows.push({ id: entry.id, kind: "assistant", text: "..." });
       }
       continue;

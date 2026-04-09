@@ -37,7 +37,7 @@ Keep utility strings where the editor Tailwind extension can see them: **inline*
 Aligned with [t3code](https://github.com/pingdotgg/t3code) package boundaries (adapted for Glass):
 
 - `apps/server`: Node.js HTTP + WebSocket server. Wraps Codex `app-server` (JSON-RPC over stdio) for Codex sessions, serves the web app, and runs orchestration, persistence, and provider adapters.
-- `apps/web`: React/Vite UI. Owns session UX, conversation rendering, and client state. Talks to the server over WebSocket RPC (`apps/web/src/wsRpcClient.ts`, `wsNativeApi.ts`).
+- `apps/web`: React/Vite UI. Owns session UX, conversation rendering, and client state. Talks to the server over WebSocket RPC (`apps/web/src/ws-rpc-client.ts`, `ws-native-api.ts`).
 - `apps/desktop`: Electron shell (loads the renderer and native integrations).
 - `packages/contracts`: Shared Effect schemas and TypeScript contracts for orchestration, RPC method names, provider events, and session types. Keep this package schema- and types-first — no ad-hoc business logic.
 - `packages/shared`: Shared runtime utilities used by server, web, or desktop.
@@ -51,7 +51,7 @@ How it shows up in this repo:
 - Session lifecycle and Codex child management: `apps/server/src/codexAppServerManager.ts`; spawn/initialize helpers: `apps/server/src/provider/codexAppServer.ts`.
 - Provider wiring and adapters: `apps/server/src/provider/` (e.g. `Layers/ProviderService`, `Layers/CodexAdapter`).
 - WebSocket RPC surface (orchestration and related methods): `apps/server/src/ws.ts` (routes line up with `ORCHESTRATION_WS_METHODS` in `@glass/contracts`).
-- Web client: `apps/web/src/wsRpcClient.ts` and `wsNativeApi.ts` — use `orchestration.onDomainEvent` for live orchestration stream updates (and snapshot/replay APIs as needed).
+- Web client: `apps/web/src/ws-rpc-client.ts` and `ws-native-api.ts` — use `orchestration.onDomainEvent` for live orchestration stream updates (and snapshot/replay APIs as needed).
 
 Docs: [Codex App Server (OpenAI)](https://developers.openai.com/codex/sdk/#app-server).
 

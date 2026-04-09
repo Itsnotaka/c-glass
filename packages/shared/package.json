@@ -52,9 +52,9 @@
       "types": "./src/projectScripts.ts",
       "import": "./src/projectScripts.ts"
     },
-    "./desktopChrome": {
-      "types": "./src/desktopChrome.ts",
-      "import": "./src/desktopChrome.ts"
+    "./desktop-chrome": {
+      "types": "./src/desktop-chrome.ts",
+      "import": "./src/desktop-chrome.ts"
     }
   },
   "scripts": {

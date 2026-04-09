@@ -194,61 +194,74 @@ export type MirrorSeg = {
   end: number;
 };
 
+type MirrorRange = {
+  kind: Exclude<MirrorSeg["kind"], "plain">;
+  start: number;
+  end: number;
+};
+
 function pushSeg(out: MirrorSeg[], kind: MirrorSeg["kind"], text: string, at: number) {
   if (!text) return;
   out.push({ kind, text, start: at, end: at + text.length });
 }
 
-function tokenizeLineForMirror(line: string, base: number): MirrorSeg[] {
-  const out: MirrorSeg[] = [];
+function mentionRanges(line: string, base: number): MirrorRange[] {
+  const out: MirrorRange[] = [];
   let i = 0;
-  if (line.startsWith("/")) {
-    const sp = line.indexOf(" ");
-    if (sp < 0) {
-      pushSeg(out, "slash", line, base);
-      return out;
-    }
-    pushSeg(out, "slash", line.slice(0, sp), base);
-    i = sp;
-  }
   while (i < line.length) {
     const at = line.indexOf("@", i);
-    if (at < 0) {
-      pushSeg(out, "plain", line.slice(i), base + i);
-      break;
-    }
-    pushSeg(out, "plain", line.slice(i, at), base + i);
+    if (at < 0) break;
     if (line.startsWith('@"', at)) {
       const end = line.indexOf('"', at + 2);
       if (end < 0) {
-        pushSeg(out, "mention", line.slice(at), base + at);
+        out.push({ kind: "mention", start: base + at, end: base + line.length });
         break;
       }
-      pushSeg(out, "mention", line.slice(at, end + 1), base + at);
+      out.push({ kind: "mention", start: base + at, end: base + end + 1 });
       i = end + 1;
       continue;
     }
     let j = at + 1;
     while (j < line.length && !/\s/.test(line[j] ?? "")) j += 1;
-    pushSeg(out, "mention", line.slice(at, j), base + at);
+    if (j > at + 1) {
+      out.push({ kind: "mention", start: base + at, end: base + j });
+    }
     i = j;
   }
   return out;
 }
 
-export function mirrorSegmentsDraft(value: string): MirrorSeg[] {
+export function mirrorSegmentsDraft(
+  value: string,
+  slash: ReadonlyArray<{ start: number; end: number }> = [],
+): MirrorSeg[] {
   const lines = value.split("\n");
-  const out: MirrorSeg[] = [];
   let offset = 0;
+  const marks: MirrorRange[] = [];
   for (let li = 0; li < lines.length; li += 1) {
     const line = lines[li] ?? "";
-    out.push(...tokenizeLineForMirror(line, offset));
+    marks.push(...mentionRanges(line, offset));
     offset += line.length;
-    if (li < lines.length - 1) {
-      pushSeg(out, "plain", "\n", offset);
-      offset += 1;
-    }
+    if (li < lines.length - 1) offset += 1;
   }
+
+  marks.push(
+    ...slash
+      .filter((item) => item.start >= 0 && item.end > item.start && item.end <= value.length)
+      .map((item) => ({ kind: "slash" as const, start: item.start, end: item.end })),
+  );
+
+  const out: MirrorSeg[] = [];
+  let at = 0;
+  for (const item of marks.toSorted(
+    (left, right) => left.start - right.start || left.end - right.end,
+  )) {
+    if (item.start < at) continue;
+    pushSeg(out, "plain", value.slice(at, item.start), at);
+    pushSeg(out, item.kind, value.slice(item.start, item.end), item.start);
+    at = item.end;
+  }
+  pushSeg(out, "plain", value.slice(at), at);
   return out;
 }
 

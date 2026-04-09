@@ -14,14 +14,14 @@ import {
   resolveSelectableModel,
 } from "@glass/shared/model";
 
-import { readNativeApi } from "../nativeApi";
-import { getServerConfig } from "../rpc/serverState";
+import { readNativeApi } from "../native-api";
+import { getServerConfig } from "../rpc/server-state";
 import {
   getDefaultServerModel,
   getProviderModelCapabilities,
   getProviderModels,
   resolveSelectableProvider,
-} from "../providerModels";
+} from "../provider-models";
 import { useStore } from "../store";
 import type { Project } from "../types";
 
@@ -54,10 +54,6 @@ export function readStoredCwd() {
 
 export function resolveActiveProject(projects: readonly Project[], cwd = readStoredCwd()) {
   return projects.find((item) => item.cwd === cwd) ?? projects[0] ?? null;
-}
-
-function activeProject() {
-  return resolveActiveProject(useStore.getState().projects);
 }
 
 function key(provider: string, id: string) {
@@ -321,7 +317,7 @@ export function readRuntimeDefaults(
 
 export async function writeRuntimeDefaultModel(model: HarnessModelRef) {
   const api = readNativeApi();
-  const project = activeProject();
+  const project = resolveActiveProject(useStore.getState().projects);
   if (!api || !project) return;
   const providers = getServerConfig()?.providers ?? [];
   const current = project.defaultModelSelection;
@@ -342,7 +338,7 @@ export async function writeRuntimeDefaultModel(model: HarnessModelRef) {
 
 export async function clearRuntimeDefaultModel() {
   const api = readNativeApi();
-  const project = activeProject();
+  const project = resolveActiveProject(useStore.getState().projects);
   if (!api || !project) return;
   await api.orchestration.dispatchCommand({
     type: "project.meta.update",
@@ -354,7 +350,7 @@ export async function clearRuntimeDefaultModel() {
 
 export async function writeRuntimeDefaultThinkingLevel(level: ThinkingLevel) {
   const api = readNativeApi();
-  const project = activeProject();
+  const project = resolveActiveProject(useStore.getState().projects);
   if (!api || !project) return;
   const providers = getServerConfig()?.providers ?? [];
   const selection = resolveRuntimeSelection(providers, project.defaultModelSelection);

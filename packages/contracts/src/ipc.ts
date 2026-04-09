@@ -27,6 +27,7 @@ import type {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
+import type { GlassSkill } from "./skills";
 import type {
   ServerConfig,
   ServerProviderUpdatedPayload,
@@ -45,6 +46,8 @@ import type {
 import type { ServerUpsertKeybindingInput } from "./server";
 import type {
   ClientOrchestrationCommand,
+  GlassWorkingSnapshot,
+  GlassWorkingUpdate,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetFullThreadDiffResult,
   OrchestrationGetTurnDiffInput,
@@ -185,9 +188,11 @@ export interface NativeApi {
     upsertKeybinding: (input: ServerUpsertKeybindingInput) => Promise<ServerUpsertKeybindingResult>;
     getSettings: () => Promise<ServerSettings>;
     updateSettings: (patch: ServerSettingsPatch) => Promise<ServerSettings>;
+    listSkills: () => Promise<GlassSkill[]>;
   };
   orchestration: {
     getSnapshot: () => Promise<OrchestrationReadModel>;
+    getWorkingState: () => Promise<GlassWorkingSnapshot>;
     dispatchCommand: (command: ClientOrchestrationCommand) => Promise<{ sequence: number }>;
     getTurnDiff: (input: OrchestrationGetTurnDiffInput) => Promise<OrchestrationGetTurnDiffResult>;
     getFullThreadDiff: (
@@ -196,6 +201,12 @@ export interface NativeApi {
     replayEvents: (fromSequenceExclusive: number) => Promise<OrchestrationEvent[]>;
     onDomainEvent: (
       callback: (event: OrchestrationEvent) => void,
+      options?: {
+        onResubscribe?: () => void;
+      },
+    ) => () => void;
+    onWorkingState: (
+      callback: (event: GlassWorkingUpdate) => void,
       options?: {
         onResubscribe?: () => void;
       },

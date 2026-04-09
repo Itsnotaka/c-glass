@@ -26,7 +26,7 @@ import type {
 import { autoUpdater } from "electron-updater";
 
 import type { ContextMenuItem } from "@glass/contracts";
-import { MACOS_TRAFFIC_LIGHTS } from "@glass/shared/desktopChrome";
+import { MACOS_TRAFFIC_LIGHTS } from "@glass/shared/desktop-chrome";
 import { NetService } from "@glass/shared/Net";
 import { RotatingFileSink } from "@glass/shared/logging";
 import { parsePersistedServerObservabilitySettings } from "@glass/shared/serverSettings";

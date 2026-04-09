@@ -1,11 +1,14 @@
-import type { GlassSessionItem } from "@glass/contracts";
+import type { GlassSessionItem, GlassWorkingState } from "@glass/contracts";
 import { memo, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { GlassChatLive, GlassChatTranscript } from "./chat-rows";
+import { GlassChatLive, GlassChatTranscript, GlassChatWorking } from "./chat-rows";
 
 export const GlassChatMessages = memo(function GlassChatMessages(props: {
   messages: GlassSessionItem[];
   live: GlassSessionItem | null;
+  work: GlassWorkingState | null;
+  busy: boolean;
+  since: string | null;
   expanded: boolean;
 }) {
   const viewport = useRef<HTMLDivElement | null>(null);
@@ -49,7 +52,7 @@ export const GlassChatMessages = memo(function GlassChatMessages(props: {
     return () => {
       window.cancelAnimationFrame(id);
     };
-  }, [props.messages, props.live, props.expanded]);
+  }, [props.messages, props.live, props.work, props.busy, props.expanded]);
 
   return (
     <ScrollArea
@@ -65,6 +68,7 @@ export const GlassChatMessages = memo(function GlassChatMessages(props: {
       <ul ref={list} className="mx-auto flex max-w-[43.875rem] flex-col gap-3 px-4 py-4 md:px-8">
         <GlassChatTranscript items={props.messages} expanded={props.expanded} wide={wide} />
         <GlassChatLive item={props.live} expanded={props.expanded} wide={wide} />
+        <GlassChatWorking work={props.work} busy={props.busy} since={props.since} />
       </ul>
     </ScrollArea>
   );

@@ -1,6 +1,7 @@
 const TRANSPORT_ERROR_PATTERNS = [
   /\bSocketCloseError\b/i,
   /\bSocketOpenError\b/i,
+  /\bSocketReadError\b/i,
   /Unable to connect to the Glass server WebSocket\./i,
   /\bping timeout\b/i,
 ] as const;

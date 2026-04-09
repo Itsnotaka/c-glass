@@ -11,7 +11,6 @@ export interface GlassSidebarChat {
   unread: boolean;
   updatedAt: string;
   ago: string;
-  selected: boolean;
   cwd: string;
 }
 
@@ -48,7 +47,7 @@ function draftTitle(draft: GlassDraftChat) {
   return `${head} +${draft.files.length - 1}`;
 }
 
-function buildThreadChat(sum: GlassSessionSummary, selectedId: string | null) {
+function buildThreadChat(sum: GlassSessionSummary) {
   return {
     id: sum.id,
     kind: "thread",
@@ -57,12 +56,11 @@ function buildThreadChat(sum: GlassSessionSummary, selectedId: string | null) {
     unread: false,
     updatedAt: sum.modifiedAt,
     ago: timeAgo(sum.modifiedAt),
-    selected: selectedId !== null && selectedId === sum.id,
     cwd: sum.cwd || "/",
   } satisfies GlassSidebarChat;
 }
 
-function buildDraftChat(draft: GlassDraftChat, selectedId: string | null) {
+function buildDraftChat(draft: GlassDraftChat) {
   return {
     id: draft.id,
     kind: "draft",
@@ -71,7 +69,6 @@ function buildDraftChat(draft: GlassDraftChat, selectedId: string | null) {
     unread: false,
     updatedAt: draft.updatedAt,
     ago: timeAgo(draft.updatedAt),
-    selected: selectedId !== null && selectedId === draft.id,
     cwd: draft.cwd || "/",
   } satisfies GlassSidebarChat;
 }
@@ -79,13 +76,12 @@ function buildDraftChat(draft: GlassDraftChat, selectedId: string | null) {
 export function buildWorkspaceChatSections(
   sums: Record<string, GlassSessionSummary>,
   drafts: readonly GlassDraftChat[],
-  selectedId: string | null,
   cwd: string | null,
   home: string | null,
 ) {
   const list = [
-    ...Object.values(sums).map((sum) => buildThreadChat(sum, selectedId)),
-    ...drafts.map((draft) => buildDraftChat(draft, selectedId)),
+    ...Object.values(sums).map((sum) => buildThreadChat(sum)),
+    ...drafts.map((draft) => buildDraftChat(draft)),
   ];
   if (list.length === 0) return [];
 
@@ -106,18 +102,14 @@ export function buildWorkspaceChatSections(
   });
 
   groups.sort((left, right) => {
-    const a = cwd !== null && left.dir === cwd;
-    const b = cwd !== null && right.dir === cwd;
-    if (a && !b) return -1;
-    if (!a && b) return 1;
     if (left.latest < right.latest) return 1;
     if (left.latest > right.latest) return -1;
-    return 0;
+    return left.dir.localeCompare(right.dir);
   });
 
   return groups.map((group) => ({
     id: `ws:${group.dir}`,
-    label: group.dir === cwd ? `Current · ${group.label}` : group.label,
+    label: group.label,
     cwd: group.dir,
     active: group.dir === cwd,
     items: group.sorted,

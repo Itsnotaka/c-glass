@@ -34,6 +34,8 @@ import {
 import { KeybindingsConfigError } from "./keybindings";
 import {
   ClientOrchestrationCommand,
+  GlassWorkingSnapshot,
+  GlassWorkingUpdate,
   OrchestrationEvent,
   ORCHESTRATION_WS_METHODS,
   OrchestrationDispatchCommandError,
@@ -41,6 +43,7 @@ import {
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetSnapshotError,
   OrchestrationGetSnapshotInput,
+  OrchestrationGetWorkingStateError,
   OrchestrationGetTurnDiffError,
   OrchestrationGetTurnDiffInput,
   OrchestrationReplayEventsError,
@@ -55,6 +58,7 @@ import {
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "./project";
+import { GlassSkill, SkillListError } from "./skills";
 import {
   TerminalClearInput,
   TerminalCloseInput,
@@ -116,10 +120,12 @@ export const WS_METHODS = {
   serverUpsertKeybinding: "server.upsertKeybinding",
   serverGetSettings: "server.getSettings",
   serverUpdateSettings: "server.updateSettings",
+  serverListSkills: "server.listSkills",
 
   // Streaming subscriptions
   subscribeGitStatus: "subscribeGitStatus",
   subscribeOrchestrationDomainEvents: "subscribeOrchestrationDomainEvents",
+  subscribeOrchestrationWorkingState: "subscribeOrchestrationWorkingState",
   subscribeTerminalEvents: "subscribeTerminalEvents",
   subscribeServerConfig: "subscribeServerConfig",
   subscribeServerLifecycle: "subscribeServerLifecycle",
@@ -152,6 +158,12 @@ export const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSetting
   payload: Schema.Struct({ patch: ServerSettingsPatch }),
   success: ServerSettings,
   error: ServerSettingsError,
+});
+
+export const WsServerListSkillsRpc = Rpc.make(WS_METHODS.serverListSkills, {
+  payload: Schema.Struct({}),
+  success: Schema.Array(GlassSkill),
+  error: SkillListError,
 });
 
 export const WsProjectsSearchEntriesRpc = Rpc.make(WS_METHODS.projectsSearchEntries, {
@@ -292,6 +304,15 @@ export const WsOrchestrationGetSnapshotRpc = Rpc.make(ORCHESTRATION_WS_METHODS.g
   error: OrchestrationGetSnapshotError,
 });
 
+export const WsOrchestrationGetWorkingStateRpc = Rpc.make(
+  ORCHESTRATION_WS_METHODS.getWorkingState,
+  {
+    payload: Schema.Struct({}),
+    success: GlassWorkingSnapshot,
+    error: OrchestrationGetWorkingStateError,
+  },
+);
+
 export const WsOrchestrationDispatchCommandRpc = Rpc.make(
   ORCHESTRATION_WS_METHODS.dispatchCommand,
   {
@@ -331,6 +352,15 @@ export const WsSubscribeOrchestrationDomainEventsRpc = Rpc.make(
   },
 );
 
+export const WsSubscribeOrchestrationWorkingStateRpc = Rpc.make(
+  WS_METHODS.subscribeOrchestrationWorkingState,
+  {
+    payload: Schema.Struct({}),
+    success: GlassWorkingUpdate,
+    stream: true,
+  },
+);
+
 export const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
   payload: Schema.Struct({}),
   success: TerminalEvent,
@@ -356,6 +386,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerUpsertKeybindingRpc,
   WsServerGetSettingsRpc,
   WsServerUpdateSettingsRpc,
+  WsServerListSkillsRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsWriteFileRpc,
   WsShellOpenInEditorRpc,
@@ -380,10 +411,12 @@ export const WsRpcGroup = RpcGroup.make(
   WsTerminalRestartRpc,
   WsTerminalCloseRpc,
   WsSubscribeOrchestrationDomainEventsRpc,
+  WsSubscribeOrchestrationWorkingStateRpc,
   WsSubscribeTerminalEventsRpc,
   WsSubscribeServerConfigRpc,
   WsSubscribeServerLifecycleRpc,
   WsOrchestrationGetSnapshotRpc,
+  WsOrchestrationGetWorkingStateRpc,
   WsOrchestrationDispatchCommandRpc,
   WsOrchestrationGetTurnDiffRpc,
   WsOrchestrationGetFullThreadDiffRpc,

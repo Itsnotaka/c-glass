@@ -1,7 +1,7 @@
 import type { HarnessModelRef, ThinkingLevel } from "@glass/contracts";
 import { Menu } from "@base-ui/react/menu";
 import { IconBrain, IconCheckmark1Small, IconChevronRight } from "central-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { usePretextOneLine } from "../../hooks/use-glass-pretext-one-line";
 import {
@@ -59,16 +59,23 @@ function stopMenuSearchBubbling(e: React.KeyboardEvent) {
   e.stopPropagation();
 }
 
-export function GlassModelPicker(props: {
-  items: readonly RuntimeModelItem[];
-  selection: GlassModelPickerSelection;
-  disabled?: boolean;
-  loading?: boolean;
-  status?: "loading" | "ready" | "error";
-  variant?: "hero" | "dock" | "settings";
-  onSelect: (item: RuntimeModelItem) => void;
-  onThinkingLevel?: (level: ThinkingLevel) => void;
-}) {
+export type GlassModelPickerHandle = {
+  open: () => void;
+};
+
+export const GlassModelPicker = forwardRef<
+  GlassModelPickerHandle,
+  {
+    items: readonly RuntimeModelItem[];
+    selection: GlassModelPickerSelection;
+    disabled?: boolean;
+    loading?: boolean;
+    status?: "loading" | "ready" | "error";
+    variant?: "hero" | "dock" | "settings";
+    onSelect: (item: RuntimeModelItem) => void;
+    onThinkingLevel?: (level: ThinkingLevel) => void;
+  }
+>(function GlassModelPicker(props, ref) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +114,17 @@ export function GlassModelPicker(props: {
   const idle = !props.disabled && !busy && !failed && props.items.length > 0;
   const locked = (props.disabled ?? false) || busy || failed;
   const showThinking = Boolean(props.onThinkingLevel && cur?.reasoning);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      open: () => {
+        if (locked || props.items.length === 0) return;
+        setOpen(true);
+      },
+    }),
+    [locked, props.items.length],
+  );
 
   const triggerLabel = busy
     ? "Loading models"
@@ -330,4 +348,5 @@ export function GlassModelPicker(props: {
       </Menu.Portal>
     </Menu.Root>
   );
-}
+});
+GlassModelPicker.displayName = "GlassModelPicker";

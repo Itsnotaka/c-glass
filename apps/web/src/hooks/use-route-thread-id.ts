@@ -1,23 +1,21 @@
-import { useMatchRoute } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 
-const THREAD_ROUTE = "/$threadId";
+export function resolveRouteThreadId(params: { threadId?: string | null } | null | undefined) {
+  if (!params?.threadId) {
+    return null;
+  }
 
-function readId(match: unknown) {
-  if (!match || typeof match !== "object") return null;
-  const id = Reflect.get(match, "threadId");
-  return typeof id === "string" ? id : null;
-}
+  const id = params.threadId.trim();
+  if (id.length === 0) {
+    return null;
+  }
 
-export function resolveRouteThreadId(cur: unknown, pend: unknown) {
-  const next = readId(pend);
-  if (next) return next;
-  return readId(cur);
+  return id;
 }
 
 export function useRouteThreadId() {
-  const match = useMatchRoute();
-  return resolveRouteThreadId(
-    match({ to: THREAD_ROUTE }),
-    match({ to: THREAD_ROUTE, pending: true }),
-  );
+  return useParams({
+    strict: false,
+    select: (params) => resolveRouteThreadId(params),
+  });
 }

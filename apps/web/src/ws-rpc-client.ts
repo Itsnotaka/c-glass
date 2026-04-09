@@ -13,8 +13,8 @@ import { applyGitStatusStreamEvent } from "@glass/shared/git";
 import { Effect, Stream } from "effect";
 
 import { type WsRpcProtocolClient } from "./rpc/protocol";
-import { resetWsReconnectBackoff } from "./rpc/wsConnectionState";
-import { WsTransport } from "./wsTransport";
+import { resetWsReconnectBackoff } from "./rpc/ws-connection-state";
+import { WsTransport } from "./ws-transport";
 
 type RpcTag = keyof WsRpcProtocolClient & string;
 type RpcMethod<TTag extends RpcTag> = WsRpcProtocolClient[TTag];
@@ -95,6 +95,7 @@ export interface WsRpcClient {
     readonly refreshProviders: RpcUnaryNoArgMethod<typeof WS_METHODS.serverRefreshProviders>;
     readonly upsertKeybinding: RpcUnaryMethod<typeof WS_METHODS.serverUpsertKeybinding>;
     readonly getSettings: RpcUnaryNoArgMethod<typeof WS_METHODS.serverGetSettings>;
+    readonly listSkills: RpcUnaryNoArgMethod<typeof WS_METHODS.serverListSkills>;
     readonly updateSettings: (
       patch: ServerSettingsPatch,
     ) => ReturnType<RpcUnaryMethod<typeof WS_METHODS.serverUpdateSettings>>;
@@ -103,11 +104,13 @@ export interface WsRpcClient {
   };
   readonly orchestration: {
     readonly getSnapshot: RpcUnaryNoArgMethod<typeof ORCHESTRATION_WS_METHODS.getSnapshot>;
+    readonly getWorkingState: RpcUnaryNoArgMethod<typeof ORCHESTRATION_WS_METHODS.getWorkingState>;
     readonly dispatchCommand: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.dispatchCommand>;
     readonly getTurnDiff: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.getTurnDiff>;
     readonly getFullThreadDiff: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.getFullThreadDiff>;
     readonly replayEvents: RpcUnaryMethod<typeof ORCHESTRATION_WS_METHODS.replayEvents>;
     readonly onDomainEvent: RpcStreamMethod<typeof WS_METHODS.subscribeOrchestrationDomainEvents>;
+    readonly onWorkingState: RpcStreamMethod<typeof WS_METHODS.subscribeOrchestrationWorkingState>;
   };
 }
 
@@ -217,6 +220,7 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
       upsertKeybinding: (input) =>
         transport.request((client) => client[WS_METHODS.serverUpsertKeybinding](input)),
       getSettings: () => transport.request((client) => client[WS_METHODS.serverGetSettings]({})),
+      listSkills: () => transport.request((client) => client[WS_METHODS.serverListSkills]({})),
       updateSettings: (patch) =>
         transport.request((client) => client[WS_METHODS.serverUpdateSettings]({ patch })),
       subscribeConfig: (listener, options) =>
@@ -235,6 +239,8 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
     orchestration: {
       getSnapshot: () =>
         transport.request((client) => client[ORCHESTRATION_WS_METHODS.getSnapshot]({})),
+      getWorkingState: () =>
+        transport.request((client) => client[ORCHESTRATION_WS_METHODS.getWorkingState]({})),
       dispatchCommand: (input) =>
         transport.request((client) => client[ORCHESTRATION_WS_METHODS.dispatchCommand](input)),
       getTurnDiff: (input) =>
@@ -248,6 +254,12 @@ export function createWsRpcClient(transport = new WsTransport()): WsRpcClient {
       onDomainEvent: (listener, options) =>
         transport.subscribe(
           (client) => client[WS_METHODS.subscribeOrchestrationDomainEvents]({}),
+          listener,
+          options,
+        ),
+      onWorkingState: (listener, options) =>
+        transport.subscribe(
+          (client) => client[WS_METHODS.subscribeOrchestrationWorkingState]({}),
           listener,
           options,
         ),

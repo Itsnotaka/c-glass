@@ -509,7 +509,7 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
       : null;
   const commandPreview = extractToolCommand(payload);
   const changedFiles = extractChangedFiles(payload);
-  const title = extractToolTitle(payload);
+  const title = asTrimmedString(payload?.title);
   const entry: DerivedWorkLogEntry = {
     id: activity.id,
     createdAt: activity.createdAt,
@@ -622,17 +622,15 @@ function deriveToolLifecycleCollapseKey(entry: DerivedWorkLogEntry): string | un
   if (entry.activityKind !== "tool.updated" && entry.activityKind !== "tool.completed") {
     return undefined;
   }
-  const normalizedLabel = normalizeCompactToolLabel(entry.toolTitle ?? entry.label);
+  const normalizedLabel = (entry.toolTitle ?? entry.label)
+    .replace(/\s+(?:complete|completed)\s*$/i, "")
+    .trim();
   const detail = entry.detail?.trim() ?? "";
   const itemType = entry.itemType ?? "";
   if (normalizedLabel.length === 0 && detail.length === 0 && itemType.length === 0) {
     return undefined;
   }
   return [itemType, normalizedLabel, detail].join("\u001f");
-}
-
-function normalizeCompactToolLabel(value: string): string {
-  return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
 function toLatestProposedPlanState(proposedPlan: ProposedPlan): LatestProposedPlanState {
@@ -729,12 +727,6 @@ const SHELL_WRAPPER_SPECS = [
   },
 ] as const;
 
-function findShellWrapperSpec(shell: string) {
-  return SHELL_WRAPPER_SPECS.find((spec) =>
-    (spec.executables as ReadonlyArray<string>).includes(shell),
-  );
-}
-
 function unwrapCommandRemainder(value: string, wrapperFlagPattern: RegExp): string | null {
   const match = wrapperFlagPattern.exec(value);
   if (!match) {
@@ -761,16 +753,12 @@ function unwrapKnownShellCommandWrapper(value: string): string {
     return value;
   }
 
-  const spec = findShellWrapperSpec(shell);
+  const spec = SHELL_WRAPPER_SPECS.find((item) => item.executables.some((exe) => exe === shell));
   if (!spec) {
     return value;
   }
 
   return unwrapCommandRemainder(split.rest, spec.wrapperFlagPattern) ?? value;
-}
-
-function formatCommandArrayPart(value: string): string {
-  return /[\s"'`]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
 function formatCommandValue(value: unknown): string | null {
@@ -787,7 +775,9 @@ function formatCommandValue(value: unknown): string | null {
   if (parts.length === 0) {
     return null;
   }
-  return parts.map((part) => formatCommandArrayPart(part)).join(" ");
+  return parts
+    .map((part) => (/[^\S\r\n]|["'`]/.test(part) ? `"${part.replace(/"/g, '\\"')}"` : part))
+    .join(" ");
 }
 
 function normalizeCommandValue(value: unknown): string | null {
@@ -836,10 +826,6 @@ function extractToolCommand(payload: Record<string, unknown> | null): {
     command: null,
     rawCommand: null,
   };
-}
-
-function extractToolTitle(payload: Record<string, unknown> | null): string | null {
-  return asTrimmedString(payload?.title);
 }
 
 function stripTrailingExitCode(value: string): {

@@ -6,15 +6,16 @@ import type {
   GlassSessionItem,
   HarnessKind,
   MessageId,
+  ProviderInteractionMode,
   ThinkingLevel,
   ThreadId,
 } from "@glass/contracts";
-import { startTransition, useMemo } from "react";
+import { startTransition, useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
-import { readNativeApi } from "../../nativeApi";
+import { readNativeApi } from "../../native-api";
 import {
   applyThinking,
   writeRuntimeDefaultModel,
@@ -125,6 +126,9 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       [sessionId],
     ),
   );
+  const work = useThreadSessionStore(
+    useMemo(() => (state) => (sessionId ? (state.work[sessionId] ?? null) : null), [sessionId]),
+  );
   const sessionModel = useThreadSessionStore(
     useMemo(
       () => (state) => (sessionId ? (state.snaps[sessionId]?.model ?? null) : null),
@@ -163,10 +167,13 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
 
   const model = sessionId ? sessionModel : defs.model;
   const modelLoading = !sessionId && defs.status === "loading";
+  const since = busy
+    ? (work?.startedAt ?? thread?.latestTurn?.startedAt ?? thread?.latestTurn?.requestedAt ?? null)
+    : null;
 
   const ensureThread = async (
     seed: string,
-    draft?: { id: string; title: string | null } | null,
+    draft?: { id: string; title: string | null; interactionMode?: ProviderInteractionMode } | null,
   ) => {
     if (sessionId) return sessionId as ThreadId;
     if (!api || !project) {
@@ -183,6 +190,9 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
           }
         : defs.selection;
 
+    const interactionMode =
+      draft?.interactionMode ?? useGlassChatDraftStore.getState().root.interactionMode;
+
     await api.orchestration.dispatchCommand({
       type: "thread.create",
       commandId: commandId(),
@@ -191,7 +201,7 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       title: draft?.title?.trim() || seed || "New chat",
       modelSelection,
       runtimeMode: "full-access",
-      interactionMode: "default",
+      interactionMode,
       branch: null,
       worktreePath: null,
       createdAt: new Date().toISOString(),
@@ -208,7 +218,7 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
 
   const send = async (
     input: string | GlassPromptInput,
-    draft?: { id: string; title: string | null } | null,
+    draft?: { id: string; title: string | null; interactionMode?: ProviderInteractionMode } | null,
   ) => {
     const payload =
       typeof input === "string" ? { text: input.trim(), attachments: [] } : foldAttachments(input);
@@ -285,6 +295,20 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
     });
   };
 
+  const setInteractionMode = useCallback(
+    (mode: ProviderInteractionMode) => {
+      if (!sessionId || !api || !thread) return;
+      void api.orchestration.dispatchCommand({
+        type: "thread.interaction-mode.set",
+        commandId: commandId(),
+        threadId: thread.id,
+        interactionMode: mode,
+        createdAt: new Date().toISOString(),
+      });
+    },
+    [api, sessionId, thread],
+  );
+
   const answerAsk = (reply: GlassAskReply) => {
     if (!api || !thread || !askBox) return;
     if (askBox.mode === "approval") {
@@ -327,8 +351,10 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
   return {
     messages,
     live,
+    work,
     ask: askBox?.state ?? null,
     busy,
+    since,
     model,
     modelLoading,
     answerAsk,
@@ -336,5 +362,6 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
     abort,
     setModel,
     setThinkingLevel,
+    setInteractionMode,
   };
 }

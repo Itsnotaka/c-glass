@@ -3,15 +3,15 @@ import { describe, expect, it } from "vitest";
 import { resolveRouteThreadId } from "./use-route-thread-id";
 
 describe("resolveRouteThreadId", () => {
-  it("prefers the pending thread match during navigation", () => {
-    expect(resolveRouteThreadId({ threadId: "old" }, { threadId: "next" })).toBe("next");
+  it("reads the thread id when present", () => {
+    expect(resolveRouteThreadId({ threadId: "next" })).toBe("next");
   });
 
-  it("uses the current thread match when no navigation is pending", () => {
-    expect(resolveRouteThreadId({ threadId: "cur" }, false)).toBe("cur");
+  it("trims whitespace around the route thread id", () => {
+    expect(resolveRouteThreadId({ threadId: " cur " })).toBe("cur");
   });
 
-  it("clears the thread when the current route is not a thread route", () => {
-    expect(resolveRouteThreadId(false, false)).toBeNull();
+  it("clears the thread when params do not include a thread id", () => {
+    expect(resolveRouteThreadId({})).toBeNull();
   });
 });

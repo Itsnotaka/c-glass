@@ -10,6 +10,7 @@ import {
   IconArrowRotateCounterClockwise,
   IconArrowUp,
   IconBolt,
+  IconBranchSimple,
   IconBrain,
   IconCheckmark1Small,
   IconChevronBottom,
@@ -70,6 +71,7 @@ export const glassCentralIcons: GlassCentralIconEntry[] = [
   },
   { name: "IconArrowUp", Cmp: IconArrowUp, usage: "Composer: send" },
   { name: "IconBolt", Cmp: IconBolt, usage: "Slash menu: subagent" },
+  { name: "IconBranchSimple", Cmp: IconBranchSimple, usage: "Composer: active branch" },
   { name: "IconBrain", Cmp: IconBrain, usage: "Model picker" },
   {
     name: "IconCheckmark1Small",

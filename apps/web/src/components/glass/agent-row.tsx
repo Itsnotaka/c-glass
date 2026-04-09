@@ -23,11 +23,15 @@ function StatusDot(props: { item: GlassSidebarChat }) {
 }
 
 export const GlassAgentRow = memo(
-  function GlassAgentRow(props: { item: GlassSidebarChat; onSelectAgent: (id: string) => void }) {
+  function GlassAgentRow(props: {
+    item: GlassSidebarChat;
+    selected: boolean;
+    onSelectAgent: (id: string) => void;
+  }) {
     return (
       <GlassRowButton
         variant="agent"
-        data-selected={props.item.selected}
+        data-selected={props.selected}
         data-chat-item=""
         onClick={() => props.onSelectAgent(props.item.id)}
       >
@@ -37,5 +41,8 @@ export const GlassAgentRow = memo(
       </GlassRowButton>
     );
   },
-  (left, right) => left.item === right.item && left.onSelectAgent === right.onSelectAgent,
+  (left, right) =>
+    left.item === right.item &&
+    left.selected === right.selected &&
+    left.onSelectAgent === right.onSelectAgent,
 );

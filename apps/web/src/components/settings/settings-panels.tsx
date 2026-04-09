@@ -5,7 +5,7 @@ import { useGlassAppearance } from "../../hooks/use-glass-appearance";
 import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { useTheme } from "../../hooks/use-theme";
-import { readNativeApi } from "../../nativeApi";
+import { readNativeApi } from "../../native-api";
 import {
   clearRuntimeDefaultModel,
   writeRuntimeDefaultModel,
@@ -27,7 +27,7 @@ import {
 import { pickWorkspace } from "../../lib/glass-workspace";
 import { setDefaultHarness, setHarnessEnabled, useHarnessList } from "../../lib/harness-store";
 import { cn } from "../../lib/utils";
-import { useServerProviders } from "../../rpc/serverState";
+import { useServerProviders } from "../../rpc/server-state";
 import { useStore } from "../../store";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";

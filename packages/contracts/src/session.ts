@@ -1,4 +1,5 @@
 import type { HarnessKind, HarnessModelRef, ThreadInteractiveKind } from "./harness";
+import type { GlassWorkingState } from "./orchestration";
 import type { ThinkingLevel } from "./pi";
 
 export interface GlassTextBlock {
@@ -289,6 +290,7 @@ export interface GlassSessionSnapshot {
   thinkingLevel: ThinkingLevel;
   messages: GlassSessionItem[];
   live: GlassSessionItem | null;
+  working: GlassWorkingState | null;
   tree: GlassSessionTreeNode[];
   isStreaming: boolean;
   pending: GlassSessionPending;

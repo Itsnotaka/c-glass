@@ -301,7 +301,7 @@ export function GlassGitPanel(props: { git: GlassGitPanelModel }) {
     );
   }
 
-  if (git.loading && !git.snap) {
+  if (!git.snap && !git.error) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 py-3">
         <div className="h-3 w-24 animate-pulse rounded bg-muted/40" />

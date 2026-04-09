@@ -12,20 +12,20 @@ import { toast } from "sonner";
 
 import { APP_DISPLAY_NAME } from "../branding";
 import { AppSidebarLayout } from "../components/app-sidebar-layout";
-import { readNativeApi } from "../nativeApi";
-import { deriveOrchestrationBatchEffects } from "../orchestrationEventEffects";
+import { readNativeApi } from "../native-api";
+import { deriveOrchestrationBatchEffects } from "../orchestration-event-effects";
 import {
   createOrchestrationRecoveryCoordinator,
   deriveReplayRetryDecision,
   type ReplayRetryTracker,
-} from "../orchestrationRecovery";
+} from "../orchestration-recovery";
 import {
   startServerStateSync,
   useServerConfigUpdatedSubscription,
   useServerWelcomeSubscription,
-} from "../rpc/serverState";
+} from "../rpc/server-state";
 import { useStore } from "../store";
-import { getWsRpcClient } from "../wsRpcClient";
+import { getWsRpcClient } from "../ws-rpc-client";
 import { useCopyToClipboard } from "../hooks/use-copy-to-clipboard";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Toaster } from "~/components/ui/sonner";
@@ -103,6 +103,8 @@ function DomainBootstrap() {
   const syncServerReadModel = useStore((store) => store.syncServerReadModel);
   const applyOrchestrationEvents = useStore((store) => store.applyOrchestrationEvents);
   const refreshCfg = useThreadSessionStore((state) => state.refreshCfg);
+  const syncWork = useThreadSessionStore((state) => state.syncWork);
+  const putWork = useThreadSessionStore((state) => state.putWork);
   const syncDomain = useThreadSessionStore((state) => state.syncDomain);
   const pathname = useLocation({ select: (loc) => loc.pathname });
   const navigate = useNavigate();
@@ -128,6 +130,15 @@ function DomainBootstrap() {
     let refreshProviders = false;
     const queue: any[] = [];
     let scheduled = false;
+
+    const syncWorkState = async () => {
+      try {
+        const items = await api.orchestration.getWorkingState();
+        if (!disposed) {
+          syncWork(items);
+        }
+      } catch {}
+    };
 
     const syncSnapshot = (snapshot: Awaited<ReturnType<typeof api.orchestration.getSnapshot>>) => {
       syncServerReadModel(snapshot);
@@ -228,7 +239,7 @@ function DomainBootstrap() {
     };
 
     bootstrapRef.current = async () => {
-      await runSnapshotRecovery("bootstrap");
+      await Promise.all([runSnapshotRecovery("bootstrap"), syncWorkState()]);
     };
 
     void bootstrapRef.current();
@@ -255,13 +266,34 @@ function DomainBootstrap() {
       },
     );
 
+    const offWork = api.orchestration.onWorkingState(
+      (item) => {
+        putWork(item);
+      },
+      {
+        onResubscribe: () => {
+          if (disposed) return;
+          void syncWorkState();
+        },
+      },
+    );
+
     return () => {
       disposed = true;
       queue.length = 0;
       scheduled = false;
       off();
+      offWork();
     };
-  }, [applyOrchestrationEvents, navigate, refreshCfg, syncDomain, syncServerReadModel]);
+  }, [
+    applyOrchestrationEvents,
+    navigate,
+    putWork,
+    refreshCfg,
+    syncDomain,
+    syncServerReadModel,
+    syncWork,
+  ]);
 
   useServerWelcomeSubscription((payload) => {
     void bootstrapRef.current().then(() => {

@@ -1,14 +1,4 @@
-import {
-  Cause,
-  Duration,
-  Effect,
-  Exit,
-  Layer,
-  ManagedRuntime,
-  Option,
-  Scope,
-  Stream,
-} from "effect";
+import { Cause, Duration, Effect, Exit, ManagedRuntime, Option, Scope, Stream } from "effect";
 import { RpcClient } from "effect/unstable/rpc";
 
 import {
@@ -16,6 +6,7 @@ import {
   makeWsRpcProtocolClient,
   type WsRpcProtocolClient,
 } from "./rpc/protocol";
+import { isTransportConnectionErrorMessage } from "./rpc/transport-error";
 
 interface SubscribeOptions {
   readonly retryDelay?: Duration.Input;
@@ -40,6 +31,14 @@ function formatErrorMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+export function shouldWarnSubscriptionDisconnect(error: unknown): boolean {
+  const message = formatErrorMessage(error);
+  if (isTransportConnectionErrorMessage(message)) {
+    return false;
+  }
+  return true;
 }
 
 export class WsTransport {
@@ -139,10 +138,14 @@ export class WsTransport {
             return;
           }
 
-          console.warn("WebSocket RPC subscription disconnected", {
-            error: formatErrorMessage(error),
+          if (shouldWarnSubscriptionDisconnect(error)) {
+            console.warn("WebSocket RPC subscription disconnected", {
+              error: formatErrorMessage(error),
+            });
+          }
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, retryDelayMs);
           });
-          await sleep(retryDelayMs);
         }
       }
     })();
@@ -165,7 +168,11 @@ export class WsTransport {
 
       const previousSession = this.session;
       this.session = this.createSession();
-      await this.closeSession(previousSession);
+      await previousSession.runtime
+        .runPromise(Scope.close(previousSession.clientScope, Exit.void))
+        .finally(() => {
+          previousSession.runtime.dispose();
+        });
     });
 
     this.reconnectChain = reconnectOperation.catch(() => undefined);
@@ -177,13 +184,11 @@ export class WsTransport {
       return;
     }
     this.disposed = true;
-    await this.closeSession(this.session);
-  }
-
-  private closeSession(session: TransportSession) {
-    return session.runtime.runPromise(Scope.close(session.clientScope, Exit.void)).finally(() => {
-      session.runtime.dispose();
-    });
+    await this.session.runtime
+      .runPromise(Scope.close(this.session.clientScope, Exit.void))
+      .finally(() => {
+        this.session.runtime.dispose();
+      });
   }
 
   private createSession(): TransportSession {
@@ -248,10 +253,4 @@ export class WsTransport {
       completed,
     };
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }

@@ -1,10 +1,10 @@
 import { type ContextMenuItem, type NativeApi } from "@glass/contracts";
 
-import { showContextMenuFallback } from "./contextMenuFallback";
-import { resetRequestLatencyStateForTests } from "./rpc/requestLatencyState";
-import { resetServerStateForTests } from "./rpc/serverState";
-import { resetWsConnectionStateForTests } from "./rpc/wsConnectionState";
-import { __resetWsRpcClientForTests, getWsRpcClient } from "./wsRpcClient";
+import { showContextMenuFallback } from "./context-menu-fallback";
+import { resetRequestLatencyStateForTests } from "./rpc/request-latency-state";
+import { resetServerStateForTests } from "./rpc/server-state";
+import { resetWsConnectionStateForTests } from "./rpc/ws-connection-state";
+import { __resetWsRpcClientForTests, getWsRpcClient } from "./ws-rpc-client";
 
 let instance: { api: NativeApi } | null = null;
 
@@ -94,10 +94,12 @@ export function createWsNativeApi(): NativeApi {
       refreshProviders: rpcClient.server.refreshProviders,
       upsertKeybinding: rpcClient.server.upsertKeybinding,
       getSettings: rpcClient.server.getSettings,
+      listSkills: async () => [...(await rpcClient.server.listSkills())],
       updateSettings: rpcClient.server.updateSettings,
     },
     orchestration: {
       getSnapshot: rpcClient.orchestration.getSnapshot,
+      getWorkingState: rpcClient.orchestration.getWorkingState,
       dispatchCommand: rpcClient.orchestration.dispatchCommand,
       getTurnDiff: rpcClient.orchestration.getTurnDiff,
       getFullThreadDiff: rpcClient.orchestration.getFullThreadDiff,
@@ -107,6 +109,8 @@ export function createWsNativeApi(): NativeApi {
       },
       onDomainEvent: (callback, options) =>
         rpcClient.orchestration.onDomainEvent(callback, options),
+      onWorkingState: (callback, options) =>
+        rpcClient.orchestration.onWorkingState(callback, options),
     },
   };
 

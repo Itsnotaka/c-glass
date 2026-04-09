@@ -19,7 +19,7 @@ import {
   derivePendingApprovals,
   derivePendingUserInputs,
 } from "./session-logic";
-import { sanitizeThreadErrorMessage } from "./rpc/transportError";
+import { isTransportConnectionErrorMessage } from "./rpc/transport-error";
 import { type ChatMessage, type Project, type SidebarThreadSummary, type Thread } from "./types";
 
 // ── State ────────────────────────────────────────────────────────────
@@ -90,10 +90,6 @@ function normalizeModelSelection<T extends { provider: "codex" | "claudeAgent"; 
   };
 }
 
-function mapProjectScripts(scripts: ReadonlyArray<Project["scripts"][number]>): Project["scripts"] {
-  return scripts.map((script) => ({ ...script }));
-}
-
 function mapSession(session: OrchestrationSession): Thread["session"] {
   return {
     provider: toLegacyProvider(session.providerName),
@@ -113,7 +109,7 @@ function mapMessage(message: OrchestrationMessage): ChatMessage {
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
-    previewUrl: toAttachmentPreviewUrl(attachmentPreviewRoutePath(attachment.id)),
+    previewUrl: toAttachmentPreviewUrl(`/attachments/${encodeURIComponent(attachment.id)}`),
   }));
 
   return {
@@ -166,7 +162,9 @@ function mapThread(thread: OrchestrationThread): Thread {
     session: thread.session ? mapSession(thread.session) : null,
     messages: thread.messages.map(mapMessage),
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
-    error: sanitizeThreadErrorMessage(thread.session?.lastError),
+    error: isTransportConnectionErrorMessage(thread.session?.lastError)
+      ? null
+      : (thread.session?.lastError ?? null),
     createdAt: thread.createdAt,
     archivedAt: thread.archivedAt,
     updatedAt: thread.updatedAt,
@@ -189,7 +187,7 @@ function mapProject(project: OrchestrationReadModel["projects"][number]): Projec
       : null,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
-    scripts: mapProjectScripts(project.scripts),
+    scripts: project.scripts.map((script) => ({ ...script })),
   };
 }
 
@@ -304,14 +302,6 @@ function buildThreadIdsByProjectId(threads: ReadonlyArray<Thread>): Record<strin
     threadIdsByProjectId[thread.projectId] = [...existingThreadIds, thread.id];
   }
   return threadIdsByProjectId;
-}
-
-function buildSidebarThreadsById(
-  threads: ReadonlyArray<Thread>,
-): Record<string, SidebarThreadSummary> {
-  return Object.fromEntries(
-    threads.map((thread) => [thread.id, buildSidebarThreadSummary(thread)]),
-  );
 }
 
 function checkpointStatusToLatestTurnState(status: "ready" | "missing" | "error") {
@@ -456,24 +446,6 @@ function retainThreadMessagesAfterRevert(
   return messages.filter((message) => retainedMessageIds.has(message.id));
 }
 
-function retainThreadActivitiesAfterRevert(
-  activities: ReadonlyArray<Thread["activities"][number]>,
-  retainedTurnIds: ReadonlySet<string>,
-): Thread["activities"] {
-  return activities.filter(
-    (activity) => activity.turnId === null || retainedTurnIds.has(activity.turnId),
-  );
-}
-
-function retainThreadProposedPlansAfterRevert(
-  proposedPlans: ReadonlyArray<Thread["proposedPlans"][number]>,
-  retainedTurnIds: ReadonlySet<string>,
-): Thread["proposedPlans"] {
-  return proposedPlans.filter(
-    (proposedPlan) => proposedPlan.turnId === null || retainedTurnIds.has(proposedPlan.turnId),
-  );
-}
-
 function toLegacySessionStatus(
   status: OrchestrationSessionStatus,
 ): "connecting" | "ready" | "running" | "error" | "closed" {
@@ -528,10 +500,6 @@ function toAttachmentPreviewUrl(rawUrl: string): string {
   return rawUrl;
 }
 
-function attachmentPreviewRoutePath(attachmentId: string): string {
-  return `/attachments/${encodeURIComponent(attachmentId)}`;
-}
-
 function updateThreadState(
   state: AppState,
   threadId: ThreadId,
@@ -579,7 +547,9 @@ export function syncServerReadModel(state: AppState, readModel: OrchestrationRea
     .filter((project) => project.deletedAt === null)
     .map(mapProject);
   const threads = readModel.threads.filter((thread) => thread.deletedAt === null).map(mapThread);
-  const sidebarThreadsById = buildSidebarThreadsById(threads);
+  const sidebarThreadsById = Object.fromEntries(
+    threads.map((thread) => [thread.id, buildSidebarThreadSummary(thread)]),
+  );
   const threadIdsByProjectId = buildThreadIdsByProjectId(threads);
   return {
     ...state,
@@ -630,7 +600,7 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
             }
           : {}),
         ...(event.payload.scripts !== undefined
-          ? { scripts: mapProjectScripts(event.payload.scripts) }
+          ? { scripts: event.payload.scripts.map((script) => ({ ...script })) }
           : {}),
         updatedAt: event.payload.updatedAt,
       }));
@@ -895,7 +865,9 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
       return updateThreadState(state, event.payload.threadId, (thread) => ({
         ...thread,
         session: mapSession(event.payload.session),
-        error: sanitizeThreadErrorMessage(event.payload.session.lastError),
+        error: isTransportConnectionErrorMessage(event.payload.session.lastError)
+          ? null
+          : (event.payload.session.lastError ?? null),
         latestTurn:
           event.payload.session.status === "running" && event.payload.session.activeTurnId !== null
             ? buildLatestTurn({
@@ -1029,11 +1001,15 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
           retainedTurnIds,
           event.payload.turnCount,
         ).slice(-MAX_THREAD_MESSAGES);
-        const proposedPlans = retainThreadProposedPlansAfterRevert(
-          thread.proposedPlans,
-          retainedTurnIds,
-        ).slice(-MAX_THREAD_PROPOSED_PLANS);
-        const activities = retainThreadActivitiesAfterRevert(thread.activities, retainedTurnIds);
+        const proposedPlans = thread.proposedPlans
+          .filter(
+            (proposedPlan) =>
+              proposedPlan.turnId === null || retainedTurnIds.has(proposedPlan.turnId),
+          )
+          .slice(-MAX_THREAD_PROPOSED_PLANS);
+        const activities = thread.activities.filter(
+          (activity) => activity.turnId === null || retainedTurnIds.has(activity.turnId),
+        );
         const latestCheckpoint = turnDiffSummaries.at(-1) ?? null;
 
         return {

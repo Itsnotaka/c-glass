@@ -1,7 +1,7 @@
 import type { HarnessModelRef, ModelSelection, ThinkingLevel } from "@glass/contracts";
 import { useMemo } from "react";
 
-import { useServerProviders } from "../rpc/serverState";
+import { useServerProviders } from "../rpc/server-state";
 import { useStore } from "../store";
 import {
   listRuntimeModelsFromProviders,

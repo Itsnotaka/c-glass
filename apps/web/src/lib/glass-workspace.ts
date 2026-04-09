@@ -1,6 +1,6 @@
 import { CommandId, ProjectId } from "@glass/contracts";
 
-import { readNativeApi } from "../nativeApi";
+import { readNativeApi } from "../native-api";
 import { useStore } from "../store";
 import { GLASS_SHELL_CHANGED_EVENT } from "./glass-runtime-constants";
 

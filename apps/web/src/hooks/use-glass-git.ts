@@ -4,7 +4,8 @@ import * as Schema from "effect/Schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useGlassShellStore } from "../lib/glass-shell-store";
-import { readNativeApi } from "../nativeApi";
+import { readNativeApi } from "../native-api";
+import { useStore } from "../store";
 import { useLocalStorage } from "./use-local-storage";
 import { useShellState } from "./use-shell-cwd";
 
@@ -150,61 +151,92 @@ function toSnap(cwd: string, status: GitStatusResult): GitState {
 export function useGlassGitPanel(): GlassGitPanelModel {
   const { cwd } = useShellState();
   const api = readNativeApi();
+  const boot = useStore((state) => state.bootstrapComplete);
   const paths = useGlassShellStore((state) => state.paths);
   const tick = useGlassShellStore((state) => state.tick);
-  const [snap, setSnap] = useState<GitState | null>(null);
-  const [status, setStatus] = useState<GitStatusResult | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [git, setGit] = useState(() => ({
+    cwd: null as string | null,
+    snap: null as GitState | null,
+    status: null as GitStatusResult | null,
+    err: null as string | null,
+    loading: false,
+  }));
   const [selected, setSelected] = useState<string | null>(null);
+  const seq = useRef(0);
 
-  const load = useCallback(async () => {
-    if (!api || !cwd) return null;
-    setLoading(true);
-    try {
-      const next = await api.git.refreshStatus({ cwd });
-      setStatus(next);
-      const mapped = toSnap(cwd, next);
-      setSnap(mapped);
-      setErr(null);
-      return mapped;
-    } catch (err) {
-      setErr(err instanceof Error ? err.message : String(err));
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [api, cwd]);
+  const load = useCallback(
+    async (opts?: { reset?: boolean }) => {
+      if (!api || !cwd) return null;
+      const id = ++seq.current;
+      setGit((state) =>
+        state.cwd === cwd && !opts?.reset
+          ? { ...state, loading: true }
+          : { cwd, snap: null, status: null, err: null, loading: true },
+      );
+      try {
+        const next = await api.git.refreshStatus({ cwd });
+        if (seq.current !== id) return null;
+        const snap = toSnap(cwd, next);
+        setGit({ cwd, snap, status: next, err: null, loading: false });
+        return snap;
+      } catch (err) {
+        if (seq.current !== id) return null;
+        setGit({
+          cwd,
+          snap: null,
+          status: null,
+          err: err instanceof Error ? err.message : String(err),
+          loading: false,
+        });
+        return null;
+      }
+    },
+    [api, cwd],
+  );
 
   useEffect(() => {
     if (!api || !cwd) {
-      setSnap(null);
-      setStatus(null);
-      setErr(null);
-      setLoading(false);
+      seq.current += 1;
+      setGit({ cwd: null, snap: null, status: null, err: null, loading: false });
       setSelected(null);
       return;
     }
+
+    let active = true;
+    let off: () => void = () => {};
+
     setSelected(null);
-    void load();
+    void load({ reset: true }).then(() => {
+      if (!active) return;
+      off = api.git.onStatus(
+        { cwd },
+        (next) => {
+          setGit((state) => {
+            if (state.cwd !== cwd) return state;
+            return {
+              cwd,
+              snap: toSnap(cwd, next),
+              status: next,
+              err: null,
+              loading: false,
+            };
+          });
+        },
+        {
+          onResubscribe: () => {
+            void load();
+          },
+        },
+      );
+    });
+
+    return () => {
+      active = false;
+      off();
+    };
   }, [api, cwd, load]);
 
-  useEffect(() => {
-    if (!api || !cwd) return;
-    return api.git.onStatus(
-      { cwd },
-      (next) => {
-        setStatus(next);
-        setSnap(toSnap(cwd, next));
-        setErr(null);
-      },
-      {
-        onResubscribe: () => {
-          void load();
-        },
-      },
-    );
-  }, [api, cwd, load]);
+  const cur = git.cwd === cwd ? git : null;
 
   useEffect(() => {
     if (!api || !cwd) return;
@@ -225,28 +257,34 @@ export function useGlassGitPanel(): GlassGitPanelModel {
     void load();
   }, [api, cwd, load, tick]);
 
-  const rows = useMemo(() => toRows(status), [status]);
+  const curSnap = cur?.snap ?? null;
+  const curErr = cur?.err ?? null;
+  const rows = useMemo(() => toRows(cur?.status ?? null), [cur?.status]);
+  const curRows = curSnap ? rows : [];
+  const pending =
+    Boolean(api) &&
+    ((cwd !== null && cur === null) || Boolean(cur?.loading) || (!boot && cwd === null));
   const recent = useMemo(() => {
-    if (!cwd) return null;
-    return hit(paths, cwd, snap?.gitRoot ?? null, rows);
-  }, [cwd, paths, rows, snap?.gitRoot]);
+    if (!cwd || !curSnap) return null;
+    return hit(paths, cwd, curSnap.gitRoot ?? null, curRows);
+  }, [curRows, curSnap, cwd, paths]);
 
   useEffect(() => {
-    if (rows.length === 0) {
+    if (curRows.length === 0) {
       if (selected !== null) setSelected(null);
       return;
     }
-    if (selected && rows.some((row) => row.id === selected)) return;
+    if (selected && curRows.some((row) => row.id === selected)) return;
     if (recent) {
       setSelected(recent.id);
       return;
     }
-    setSelected(rows[0]?.id ?? null);
-  }, [recent, rows, selected]);
+    setSelected(curRows[0]?.id ?? null);
+  }, [curRows, recent, selected]);
 
   const selectedRow = useMemo(
-    () => (selected ? (rows.find((row) => row.id === selected) ?? null) : null),
-    [rows, selected],
+    () => (selected ? (curRows.find((row) => row.id === selected) ?? null) : null),
+    [curRows, selected],
   );
 
   const [fileDiff, setFileDiff] = useState<FileDiffMetadata | null>(null);
@@ -286,25 +324,25 @@ export function useGlassGitPanel(): GlassGitPanelModel {
   }, [api, cwd, selectedRow]);
 
   const statsById = useMemo(
-    () => new Map(rows.map((row) => [row.id, { add: row.add, del: row.del }])),
-    [rows],
+    () => new Map(curRows.map((row) => [row.id, { add: row.add, del: row.del }])),
+    [curRows],
   );
 
   return {
-    snap,
-    loading,
-    error: err,
-    count: snap?.count ?? 0,
+    snap: curSnap,
+    loading: pending,
+    error: curErr,
+    count: curSnap?.count ?? 0,
     selected,
     fileDiff,
     filePatch,
     fileDiffLoading,
     fileDiffError,
     hit: recent?.id ?? null,
-    totalAdd: rows.reduce((sum, row) => sum + row.add, 0),
-    totalDel: rows.reduce((sum, row) => sum + row.del, 0),
+    totalAdd: curRows.reduce((sum, row) => sum + row.add, 0),
+    totalDel: curRows.reduce((sum, row) => sum + row.del, 0),
     statsById,
-    rows,
+    rows: curRows,
     setSelected,
     refresh: load,
     init: async () => {
@@ -312,16 +350,32 @@ export function useGlassGitPanel(): GlassGitPanelModel {
       try {
         await api.git.init({ cwd });
       } catch (err) {
-        setErr(err instanceof Error ? err.message : String(err));
+        setGit((state) =>
+          state.cwd !== cwd
+            ? state
+            : {
+                ...state,
+                err: err instanceof Error ? err.message : String(err),
+                loading: false,
+              },
+        );
       }
       return load();
     },
     discard: async (paths) => {
-      if (!api || !cwd) return snap;
+      if (!api || !cwd) return curSnap;
       try {
         await api.git.discardPaths({ cwd, paths });
       } catch (err) {
-        setErr(err instanceof Error ? err.message : String(err));
+        setGit((state) =>
+          state.cwd !== cwd
+            ? state
+            : {
+                ...state,
+                err: err instanceof Error ? err.message : String(err),
+                loading: false,
+              },
+        );
       }
       return load();
     },
