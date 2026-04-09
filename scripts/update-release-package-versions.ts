@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export const releasePackageFiles = [
   "apps/desktop/package.json",
+  "apps/server/package.json",
   "apps/web/package.json",
   "packages/contracts/package.json",
 ] as const;
