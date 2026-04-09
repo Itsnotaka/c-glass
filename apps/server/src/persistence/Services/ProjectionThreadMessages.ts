@@ -15,7 +15,7 @@ import {
   TurnId,
   IsoDateTime,
 } from "@glass/contracts";
-import { Schema, ServiceMap } from "effect";
+import { Schema, Context } from "effect";
 import type { Option } from "effect";
 import type { Effect } from "effect";
 
@@ -90,7 +90,7 @@ export interface ProjectionThreadMessageRepositoryShape {
 /**
  * ProjectionThreadMessageRepository - Service tag for message projection persistence.
  */
-export class ProjectionThreadMessageRepository extends ServiceMap.Service<
+export class ProjectionThreadMessageRepository extends Context.Service<
   ProjectionThreadMessageRepository,
   ProjectionThreadMessageRepositoryShape
 >()("glass/persistence/Services/ProjectionThreadMessages/ProjectionThreadMessageRepository") {}

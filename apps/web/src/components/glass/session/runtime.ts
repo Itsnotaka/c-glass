@@ -10,7 +10,7 @@ import type {
   ThinkingLevel,
   ThreadId,
 } from "@glass/contracts";
-import { startTransition, useCallback, useMemo } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useRuntimeDefaults } from "~/hooks/use-runtime-models";
@@ -66,7 +66,7 @@ function approvalAsk(threadId: string, requestId: string, detail?: string): Glas
     sessionId: threadId,
     toolCallId: requestId,
     kind: "select",
-    current: 0,
+    current: 1,
     values: {},
     custom: {},
     questions: [
@@ -93,7 +93,7 @@ function inputAsk(
     sessionId: threadId,
     toolCallId: requestId,
     kind: "select",
-    current: 0,
+    current: 1,
     values: {},
     custom: {},
     questions: questions.map((item) => ({
@@ -107,6 +107,12 @@ function inputAsk(
     })),
   };
 }
+
+type InputDraft = {
+  current: number;
+  values: Record<string, string[]>;
+  custom: Record<string, string>;
+};
 
 export function useRuntimeSession(sessionId: string | null, harness?: HarnessKind | null) {
   const api = readNativeApi();
@@ -152,17 +158,62 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
     return shellProject ?? threadProject ?? projects[0] ?? null;
   }, [projects, shell.cwd, thread]);
 
+  const pendingInputs = useMemo(
+    () => (thread ? derivePendingUserInputs(thread.activities) : []),
+    [thread],
+  );
+  const pendingApprovals = useMemo(
+    () => (thread ? derivePendingApprovals(thread.activities) : []),
+    [thread],
+  );
+  const [drafts, setDrafts] = useState<Record<string, InputDraft>>({});
+
+  useEffect(() => {
+    if (pendingInputs.length === 0) {
+      setDrafts((cur) => (Object.keys(cur).length === 0 ? cur : {}));
+      return;
+    }
+
+    setDrafts((cur) => {
+      const ids = new Set<string>(pendingInputs.map((item) => item.requestId));
+      const next = Object.fromEntries(Object.entries(cur).filter(([id]) => ids.has(id))) as Record<
+        string,
+        InputDraft
+      >;
+      let changed = Object.keys(next).length !== Object.keys(cur).length;
+
+      for (const item of pendingInputs) {
+        if (next[item.requestId]) {
+          continue;
+        }
+        next[item.requestId] = { current: 1, values: {}, custom: {} };
+        changed = true;
+      }
+
+      return changed ? next : cur;
+    });
+  }, [pendingInputs]);
+
   const askBox = useMemo(() => {
     if (!thread) return null;
-    const input = derivePendingUserInputs(thread.activities)[0];
+    const input = pendingInputs[0];
     if (input) {
+      const base = inputAsk(thread.id, input.requestId, input.questions);
+      const draft = drafts[input.requestId];
+      const current = draft?.current ?? 1;
+      const max = Math.max(base.questions.length, 1);
       return {
         mode: "input" as const,
         requestId: input.requestId,
-        state: inputAsk(thread.id, input.requestId, input.questions),
+        state: {
+          ...base,
+          current: Math.max(1, Math.min(current, max)),
+          values: draft?.values ?? {},
+          custom: draft?.custom ?? {},
+        },
       };
     }
-    const approval = derivePendingApprovals(thread.activities)[0];
+    const approval = pendingApprovals[0];
     if (approval) {
       return {
         mode: "approval" as const,
@@ -171,7 +222,7 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       };
     }
     return null;
-  }, [thread]);
+  }, [drafts, pendingApprovals, pendingInputs, thread]);
 
   const model = sessionId ? sessionModel : defs.model;
   const modelLoading = !sessionId && defs.status === "loading";
@@ -375,19 +426,162 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       return;
     }
 
-    if (reply.type === "abort") return;
-
-    const answers = {
-      [reply.questionId]: reply.custom?.trim() ? reply.custom.trim() : reply.values,
+    const questions = askBox.state.questions;
+    const total = Math.max(questions.length, 1);
+    const current = Math.max(1, Math.min(askBox.state.current, total));
+    const cur = drafts[askBox.requestId] ?? {
+      current,
+      values: askBox.state.values,
+      custom: askBox.state.custom,
     };
-    void api.orchestration.dispatchCommand({
-      type: "thread.user-input.respond",
-      commandId: commandId(),
-      threadId: thread.id,
-      requestId: askBox.requestId,
-      answers,
-      createdAt: new Date().toISOString(),
-    });
+
+    const respond = (answers: Record<string, unknown>) => {
+      void api.orchestration.dispatchCommand({
+        type: "thread.user-input.respond",
+        commandId: commandId(),
+        threadId: thread.id,
+        requestId: askBox.requestId,
+        answers,
+        createdAt: new Date().toISOString(),
+      });
+    };
+
+    const build = (next: InputDraft) => {
+      const answers: Record<string, unknown> = {};
+      for (const question of questions) {
+        const custom = next.custom[question.id]?.trim();
+        if (custom && custom.length > 0) {
+          answers[question.id] = custom;
+          continue;
+        }
+
+        const values = (next.values[question.id] ?? [])
+          .filter((entry): entry is string => typeof entry === "string")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        if (values.length === 0) {
+          continue;
+        }
+
+        answers[question.id] = question.multi ? values : values[0];
+      }
+      return answers;
+    };
+
+    const answer = (
+      next: InputDraft,
+      input: { questionId: string; custom?: string; values?: string[] },
+    ) => {
+      const custom = input.custom?.trim();
+      if (custom && custom.length > 0) {
+        return {
+          ...next,
+          custom: {
+            ...next.custom,
+            [input.questionId]: custom,
+          },
+          values: Object.fromEntries(
+            Object.entries(next.values).filter(([id]) => id !== input.questionId),
+          ),
+        };
+      }
+
+      const values = (input.values ?? [])
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+      if (values.length > 0) {
+        return {
+          ...next,
+          values: {
+            ...next.values,
+            [input.questionId]: values,
+          },
+          custom: Object.fromEntries(
+            Object.entries(next.custom).filter(([id]) => id !== input.questionId),
+          ),
+        };
+      }
+
+      return {
+        ...next,
+        values: Object.fromEntries(
+          Object.entries(next.values).filter(([id]) => id !== input.questionId),
+        ),
+        custom: Object.fromEntries(
+          Object.entries(next.custom).filter(([id]) => id !== input.questionId),
+        ),
+      };
+    };
+
+    if (reply.type === "abort") {
+      respond({});
+      return;
+    }
+
+    if (reply.type === "back") {
+      const next = answer(
+        {
+          current,
+          values: { ...cur.values },
+          custom: { ...cur.custom },
+        },
+        reply,
+      );
+      setDrafts((prev) => ({
+        ...prev,
+        [askBox.requestId]: {
+          ...next,
+          current: Math.max(1, current - 1),
+        },
+      }));
+      return;
+    }
+
+    if (reply.type === "skip") {
+      const next = {
+        current,
+        values: Object.fromEntries(
+          Object.entries(cur.values).filter(([id]) => id !== reply.questionId),
+        ),
+        custom: Object.fromEntries(
+          Object.entries(cur.custom).filter(([id]) => id !== reply.questionId),
+        ),
+      };
+      if (current < questions.length) {
+        setDrafts((prev) => ({
+          ...prev,
+          [askBox.requestId]: {
+            ...next,
+            current: current + 1,
+          },
+        }));
+        return;
+      }
+      respond(build(next));
+      return;
+    }
+
+    const next = answer(
+      {
+        current,
+        values: { ...cur.values },
+        custom: { ...cur.custom },
+      },
+      reply,
+    );
+    if (current < questions.length) {
+      setDrafts((prev) => ({
+        ...prev,
+        [askBox.requestId]: {
+          ...next,
+          current: current + 1,
+        },
+      }));
+      return;
+    }
+
+    respond(build(next));
   };
 
   return {

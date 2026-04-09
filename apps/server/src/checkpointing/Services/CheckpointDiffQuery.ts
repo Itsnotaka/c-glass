@@ -12,7 +12,7 @@ import type {
   OrchestrationGetTurnDiffInput,
   OrchestrationGetTurnDiffResult,
 } from "@glass/contracts";
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect } from "effect";
 
 import type { CheckpointServiceError } from "../Errors.ts";
@@ -43,7 +43,7 @@ export interface CheckpointDiffQueryShape {
 /**
  * CheckpointDiffQuery - Service tag for checkpoint diff queries.
  */
-export class CheckpointDiffQuery extends ServiceMap.Service<
+export class CheckpointDiffQuery extends Context.Service<
   CheckpointDiffQuery,
   CheckpointDiffQueryShape
 >()("glass/checkpointing/Services/CheckpointDiffQuery") {}

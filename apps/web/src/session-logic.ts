@@ -184,9 +184,11 @@ function isStalePendingRequestFailureDetail(detail: string | undefined): boolean
   return (
     normalized.includes("stale pending approval request") ||
     normalized.includes("stale pending user-input request") ||
+    normalized.includes("stale pending user input request") ||
     normalized.includes("unknown pending approval request") ||
     normalized.includes("unknown pending permission request") ||
-    normalized.includes("unknown pending user-input request")
+    normalized.includes("unknown pending user-input request") ||
+    normalized.includes("unknown pending user input request")
   );
 }
 
@@ -203,7 +205,7 @@ export function derivePendingApprovals(
         : null;
     const requestId =
       payload && typeof payload.requestId === "string"
-        ? ApprovalRequestId.makeUnsafe(payload.requestId)
+        ? ApprovalRequestId.make(payload.requestId)
         : null;
     const requestKind =
       payload &&
@@ -309,7 +311,7 @@ export function derivePendingUserInputs(
         : null;
     const requestId =
       payload && typeof payload.requestId === "string"
-        ? ApprovalRequestId.makeUnsafe(payload.requestId)
+        ? ApprovalRequestId.make(payload.requestId)
         : null;
     const detail = payload && typeof payload.detail === "string" ? payload.detail : undefined;
 

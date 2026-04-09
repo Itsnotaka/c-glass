@@ -6,7 +6,7 @@
  *
  * @module GitCore
  */
-import { ServiceMap } from "effect";
+import { Context } from "effect";
 import type { Effect } from "effect";
 import type {
   GitCheckoutInput,
@@ -326,6 +326,6 @@ export interface GitCoreShape {
 /**
  * GitCore - Service tag for low-level Git repository operations.
  */
-export class GitCore extends ServiceMap.Service<GitCore, GitCoreShape>()(
+export class GitCore extends Context.Service<GitCore, GitCoreShape>()(
   "glass/git/Services/GitCore",
 ) {}

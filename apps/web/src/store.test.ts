@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 import { hasStreamingThinking } from "./lib/assistant-content";
 import { applyOrchestrationEvent, syncServerReadModel, type AppState } from "./store";
 
-const projectId = ProjectId.makeUnsafe("project-store");
-const threadId = ThreadId.makeUnsafe("thread-store");
-const turnId = TurnId.makeUnsafe("turn-store");
-const messageId = MessageId.makeUnsafe("assistant:turn-store");
+const projectId = ProjectId.make("project-store");
+const threadId = ThreadId.make("thread-store");
+const turnId = TurnId.make("turn-store");
+const messageId = MessageId.make("assistant:turn-store");
 
 function stamp(seq: number) {
   return new Date(Date.UTC(2026, 1, 28, 20, 0, seq)).toISOString();

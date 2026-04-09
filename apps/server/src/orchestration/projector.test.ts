@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import { createEmptyReadModel, projectEvent } from "./projector";
 
-const projectId = ProjectId.makeUnsafe("project-thinking");
-const threadId = ThreadId.makeUnsafe("thread-thinking");
-const turnId = TurnId.makeUnsafe("turn-thinking");
-const messageId = MessageId.makeUnsafe("assistant:turn-thinking");
+const projectId = ProjectId.make("project-thinking");
+const threadId = ThreadId.make("thread-thinking");
+const turnId = TurnId.make("turn-thinking");
+const messageId = MessageId.make("assistant:turn-thinking");
 
 function stamp(seq: number) {
   return new Date(Date.UTC(2026, 1, 28, 19, 0, seq)).toISOString();

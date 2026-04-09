@@ -664,7 +664,7 @@ const makeTerminalManager = Effect.fn("makeTerminalManager")(function* () {
 export const makeTerminalManagerWithOptions = Effect.fn("makeTerminalManagerWithOptions")(
   function* (options: TerminalManagerOptions) {
     const fileSystem = yield* FileSystem.FileSystem;
-    const services = yield* Effect.services();
+    const services = yield* Effect.context();
     const runFork = Effect.runForkWith(services);
 
     const logsDir = options.logsDir;

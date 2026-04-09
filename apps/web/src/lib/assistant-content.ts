@@ -64,7 +64,7 @@ export function hasStreamingThinking(
     if (!message || message.role !== "assistant" || !message.streaming) {
       continue;
     }
-    return Boolean(message.content?.some(hasThinking));
+    return Boolean(message.content?.some((block) => block.type === "thinking"));
   }
   return false;
 }

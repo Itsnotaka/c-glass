@@ -18,7 +18,7 @@ import {
   Queue,
   Ref,
   Scope,
-  ServiceMap,
+  Context,
 } from "effect";
 
 import { ServerConfig } from "./config";
@@ -50,7 +50,7 @@ export interface ServerRuntimeStartupShape {
   ) => Effect.Effect<A, E | ServerRuntimeStartupError>;
 }
 
-export class ServerRuntimeStartup extends ServiceMap.Service<
+export class ServerRuntimeStartup extends Context.Service<
   ServerRuntimeStartup,
   ServerRuntimeStartupShape
 >()("glass/serverRuntimeStartup") {}
@@ -169,7 +169,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
 
       if (Option.isNone(existingProject)) {
         const createdAt = new Date().toISOString();
-        nextProjectId = ProjectId.makeUnsafe(crypto.randomUUID());
+        nextProjectId = ProjectId.make(crypto.randomUUID());
         const bootstrapProjectTitle = path.basename(serverConfig.cwd) || "project";
         nextProjectDefaultModelSelection = {
           provider: "codex",
@@ -177,7 +177,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         };
         yield* orchestrationEngine.dispatch({
           type: "project.create",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          commandId: CommandId.make(crypto.randomUUID()),
           projectId: nextProjectId,
           title: bootstrapProjectTitle,
           workspaceRoot: serverConfig.cwd,
@@ -198,10 +198,10 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         yield* projectionReadModelQuery.getFirstActiveThreadIdByProjectId(nextProjectId);
       if (Option.isNone(existingThreadId)) {
         const createdAt = new Date().toISOString();
-        const createdThreadId = ThreadId.makeUnsafe(crypto.randomUUID());
+        const createdThreadId = ThreadId.make(crypto.randomUUID());
         yield* orchestrationEngine.dispatch({
           type: "thread.create",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          commandId: CommandId.make(crypto.randomUUID()),
           threadId: createdThreadId,
           projectId: nextProjectId,
           title: "New thread",

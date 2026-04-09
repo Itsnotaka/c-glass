@@ -109,7 +109,7 @@ export async function setDefaultHarness(kind: HarnessKind): Promise<void> {
   const provider = toProvider(kind);
   await api.orchestration.dispatchCommand({
     type: "project.meta.update",
-    commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+    commandId: CommandId.make(crypto.randomUUID()),
     projectId: project.id,
     defaultModelSelection: {
       provider,
