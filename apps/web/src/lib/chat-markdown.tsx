@@ -13,7 +13,7 @@ export type ChatMarkdownProps = Omit<StreamdownProps, "controls" | "plugins" | "
 };
 
 /**
- * Single entry point for Streamdown in Glass: Cursor-style `.chat-markdown` CSS, shared Shiki theme, controls.
+ * Single entry point for Streamdown in Glass: `.chat-markdown` styling, shared Shiki theme, controls.
  */
 export function ChatMarkdown(props: ChatMarkdownProps) {
   const { variant = "thread", className, dir = "auto", lineNumbers = false, ...rest } = props;

@@ -1,8 +1,9 @@
-import type { Json, GlassSessionItem } from "@glass/contracts";
+import type { Json, GlassSessionItem, GlassWorkingState } from "@glass/contracts";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { Collapsible } from "~/components/ui/collapsible";
 import {
+  IconBrain,
   IconChevronBottom,
   IconClipboard,
   IconConsole,
@@ -36,8 +37,8 @@ import {
 } from "../../lib/tool-renderers";
 import { cn } from "../../lib/utils";
 
-/** Tool / bash cards: full border + soft fill (Cursor-like), no left accent rail. */
-const toolPanelShell =
+/** Runtime cards: full border + soft fill, no left accent rail. */
+const cardShell =
   "min-w-0 rounded-glass-card border border-glass-border/45 bg-glass-bubble/55 px-2 py-0 shadow-glass-card";
 
 /** Base UI trigger: no browser / focus-visible ring (reads as ugly “outline on select”). */
@@ -52,9 +53,9 @@ function useSyncedExpand(expanded: boolean) {
   return [open, setOpen] as const;
 }
 
-type ToolState = "pending" | "running" | "completed" | "errored";
+type RuntimeState = "pending" | "running" | "completed" | "errored";
 
-function state(row: ChatRow): ToolState {
+function runtimeState(row: ChatRow): RuntimeState {
   if (row.kind === "tool") {
     if (row.error) return "errored";
     if (row.result.trim()) return "completed";
@@ -70,28 +71,27 @@ function state(row: ChatRow): ToolState {
   return "completed";
 }
 
-const labels: Record<ToolState, string> = {
+const labels: Record<RuntimeState, string> = {
   pending: "Pending",
   running: "Running",
   completed: "Completed",
   errored: "Error",
 };
 
-function ToolSubtitle(props: { row: Extract<ChatRow, { kind: "tool" } | { kind: "bash" }> }) {
-  const s = state(props.row);
+function RuntimeStateBadge(props: { state: RuntimeState; label?: string }) {
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1 text-body/[1.375]",
-        s === "errored"
+        props.state === "errored"
           ? "rounded bg-destructive/10 px-1.5 py-0.5 text-destructive/90"
           : "text-foreground/48",
       )}
     >
-      {(s === "pending" || s === "running") && (
+      {(props.state === "pending" || props.state === "running") && (
         <IconLoader className="size-2.5 shrink-0 animate-spin text-foreground/48" />
       )}
-      {labels[s]}
+      {props.label ?? labels[props.state]}
     </span>
   );
 }
@@ -99,10 +99,6 @@ function ToolSubtitle(props: { row: Extract<ChatRow, { kind: "tool" } | { kind: 
 function draw(row: ChatRow, expanded: boolean) {
   if (row.kind === "user") {
     return <HumanBubble key={row.id} text={row.text || ""} attachments={row.attachments} />;
-  }
-
-  if (row.kind === "thinking") {
-    return <ThinkingRow key={row.id} text={row.text} expanded={expanded} />;
   }
 
   if (row.kind === "assistant") {
@@ -236,42 +232,119 @@ const HumanBubble = memo(function HumanBubble(props: {
   );
 });
 
-const ThinkingRow = memo(function ThinkingRow(props: { text: string; expanded: boolean }) {
-  const [open, setOpen] = useSyncedExpand(props.expanded);
-  return (
-    <li className="min-w-0">
-      <Collapsible.Root open={open} onOpenChange={setOpen}>
-        <Collapsible.Trigger
-          className={cn(
-            collapsibleTriggerFocus,
-            "group flex h-8 max-h-8 w-full cursor-pointer items-center gap-2 py-0 text-left transition-colors hover:bg-glass-hover/8",
-          )}
-        >
-          <span className="min-w-0 flex-1 truncate text-body/[1.375] text-foreground/[0.7]">
-            Thinking
-          </span>
-          <IconChevronBottom
-            className={cn(
-              "size-3 shrink-0 text-foreground/48 transition-transform duration-200",
-              !open && "-rotate-90",
-            )}
-          />
-        </Collapsible.Trigger>
-        <Collapsible.Panel>
-          <div className="mt-1 rounded-glass-control border border-glass-border/35 bg-muted/20 px-3 py-2 text-body/[1.625] whitespace-pre-wrap break-words italic text-foreground/[0.7]">
-            {props.text}
-          </div>
-        </Collapsible.Panel>
-      </Collapsible.Root>
-    </li>
-  );
-});
-
 const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   return (
     <li className="min-w-0 py-1">
       <ChatMarkdown>{props.text}</ChatMarkdown>
     </li>
+  );
+});
+
+function workSpan(ms: number) {
+  if (!Number.isFinite(ms) || ms < 1_000) return "0s";
+  const sec = Math.floor(ms / 1_000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  const rest = sec % 60;
+  if (min < 60) return rest > 0 ? `${min}m ${rest}s` : `${min}m`;
+  const hr = Math.floor(min / 60);
+  const left = min % 60;
+  return left > 0 ? `${hr}h ${left}m` : `${hr}h`;
+}
+
+function workLabel(since: string | null, now: number) {
+  if (!since) return "Working...";
+  const start = Date.parse(since);
+  if (Number.isNaN(start)) return "Working...";
+  return `Working for ${workSpan(Math.max(0, now - start))}`;
+}
+
+function workTitle(work: GlassWorkingState | null) {
+  const text =
+    work?.summary?.trim() ||
+    work?.task?.summary?.trim() ||
+    work?.task?.description?.trim() ||
+    work?.tool?.title?.trim() ||
+    "Thinking";
+  const line = text.split(/\r?\n/u, 1)[0] ?? "Thinking";
+  return line.length <= 56 ? line : `${line.slice(0, 53)}…`;
+}
+
+function workMeta(work: GlassWorkingState | null) {
+  if (work?.tool?.title?.trim()) return work.tool.title.trim();
+  if (work?.tool?.detail?.trim()) return work.tool.detail.trim();
+  if (work?.task?.description?.trim()) return work.task.description.trim();
+  return null;
+}
+
+function workBody(work: GlassWorkingState | null) {
+  const head = work?.summary?.trim() || work?.task?.summary?.trim() || null;
+  const text = work?.text.trim() || null;
+  const meta = workMeta(work);
+  const showHead = Boolean(head && head !== text);
+
+  if (!meta && !showHead && !text) return null;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2 pt-1.5 pb-2">
+      {meta ? <div className="text-detail/[1.45] text-muted-foreground/68">{meta}</div> : null}
+      {showHead && head ? (
+        <div className="min-w-0 text-body/[1.5] text-foreground/82">
+          <ChatMarkdown>{head}</ChatMarkdown>
+        </div>
+      ) : null}
+      {text ? (
+        <pre className="tool-terminal max-h-[min(40vh,20rem)] whitespace-pre-wrap break-words text-body/[1.5] text-foreground/88">
+          {text}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+const GlassChatWorking = memo(function GlassChatWorking(props: {
+  work: GlassWorkingState | null;
+  busy: boolean;
+  since: string | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!props.busy) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [props.busy]);
+
+  if (!props.busy && !props.work) return null;
+
+  if (!props.work) {
+    return (
+      <li className="min-w-0 py-0.5">
+        <div className="flex items-center gap-2 px-1 text-body/[1.375] text-muted-foreground/68">
+          <IconLoader className="size-3.5 shrink-0 animate-spin text-muted-foreground/58" />
+          <span className="tabular-nums">{workLabel(props.since, now)}</span>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <RuntimeRailCard
+      icon={<IconBrain className="size-3 shrink-0 text-foreground/48" />}
+      title={workTitle(props.work)}
+      subtitle={
+        <RuntimeStateBadge
+          state="running"
+          label={workLabel(props.work.startedAt ?? props.since, now)}
+        />
+      }
+      expanded={Boolean(props.work.summary?.trim() || props.work.text.trim())}
+    >
+      {workBody(props.work)}
+    </RuntimeRailCard>
   );
 });
 
@@ -465,7 +538,7 @@ function JsonSection(props: { label: string; text: string }) {
   );
 }
 
-function ToolRailCard(props: {
+function RuntimeRailCard(props: {
   icon: React.ReactNode;
   title: string;
   subtitle: React.ReactNode;
@@ -474,7 +547,7 @@ function ToolRailCard(props: {
 }) {
   const [open, setOpen] = useSyncedExpand(props.expanded);
   return (
-    <li className={cn(toolPanelShell, "overflow-hidden")}>
+    <li className={cn(cardShell, "overflow-hidden")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
           className={cn(
@@ -521,7 +594,7 @@ const AssistantErrorBlock = memo(function AssistantErrorBlock(props: {
 }) {
   const title = useMemo(() => assistantErrorTitle(props.text), [props.text]);
   return (
-    <ToolRailCard
+    <RuntimeRailCard
       icon={<IconCrossSmall className="size-3 shrink-0 text-destructive/80" />}
       title={title}
       subtitle={
@@ -536,7 +609,7 @@ const AssistantErrorBlock = memo(function AssistantErrorBlock(props: {
           {props.text}
         </pre>
       </div>
-    </ToolRailCard>
+    </RuntimeRailCard>
   );
 });
 
@@ -627,7 +700,7 @@ const LiteToolRow = memo(function LiteToolRow(props: {
             Web Search
           </span>
           <span className="shrink-0">
-            <ToolSubtitle row={props.row} />
+            <RuntimeStateBadge state={runtimeState(props.row)} />
           </span>
           <IconChevronBottom
             className={cn(
@@ -653,7 +726,7 @@ const FileEditToolCard = memo(function FileEditToolCard(props: {
   diff: FileDiffMetadata;
   path: string;
   expanded: boolean;
-  toolState: ToolState;
+  toolState: RuntimeState;
 }) {
   const [diffStyle] = useGlassDiffStylePreference();
   const { resolvedTheme } = useTheme();
@@ -669,7 +742,7 @@ const FileEditToolCard = memo(function FileEditToolCard(props: {
   }, [props.path]);
 
   return (
-    <li className={cn(toolPanelShell, "overflow-hidden")}>
+    <li className={cn(cardShell, "overflow-hidden")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
           className={cn(
@@ -697,7 +770,7 @@ const FileEditToolCard = memo(function FileEditToolCard(props: {
             ) : null}
           </span>
           <span className="shrink-0">
-            <ToolSubtitle row={props.row} />
+            <RuntimeStateBadge state={runtimeState(props.row)} />
           </span>
           <IconChevronBottom
             className={cn(
@@ -759,7 +832,7 @@ const ToolCard = memo(function ToolCard(props: {
   const { resolvedTheme } = useTheme();
   const pierreTheme =
     resolvedTheme === "dark" ? ("pierre-dark" as const) : ("pierre-light" as const);
-  const s = state(props.row);
+  const s = runtimeState(props.row);
   const file = isFileTool(props.row.name);
   const title = useMemo(() => toolTitle(props.row), [props.row]);
   const path = useMemo(
@@ -811,7 +884,7 @@ const ToolCard = memo(function ToolCard(props: {
   }
 
   return (
-    <ToolRailCard
+    <RuntimeRailCard
       icon={
         path ? (
           <VsFileIcon path={path} errored={s === "errored"} />
@@ -834,7 +907,7 @@ const ToolCard = memo(function ToolCard(props: {
         )
       }
       title={title}
-      subtitle={<ToolSubtitle row={props.row} />}
+      subtitle={<RuntimeStateBadge state={runtimeState(props.row)} />}
       expanded={props.expanded}
     >
       {file && diff ? (
@@ -857,7 +930,7 @@ const ToolCard = memo(function ToolCard(props: {
       {file && props.row.error && props.row.result.trim() ? (
         <div className="text-detail/[1.4] text-destructive/85">{props.row.result}</div>
       ) : null}
-    </ToolRailCard>
+    </RuntimeRailCard>
   );
 });
 
@@ -969,7 +1042,7 @@ const ExploredCard = memo(function ExploredCard(props: {
     parts.push(`${props.row.searches} ${props.row.searches === 1 ? "search" : "searches"}`);
 
   return (
-    <li className={cn(toolPanelShell, "text-body/[1.5]")}>
+    <li className={cn(cardShell, "text-body/[1.5]")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
           className={cn(
@@ -1012,7 +1085,7 @@ const BashCard = memo(function BashCard(props: {
   const [open, setOpen] = useSyncedExpand(props.expanded);
 
   return (
-    <li className={cn(toolPanelShell, "overflow-hidden")}>
+    <li className={cn(cardShell, "overflow-hidden")}>
       <Collapsible.Root open={open} onOpenChange={setOpen}>
         <Collapsible.Trigger
           className={cn(
@@ -1028,7 +1101,7 @@ const BashCard = memo(function BashCard(props: {
               {props.row.command}
             </span>
             <span className="shrink-0">
-              <ToolSubtitle row={props.row} />
+              <RuntimeStateBadge state={runtimeState(props.row)} />
             </span>
           </div>
           <IconChevronBottom
@@ -1098,7 +1171,7 @@ const TextCard = memo(function TextCard(props: {
   }, [props.text]);
 
   return (
-    <ToolRailCard
+    <RuntimeRailCard
       icon={<IconToolbox className="text-foreground/48" />}
       title={props.label}
       subtitle={<span className="text-body/[1.375] text-foreground/48">Completed</span>}
@@ -1114,7 +1187,7 @@ const TextCard = memo(function TextCard(props: {
           {body}
         </div>
       ) : null}
-    </ToolRailCard>
+    </RuntimeRailCard>
   );
 });
 
@@ -1191,12 +1264,16 @@ export function GlassChatRowsIconStripDemo() {
     <div className="flex max-w-lg flex-col gap-0">
       <div className="border-b border-border bg-muted/20 px-3 py-2">
         <span className="inline-flex items-center gap-2 text-detail text-muted-foreground">
-          <ToolSubtitle row={running} />
+          <RuntimeStateBadge state={runtimeState(running)} />
           <span>Tool status</span>
         </span>
       </div>
       <ul className="list-none">
-        <ThinkingRow text="Thinking text…" expanded={false} />
+        <GlassChatWorking
+          work={null}
+          busy={true}
+          since={new Date(Date.now() - 15_000).toISOString()}
+        />
       </ul>
       <div className="flex flex-wrap justify-end gap-2 border-b border-border px-2 py-2">
         <AttachmentTile item={fileAtt} />
@@ -1215,4 +1292,4 @@ export function GlassChatRowsIconStripDemo() {
   );
 }
 
-export { GlassChatTranscript, GlassChatLive };
+export { GlassChatTranscript, GlassChatLive, GlassChatWorking };

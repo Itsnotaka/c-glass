@@ -1,5 +1,5 @@
 /**
- * Historical Cursor notes for the slash / mention launcher.
- * These are reference breadcrumbs only, not a canonical source for Glass UI or behavior.
+ * Slash / @mention launcher item kinds.
+ * Reference-only notes live in component files; behavior is defined by Glass, not external UI dumps.
  */
 export type GlassSlashItemKind = "command" | "skill" | "subagent" | "app";

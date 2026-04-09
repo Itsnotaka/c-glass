@@ -1,9 +1,9 @@
 /**
- * Cursor / VS Code interactive-session `.rendered-markdown` parity for Streamdown output.
- * Reference: Cursor `workbench.desktop.main.css`.
+ * VS Code interactive-session `.rendered-markdown` parity for Streamdown output.
+ * Reference: workbench `workbench.desktop.main.css` rules for chat markdown.
  */
 
-/* Chat markdown — Cursor / VS Code interactive `.rendered-markdown` semantics + Streamdown overrides */
+/* Chat markdown — interactive `.rendered-markdown` semantics + Streamdown overrides */
 .chat-markdown {
   min-width: 0;
   overflow-wrap: anywhere;

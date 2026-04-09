@@ -1,12 +1,10 @@
 /**
- * @mention preview pane — matches Cursor `ui-mention-menu-side-preview--glass`.
+ * @mention side preview — `ui-mention-menu-side-preview--glass` layout reference.
  *   header (path)   12px/16px  primary  truncate
  *   image           contain  radius-sm(4px)  border-tertiary
  *   text            mono  11px/14px  tertiary
- *   empty state     11px/14px  tertiary
  */
 import type { ShellFileHit, ShellFilePreview } from "@glass/contracts";
-import { IconSearchIntelligence } from "central-icons";
 import { memo } from "react";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
@@ -15,16 +13,7 @@ export const GlassComposerFilePreview = memo(function GlassComposerFilePreview(p
   preview: ShellFilePreview | null;
 }) {
   if (!props.item || !props.preview) {
-    return (
-      <div className="flex h-full min-h-44 items-center justify-center px-3 py-4 text-center text-[11px] leading-[14px] text-muted-foreground/55">
-        <div className="max-w-44">
-          <div className="mb-1.5 flex justify-center text-muted-foreground/50">
-            <IconSearchIntelligence className="size-4" />
-          </div>
-          <div>Select a file to preview</div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (props.preview.kind === "image" && props.preview.data) {

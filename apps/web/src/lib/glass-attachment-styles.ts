@@ -1,7 +1,7 @@
 /**
  * User attachment surfaces.
  * Chat transcript (sent message): bubble cards.
- * Composer (pending): Cursor `ui-prompt-input-image-grid` + `prompt-attachment`.
+ * Composer (pending): image grid + attachment strip (`ui-prompt-input-image-grid` + `prompt-attachment` ref).
  */
 
 /** Human message thread — image tile (matches sent-message card weight). */
@@ -14,19 +14,19 @@ export const glassUserAttachmentFileRow =
 
 /**
  * Composer attachment strip — holds image grid + file chips.
- * Cursor: `prompt-attachment { display:flex; gap:4px }`.
+ * Ref: `prompt-attachment { display:flex; gap:4px }`.
  */
 export const glassComposerAttachmentStrip = "flex flex-wrap items-start justify-start gap-1";
 
 /**
- * Composer image grid — Cursor `ui-prompt-input-image-grid`.
+ * Composer image grid — `ui-prompt-input-image-grid` reference.
  * Grid of thumbnails, wrapping.
  */
 export const glassComposerImageGrid = "flex flex-wrap items-start gap-1";
 
 /**
  * Composer image thumbnail — 48×48px (design-system 4px grid).
- * Cursor ref: `ui-prompt-input-image-preview` 64px, scaled to fit Glass tighter spacing.
+ * Reference layout `ui-prompt-input-image-preview` is 64px; Glass uses tighter spacing.
  */
 export const glassComposerImageThumbnail =
   "size-12 shrink-0 overflow-hidden rounded-glass-card border border-glass-border/30 bg-glass-hover/10 transition-[border-color,box-shadow] duration-150 hover:border-glass-stroke-strong/40 hover:shadow-[0_2px_8px_oklch(0_0_0_/_0.15)] dark:hover:shadow-[0_2px_8px_oklch(0_0_0_/_0.35)]";

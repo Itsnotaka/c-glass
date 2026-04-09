@@ -2,7 +2,7 @@
  * Shared slash and @mention launcher.
  * Uses Base UI Popover because the textarea stays the real input owner.
  *
- * Pixel targets derived from Cursor 3.0.4 `ui-menu` / `ui-slash-menu`:
+ * Pixel targets aligned with `ui-menu` / `ui-slash-menu` reference layout:
  *   root        font-size:12px  line-height:16px
  *   content     padding:4px
  *   list        gap:1px
@@ -38,7 +38,7 @@ function kindGlyph(kind: GlassSlashItem["kind"]) {
   return IconLightning;
 }
 
-/** Cursor `ui-slash-menu__highlight`: font-weight:600, highlight foreground. */
+/** Slash menu query highlight — semibold matched segment (`ui-slash-menu__highlight`). */
 function highlightMatch(text: string, query: string): ReactNode {
   if (!query) return text;
   const lower = text.toLowerCase();
@@ -106,7 +106,7 @@ export function GlassComposerTokenMenu(props: {
           sideOffset={8}
           className="z-50 outline-none"
         >
-          {/* Cursor: ui-menu  font-size:12px  line-height:16px  radius-md(6px)  bg-elevated  shadow-soft */}
+          {/* Root menu shell: 12px/16px, elevated surface, soft shadow */}
           <Popover.Popup
             initialFocus={false}
             finalFocus={false}
@@ -136,14 +136,14 @@ function SlashPane(props: {
 }) {
   return (
     <div className="max-h-72 min-h-0 overflow-y-auto overscroll-contain">
-      {/* Cursor: ui-menu__content  padding:4px */}
+      {/* Menu content: 4px padding */}
       <div className="flex flex-col gap-px p-1" role="listbox" aria-label="Slash commands">
         {props.slashRows.map((row) => {
           if (row.kind === "header") {
             return (
               <div
                 key={row.key}
-                /* Cursor: ui-menu__section-title  11px/14px  tertiary  padding:4px */
+                /* Section title: 11px/14px tertiary */
                 className="px-1 pt-1.5 pb-0.5 text-[11px] leading-[14px] text-muted-foreground/55 first:pt-0.5"
                 role="presentation"
               >
@@ -160,7 +160,7 @@ function SlashPane(props: {
               role="option"
               aria-selected={active}
               data-highlighted={active ? "" : undefined}
-              /* Cursor: ui-menu__row  padding:3px 4px  gap:6px  radius-sm(4px) */
+              /* Menu row: 3px×4px padding, 6px gap, 4px radius */
               className={cn(
                 "flex w-full items-center gap-[6px] rounded-sm px-1 py-[3px] text-left transition-colors motion-reduce:transition-none",
                 active
@@ -174,24 +174,24 @@ function SlashPane(props: {
               }}
               onMouseEnter={() => props.onSlashHover(row.optionIndex)}
             >
-              {/* Cursor: ui-menu__item-left  12×16  secondary */}
+              {/* Leading icon slot: 12×16 secondary */}
               <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">
                 <Glyph className="size-3" />
               </span>
-              {/* Cursor: ui-slash-menu__item-title-wrap  gap:8px(glass)  flex:1 */}
+              {/* Title row: 8px gap, flex-1 */}
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                {/* Cursor: ui-slash-menu__item-title  primary  truncate */}
+                {/* Primary title, truncate */}
                 <span className="truncate text-foreground">
                   /{highlightMatch(row.item.name, props.query)}
                 </span>
-                {/* Cursor: ui-slash-menu__item-inline-description  tertiary  truncate  flex:1 */}
+                {/* Inline description: tertiary, truncate */}
                 {row.item.description ? (
                   <span className="min-w-0 flex-1 truncate text-[11px] leading-[14px] text-muted-foreground/50">
                     {row.item.description}
                   </span>
                 ) : null}
               </span>
-              {/* Cursor: ui-slash-menu__item-tertiary-text  tertiary  max-width:180px */}
+              {/* Trailing pill: tertiary, max 180px */}
               <span className="max-w-[180px] shrink-0 truncate text-[11px] leading-[14px] text-muted-foreground/45">
                 {row.item.pill}
               </span>
@@ -219,7 +219,7 @@ function FilePane(props: {
     <div className="grid bg-glass-border/20 md:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
       <div className="min-w-0 border-b border-glass-border/20 md:border-r md:border-b-0">
         <ScrollArea className="max-h-74">
-          {/* Cursor: ui-menu__content  padding:4px */}
+          {/* Menu content: 4px padding */}
           <div
             className="flex flex-col gap-px p-1"
             role="listbox"
@@ -241,7 +241,7 @@ function FilePane(props: {
                     role="option"
                     aria-selected={active}
                     data-highlighted={active ? "" : undefined}
-                    /* Cursor: ui-menu__row  padding:3px 4px  gap:6px  radius-sm(4px) */
+                    /* Menu row: 3px×4px padding, 6px gap, 4px radius */
                     className={cn(
                       "flex w-full items-center gap-[6px] rounded-sm px-1 py-[3px] text-left transition-colors motion-reduce:transition-none",
                       active
@@ -255,7 +255,7 @@ function FilePane(props: {
                     }}
                     onMouseEnter={() => props.onFileHover(i)}
                   >
-                    {/* Cursor: ui-menu__item-left  12×16 */}
+                    {/* Leading icon slot: 12×16 */}
                     <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">
                       {item.kind === "dir" ? (
                         <IconFolder1 className="size-3" />
