@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { parse } from "yaml";
 
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
+import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
@@ -468,6 +469,26 @@ function resolveDesktopRuntimeDependencies(
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
 }
 
+function resolveServerRuntimeDependencies(
+  dependencies: Record<string, unknown> | undefined,
+  catalog: Record<string, string>,
+): Record<string, string> {
+  if (!dependencies || Object.keys(dependencies).length === 0) {
+    return {};
+  }
+
+  const runtimeDependencies = Object.fromEntries(
+    Object.entries(dependencies).filter(([_name, spec]) => {
+      if (typeof spec !== "string") {
+        throw new Error(`Expected string dependency spec for '${_name}'`);
+      }
+      return true;
+    }),
+  ) as Record<string, string>;
+
+  return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/server");
+}
+
 function readCatalog(root: string): Record<string, string> {
   const fp = join(root, "pnpm-workspace.yaml");
   const doc = parse(readFileSync(fp, "utf8")) as { catalog?: Record<string, unknown> };
@@ -656,6 +677,15 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       }),
   });
 
+  const resolvedServerRuntimeDependencies = yield* Effect.try({
+    try: () => resolveServerRuntimeDependencies(serverPackageJson.dependencies, catalog),
+    catch: (cause) =>
+      new BuildScriptError({
+        message: "Could not resolve server runtime dependencies from apps/server/package.json.",
+        cause,
+      }),
+  });
+
   const appVersion = options.version ?? desktopPackageJson.version;
   const commitHash = resolveGitCommitHash(repoRoot);
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
@@ -734,6 +764,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       options.mockUpdateServerPort,
     ),
     dependencies: {
+      ...resolvedServerRuntimeDependencies,
       ...resolvedDesktopRuntimeDependencies,
     },
     devDependencies: {

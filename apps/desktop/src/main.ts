@@ -1046,7 +1046,7 @@ function startBackend(): void {
         mode: "desktop",
         noBrowser: true,
         port: backendPort,
-        t3Home: BASE_DIR,
+        glassHome: BASE_DIR,
         authToken: backendAuthToken,
         ...(backendObservabilitySettings.otlpTracesUrl
           ? { otlpTracesUrl: backendObservabilitySettings.otlpTracesUrl }
