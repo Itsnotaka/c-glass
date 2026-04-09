@@ -70,7 +70,7 @@ export const glassCentralIcons: GlassCentralIconEntry[] = [
     usage: "Git panel, settings: discard / reset",
   },
   { name: "IconArrowUp", Cmp: IconArrowUp, usage: "Composer: send" },
-  { name: "IconBolt", Cmp: IconBolt, usage: "Slash menu: subagent" },
+  { name: "IconBolt", Cmp: IconBolt, usage: "Slash menu: command accent" },
   { name: "IconBranchSimple", Cmp: IconBranchSimple, usage: "Composer: active branch" },
   { name: "IconBrain", Cmp: IconBrain, usage: "Model picker" },
   {
@@ -103,7 +103,7 @@ export const glassCentralIcons: GlassCentralIconEntry[] = [
   {
     name: "IconSettingsGear2",
     Cmp: IconSettingsGear2,
-    usage: "Footer, slash app, command palette",
+    usage: "Footer, slash commands, command palette",
   },
   { name: "IconSidebar", Cmp: IconSidebar, usage: "Sidebar toggle (visible)" },
   {

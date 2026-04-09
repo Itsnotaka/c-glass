@@ -1136,10 +1136,7 @@ export function mapCodexProviderEventToRuntimeEvents(
         ...codexEventBase(event, canonicalThreadId),
         type: "content.delta",
         payload: {
-          streamKind:
-            next.summaryIndex !== undefined
-              ? "reasoning_summary_text"
-              : "reasoning_text",
+          streamKind: next.summaryIndex !== undefined ? "reasoning_summary_text" : "reasoning_text",
           delta,
           ...(next.contentIndex !== undefined ? { contentIndex: next.contentIndex } : {}),
           ...(next.summaryIndex !== undefined ? { summaryIndex: next.summaryIndex } : {}),

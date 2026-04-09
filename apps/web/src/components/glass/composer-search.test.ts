@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { clearSlash, mirrorSegmentsDraft, pendingSlash, slashPrefix } from "./composer-search";
+import { clearSlash, draftSlash, mirrorSegmentsDraft, slashPrefix } from "./composer-search";
 
 describe("mirrorSegmentsDraft", () => {
-  it("finds a bare slash token even when the cursor is no longer at the end", () => {
-    expect(pendingSlash("/pla", 0)).toEqual({
+  it("finds a bare slash draft", () => {
+    expect(draftSlash("/pla")).toEqual({
       query: "pla",
       start: 0,
       end: 4,
@@ -32,10 +32,10 @@ describe("mirrorSegmentsDraft", () => {
     ]);
   });
 
-  it("renders an in-progress slash query as a slash segment", () => {
-    expect(mirrorSegmentsDraft("/tai", [{ kind: "slash", start: 0, end: 4 }])).toEqual([
+  it("renders slash-like text without marks as plain", () => {
+    expect(mirrorSegmentsDraft("/tai")).toEqual([
       {
-        kind: "slash",
+        kind: "plain",
         text: "/tai",
         start: 0,
         end: 4,
@@ -44,7 +44,7 @@ describe("mirrorSegmentsDraft", () => {
   });
 
   it("finds a trimmed slash token inside surrounding whitespace", () => {
-    expect(pendingSlash("  /pla  ", 0)).toEqual({
+    expect(draftSlash("  /pla  ")).toEqual({
       query: "pla",
       start: 2,
       end: 6,
@@ -118,6 +118,13 @@ describe("mirrorSegmentsDraft", () => {
   it("clears an in-progress slash token without touching the rest of the draft", () => {
     expect(clearSlash("/pla hello", { query: "pla", start: 0, end: 4 })).toEqual({
       value: " hello",
+      cursor: 0,
+    });
+  });
+
+  it("clears a standalone slash draft down to empty text", () => {
+    expect(clearSlash("  /pla  ", { query: "pla", start: 2, end: 6 })).toEqual({
+      value: "",
       cursor: 0,
     });
   });

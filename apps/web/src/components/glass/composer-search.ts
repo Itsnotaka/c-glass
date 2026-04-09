@@ -110,11 +110,9 @@ export function slashMatch(value: string, cursor: number): SlashMatch | null {
   };
 }
 
-export function pendingSlash(value: string, cursor: number): SlashMatch | null {
-  const hit = slashMatch(value, cursor);
-  if (hit) return hit;
+export function draftSlash(value: string): SlashMatch | null {
   const text = value.trim();
-  if (!text.startsWith("/") || /\s/.test(text)) return null;
+  if (text.length < 2 || !text.startsWith("/") || /\s/.test(text.slice(1))) return null;
   const start = value.indexOf(text);
   if (start < 0) return null;
   return {
@@ -160,18 +158,11 @@ export function rank<T>(items: T[], query: string, pick: (item: T) => string) {
     .map((item) => item.item);
 }
 
-export function applySlash(value: string, hit: SlashMatch, name: string) {
-  const next = `${value.slice(0, hit.start)}/${name} ${value.slice(hit.end)}`;
-  return {
-    value: next,
-    cursor: hit.start + name.length + 2,
-  };
-}
-
 export function clearSlash(value: string, hit: SlashMatch) {
+  const next = `${value.slice(0, hit.start)}${value.slice(hit.end)}`;
   return {
-    value: `${value.slice(0, hit.start)}${value.slice(hit.end)}`,
-    cursor: hit.start,
+    value: next.trim() ? next : "",
+    cursor: next.trim() ? hit.start : 0,
   };
 }
 
@@ -215,7 +206,7 @@ export function rankFileHits(hits: ShellFileHit[], query: string): ShellFileHit[
 }
 
 export type MirrorSeg = {
-  kind: "plain" | "slash" | "skill" | "mention";
+  kind: "plain" | "skill" | "mention";
   text: string;
   start: number;
   end: number;
@@ -310,7 +301,6 @@ export function mirrorSegmentsDraft(
 export function mirrorActiveSeg(
   segs: MirrorSeg[],
   cursor: number,
-  slash: SlashMatch | null,
   at: FileMatch | null,
 ): number | null {
   if (at) {
@@ -321,11 +311,5 @@ export function mirrorActiveSeg(
   }
   const skill = segs.findIndex((s) => s.kind === "skill" && cursor >= s.start && cursor <= s.end);
   if (skill >= 0) return skill;
-  if (slash) {
-    const idx = segs.findIndex(
-      (s) => s.kind === "slash" && slash.start >= s.start && slash.end <= s.end,
-    );
-    return idx >= 0 ? idx : null;
-  }
   return null;
 }

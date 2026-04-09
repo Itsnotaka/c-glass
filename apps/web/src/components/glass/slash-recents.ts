@@ -3,7 +3,6 @@ import type { GlassSlashItemKind } from "./slash-types";
 const keys = {
   commands: "glass.slash.recent.commands",
   skills: "glass.slash.recent.skills",
-  subagents: "glass.slash.recent.subagents",
   global: "glass.slash.recent.global",
 } as const;
 
@@ -29,14 +28,11 @@ function push(key: string, id: string, max: number) {
 }
 
 function kindKey(kind: GlassSlashItemKind) {
-  if (kind === "skill") return keys.skills;
-  if (kind === "subagent") return keys.subagents;
-  return keys.commands;
+  return kind === "skill" ? keys.skills : keys.commands;
 }
 
 export function recordSlashUse(id: string, kind: GlassSlashItemKind) {
   push(keys.global, id, cap.global);
-  if (kind === "app") return;
   push(kindKey(kind), id, cap.per);
 }
 
@@ -44,7 +40,6 @@ export type SlashRecentsSnapshot = {
   global: string[];
   commands: string[];
   skills: string[];
-  subagents: string[];
 };
 
 export function readSlashRecents(): SlashRecentsSnapshot {
@@ -52,7 +47,6 @@ export function readSlashRecents(): SlashRecentsSnapshot {
     global: read(keys.global),
     commands: read(keys.commands),
     skills: read(keys.skills),
-    subagents: read(keys.subagents),
   };
 }
 
@@ -63,14 +57,7 @@ export function recentBoost(
   snap: SlashRecentsSnapshot,
 ): number {
   const g = snap.global.indexOf(id);
-  const k =
-    kind === "app"
-      ? -1
-      : kind === "skill"
-        ? snap.skills.indexOf(id)
-        : kind === "subagent"
-          ? snap.subagents.indexOf(id)
-          : snap.commands.indexOf(id);
+  const k = kind === "skill" ? snap.skills.indexOf(id) : snap.commands.indexOf(id);
   let boost = 0;
   if (g >= 0) boost += (cap.global - g) * 0.4;
   if (k >= 0) boost += (cap.per - k) * 0.6;

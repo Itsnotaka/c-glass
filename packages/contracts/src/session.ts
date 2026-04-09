@@ -59,14 +59,6 @@ export interface GlassPromptInput {
   attachments?: GlassPromptAttachment[];
 }
 
-export type GlassSlashCommandSource = "prompt" | "skill";
-
-export interface GlassSlashCommand {
-  name: string;
-  description?: string;
-  source: GlassSlashCommandSource;
-}
-
 export interface GlassUserMessage {
   role: "user";
   content: string | GlassBlock[];
@@ -422,7 +414,6 @@ export interface SessionBridge {
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, provider: string, model: string) => Promise<void>;
   setThinkingLevel: (sessionId: string, thinkingLevel: ThinkingLevel) => Promise<void>;
-  commands: (sessionId: string) => Promise<GlassSlashCommand[]>;
   readAsk: (sessionId: string) => Promise<GlassAskState | null>;
   answerAsk: (sessionId: string, reply: GlassAskReply) => Promise<void>;
   onAsk: (listener: (event: GlassAskEvent) => void) => () => void;

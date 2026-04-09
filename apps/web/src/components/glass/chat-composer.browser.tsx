@@ -3,6 +3,7 @@ import "../../styles/app.css";
 import "../../styles/glass.css";
 
 import type { HarnessDescriptor } from "@glass/contracts";
+import type { GlassDraftFile } from "../../lib/glass-chat-draft-store";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { page } from "vitest/browser";
@@ -102,13 +103,14 @@ const descriptor: HarnessDescriptor = {
   },
 };
 
-function Harness(props: { supported: boolean }) {
+function Harness(props: { supported: boolean; files?: GlassDraftFile[] }) {
   const [draft, setDraft] = useState("");
   const [fast, setFast] = useState(false);
   return (
     <GlassChatComposer
       sessionId="thread-fast"
       draft={draft}
+      files={props.files}
       onDraft={setDraft}
       busy={false}
       model={{
@@ -135,7 +137,8 @@ function Harness(props: { supported: boolean }) {
   );
 }
 
-async function mount(supported = true) {
+async function mount(opts: { supported?: boolean; files?: GlassDraftFile[] } = {}) {
+  const supported = opts.supported ?? true;
   mocks.runtime.items = [
     {
       key: "codex/gpt-5.4",
@@ -151,7 +154,7 @@ async function mount(supported = true) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  root.render(<Harness supported={supported} />);
+  root.render(<Harness supported={supported} files={opts.files} />);
   await Promise.resolve();
   const cleanup = async () => {
     root.unmount();
@@ -164,9 +167,10 @@ async function mount(supported = true) {
 }
 
 function seg(text: string) {
-  return [...document.querySelectorAll<HTMLSpanElement>(".glass-composer-mirror span")].find(
-    (node) => node.textContent === text,
-  );
+  for (const node of document.querySelectorAll<HTMLSpanElement>(".glass-composer-mirror span")) {
+    if (node.textContent === text) return node;
+  }
+  return undefined;
 }
 
 function check(node: HTMLSpanElement) {
@@ -197,7 +201,7 @@ describe("GlassChatComposer fast mode", () => {
   });
 
   it("shows /fast, toggles it from the slash menu, and updates the pill state", async () => {
-    await using _ = await mount(true);
+    await using _ = await mount({ supported: true });
 
     await page.getByRole("textbox").fill("/fa");
 
@@ -232,7 +236,7 @@ describe("GlassChatComposer fast mode", () => {
   });
 
   it("toggles fast mode from a raw /fast submit without sending a message", async () => {
-    await using _ = await mount(true);
+    await using _ = await mount({ supported: true });
 
     await page.getByRole("textbox").fill("/fast");
     document
@@ -250,8 +254,33 @@ describe("GlassChatComposer fast mode", () => {
     });
   });
 
+  it("Enter commits the top slash command without arrow navigation", async () => {
+    await using _ = await mount({ supported: true });
+
+    await page.getByRole("textbox").fill("/fa");
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent ?? "").toContain("/fast");
+      expect(document.body.textContent ?? "").toContain("Turn on fast mode");
+    });
+
+    document
+      .querySelector("textarea")
+      ?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }),
+      );
+
+    await vi.waitFor(() => {
+      expect(mocks.send).not.toHaveBeenCalled();
+      expect((document.querySelector("textarea") as HTMLTextAreaElement | null)?.value ?? "").toBe(
+        "",
+      );
+      expect(document.body.textContent ?? "").toContain("Fast");
+    });
+  });
+
   it("does not offer /fast when the selected model does not support it", async () => {
-    await using _ = await mount(false);
+    await using _ = await mount({ supported: false });
 
     await page.getByRole("textbox").fill("/fa");
 
@@ -274,7 +303,7 @@ describe("GlassChatComposer mirror tokens", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders padded selection-style highlights for skills and quoted file mentions", async () => {
+  it("renders idle skill tokens as tinted text and keeps mentions as chips", async () => {
     mocks.api.server.listSkills.mockResolvedValue([
       {
         id: "/Users/workgyver/.agents/skills/tailwind",
@@ -284,8 +313,10 @@ describe("GlassChatComposer mirror tokens", () => {
       },
     ]);
 
-    await using _ = await mount(true);
+    await using _ = await mount({ supported: true });
 
+    await page.getByRole("textbox").fill("/ta");
+    await page.getByRole("option", { name: /tailwind/i }).click();
     await page.getByRole("textbox").fill('/tailwind @"foo bar"');
 
     await vi.waitFor(() => {
@@ -293,12 +324,16 @@ describe("GlassChatComposer mirror tokens", () => {
       expect(seg('@"foo bar"')).toBeTruthy();
     });
 
-    check(seg("/tailwind")!);
+    const skill = seg("/tailwind")!;
+    const style = getComputedStyle(skill);
+    expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(parseFloat(style.paddingLeft)).toBe(0);
+
     check(seg('@"foo bar"')!);
   });
 
-  it("renders pending slash text with the same padded token treatment", async () => {
-    await using _ = await mount(true);
+  it("renders pending slash text as plain unstyled text", async () => {
+    await using _ = await mount({ supported: true });
 
     await page.getByRole("textbox").fill("/tai");
 
@@ -306,6 +341,131 @@ describe("GlassChatComposer mirror tokens", () => {
       expect(seg("/tai")).toBeTruthy();
     });
 
-    check(seg("/tai")!);
+    const node = seg("/tai")!;
+    const style = getComputedStyle(node);
+    expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(parseFloat(style.paddingLeft)).toBe(0);
+    expect(parseFloat(style.paddingRight)).toBe(0);
+  });
+
+  it("Enter with slash menu open inserts the top skill as a token", async () => {
+    mocks.api.server.listSkills.mockResolvedValue([
+      {
+        id: "/Users/workgyver/.agents/skills/tailwind",
+        name: "tailwind",
+        body: "Use the Tailwind skill.",
+        description: "Tailwind CSS guidance.",
+      },
+    ]);
+
+    await using _ = await mount({ supported: true });
+
+    await page.getByRole("textbox").fill("/tailwind");
+
+    await vi.waitFor(() => {
+      expect(document.body.textContent ?? "").toContain("tailwind");
+    });
+
+    document
+      .querySelector("textarea")
+      ?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }),
+      );
+
+    await vi.waitFor(() => {
+      expect(mocks.send).not.toHaveBeenCalled();
+      const node = document.querySelector("textarea") as HTMLTextAreaElement | null;
+      expect(node?.value ?? "").toContain("/tailwind");
+    });
+  });
+
+  it("expands a selected skill on send", async () => {
+    mocks.api.server.listSkills.mockResolvedValue([
+      {
+        id: "/Users/workgyver/.agents/skills/tailwind",
+        name: "tailwind",
+        body: "Use the Tailwind skill.",
+        description: "Tailwind CSS guidance.",
+      },
+    ]);
+
+    await using _ = await mount({ supported: true });
+
+    await page.getByRole("textbox").fill("/ta");
+    await page.getByRole("option", { name: /tailwind/i }).click();
+    document
+      .querySelector("textarea")
+      ?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }),
+      );
+
+    await vi.waitFor(() => {
+      expect(mocks.send).toHaveBeenCalledWith({
+        text: "Use the Tailwind skill. ",
+        attachments: [],
+      });
+    });
+  });
+
+  it("deletes a selected skill token as a block", async () => {
+    mocks.api.server.listSkills.mockResolvedValue([
+      {
+        id: "/Users/workgyver/.agents/skills/tailwind",
+        name: "tailwind",
+        body: "Use the Tailwind skill.",
+        description: "Tailwind CSS guidance.",
+      },
+    ]);
+
+    await using _ = await mount({ supported: true });
+
+    await page.getByRole("textbox").fill("/ta");
+    await page.getByRole("option", { name: /tailwind/i }).click();
+
+    const node = document.querySelector("textarea") as HTMLTextAreaElement;
+    node.focus();
+    node.setSelectionRange(2, 2);
+    node.dispatchEvent(new Event("select", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(node.selectionStart).toBe(0);
+      expect(node.selectionEnd).toBe(9);
+    });
+
+    node.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Backspace" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(node.value).toBe("");
+    });
+  });
+
+  it("executes slash actions without clearing attached files", async () => {
+    await using _ = await mount({
+      supported: true,
+      files: [
+        {
+          id: "file:readme",
+          type: "path",
+          name: "README.md",
+          path: "/tmp/project/README.md",
+          kind: "file",
+          size: 42,
+          mimeType: "text/markdown",
+        },
+      ],
+    });
+
+    await page.getByRole("textbox").fill("/fa");
+    await page.getByRole("option").click();
+
+    await vi.waitFor(() => {
+      expect((document.querySelector("textarea") as HTMLTextAreaElement | null)?.value ?? "").toBe(
+        "",
+      );
+      expect(document.body.textContent ?? "").toContain("README.md");
+      expect(document.body.textContent ?? "").toContain("Fast");
+    });
   });
 });

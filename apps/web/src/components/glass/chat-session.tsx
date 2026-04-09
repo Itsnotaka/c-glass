@@ -14,7 +14,7 @@ import { GlassChatMessages } from "./chat-messages";
 import { GlassProviderNoticeBanner } from "./provider-notice-banner";
 import { GlassShell } from "./shell";
 import { useRuntimeSession } from "./use-runtime-session";
-import { clearSlash, pendingSlash, slashPrefix } from "./composer-search";
+import { clearSlash, draftSlash, slashPrefix } from "./composer-search";
 import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {
@@ -80,7 +80,7 @@ function HeroSession(props: { sessionId: string }) {
   const prevSession = useRef(props.sessionId);
 
   const clearPlan = useCallback((value: string) => {
-    const hit = pendingSlash(value, value.length);
+    const hit = draftSlash(value);
     if (!hit) return value;
     if (!slashPrefix(hit, "plan")) return value;
     return clearSlash(value, hit).value;
@@ -192,7 +192,7 @@ function DockSession(props: { sessionId: string }) {
   const composerRef = useRef<GlassChatComposerHandle>(null);
 
   const clearPlan = useCallback((value: string) => {
-    const hit = pendingSlash(value, value.length);
+    const hit = draftSlash(value);
     if (!hit) return value;
     if (!slashPrefix(hit, "plan")) return value;
     return clearSlash(value, hit).value;

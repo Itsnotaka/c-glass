@@ -19,40 +19,6 @@ function valid(text: string, skill: GlassDraftSkill) {
   return text.slice(skill.start, skill.end) === token(skill);
 }
 
-function escape(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function detect(text: string, defs: GlassSkill[]) {
-  if (defs.length === 0) return [];
-
-  const names = defs.toSorted((left, right) => right.name.length - left.name.length);
-  const byName = new Map(names.map((item) => [item.name, item]));
-  const rx = new RegExp(
-    `(^|[\\s])\\/(${names.map((item) => escape(item.name)).join("|")})(?=$|[\\s])`,
-    "gm",
-  );
-  const found: GlassDraftSkill[] = [];
-  let match: RegExpExecArray | null = null;
-
-  while ((match = rx.exec(text))) {
-    const lead = match[1] ?? "";
-    const name = match[2];
-    if (!name) continue;
-    const item = byName.get(name);
-    if (!item) continue;
-    const start = match.index + lead.length;
-    found.push({
-      id: item.id,
-      name: item.name,
-      start,
-      end: start + item.name.length + 1,
-    });
-  }
-
-  return found;
-}
-
 function edit(prev: string, next: string) {
   let start = 0;
   const limit = Math.min(prev.length, next.length);
@@ -73,20 +39,6 @@ function edit(prev: string, next: string) {
     nextEnd: right,
     delta: right - left,
   };
-}
-
-export function sameSkills(left: GlassDraftSkill[], right: GlassDraftSkill[]) {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    const a = left[i];
-    const b = right[i];
-    if (!a || !b) return false;
-    if (a.id !== b.id || a.name !== b.name || a.start !== b.start || a.end !== b.end) {
-      return false;
-    }
-  }
-  return true;
 }
 
 export function shiftSkills(prev: string, next: string, skills: GlassDraftSkill[]) {
@@ -131,21 +83,56 @@ export function applySkill(
   };
 }
 
-export function hydrateSkills(text: string, skills: GlassDraftSkill[], defs: GlassSkill[]) {
-  const set = new Set(defs.map((item) => `${item.id}:${item.name}`));
-  const kept = skills.filter((skill) => valid(text, skill) && set.has(`${skill.id}:${skill.name}`));
-  const seen = new Set(
-    kept.map((skill) => `${skill.id}:${skill.name}:${skill.start}:${skill.end}`),
+export function touchSkill(
+  text: string,
+  skills: GlassDraftSkill[],
+  pos: number,
+  dir: "left" | "right",
+) {
+  return (
+    sort(skills.filter((skill) => valid(text, skill))).find((skill) =>
+      dir === "left" ? skill.end === pos : skill.start === pos,
+    ) ?? null
   );
-  return sort([
-    ...kept,
-    ...detect(text, defs).filter((skill) => {
-      const key = `${skill.id}:${skill.name}:${skill.start}:${skill.end}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }),
-  ]);
+}
+
+export function snapSkillSelection(
+  text: string,
+  skills: GlassDraftSkill[],
+  start: number,
+  end: number,
+) {
+  let left = Math.min(start, end);
+  let right = Math.max(start, end);
+  let changed = false;
+
+  for (const skill of sort(skills.filter((skill) => valid(text, skill)))) {
+    if (right <= skill.start || left >= skill.end) continue;
+    if (left <= skill.start && right >= skill.end) continue;
+    left = Math.min(left, skill.start);
+    right = Math.max(right, skill.end);
+    changed = true;
+  }
+
+  return changed ? { start: left, end: right } : null;
+}
+
+export function dropSkill(value: string, skills: GlassDraftSkill[], skill: GlassDraftSkill) {
+  let start = skill.start;
+  let end = skill.end;
+
+  if (value[end] === " ") {
+    end += 1;
+  } else if (start > 0 && value[start - 1] === " ") {
+    start -= 1;
+  }
+
+  const next = `${value.slice(0, start)}${value.slice(end)}`;
+  return {
+    value: next,
+    cursor: start,
+    skills: shiftSkills(value, next, skills),
+  };
 }
 
 export function expandSkills(text: string, skills: GlassDraftSkill[], defs: GlassSkill[]) {
@@ -153,8 +140,7 @@ export function expandSkills(text: string, skills: GlassDraftSkill[], defs: Glas
   let out = "";
   let at = 0;
 
-  for (const skill of sort(skills)) {
-    if (!valid(text, skill)) continue;
+  for (const skill of sort(skills.filter((skill) => valid(text, skill)))) {
     if (skill.start < at) continue;
     out += text.slice(at, skill.start);
     const item = map.get(skill.id);

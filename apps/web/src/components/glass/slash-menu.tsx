@@ -16,14 +16,12 @@
 import type { ShellFileHit, ShellFilePreview } from "@glass/contracts";
 import { Popover } from "@base-ui/react/popover";
 import {
-  IconBolt,
   IconBuildingBlocks,
   IconChevronRight,
   IconFileBend,
   IconFolder1,
   IconImages1,
   IconLightning,
-  IconSettingsGear2,
 } from "central-icons";
 import type { ReactNode, RefObject } from "react";
 import { cn } from "../../lib/utils";
@@ -33,8 +31,6 @@ import type { GlassSlashItem, SlashMenuRow } from "./slash-registry";
 
 function kindGlyph(kind: GlassSlashItem["kind"]) {
   if (kind === "skill") return IconBuildingBlocks;
-  if (kind === "app") return IconSettingsGear2;
-  if (kind === "subagent") return IconBolt;
   return IconLightning;
 }
 
