@@ -26,7 +26,7 @@ export type SlashMenuRow =
   | { kind: "header"; key: string; label: string }
   | { kind: "option"; item: GlassSlashItem; optionIndex: number };
 
-export function rankSlashItems(
+function rankSlashItems(
   items: GlassSlashItem[],
   query: string,
   snap: SlashRecentsSnapshot,

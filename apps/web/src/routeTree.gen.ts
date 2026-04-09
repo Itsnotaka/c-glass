@@ -8,222 +8,221 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as ChatRouteRouteImport } from './routes/_chat/route'
-import { Route as ChatSettingsRouteRouteImport } from './routes/_chat/settings/route'
-import { Route as ChatShellRouteRouteImport } from './routes/_chat/_shell/route'
-import { Route as ChatShellIndexRouteImport } from './routes/_chat/_shell/index'
-import { Route as ChatSettingsArchivedRouteImport } from './routes/_chat/settings/archived'
-import { Route as ChatSettingsAppearanceRouteImport } from './routes/_chat/settings/appearance'
-import { Route as ChatSettingsAgentsRouteImport } from './routes/_chat/settings/agents'
-import { Route as ChatShellThreadIdRouteImport } from './routes/_chat/_shell/$threadId'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ChatRouteRouteImport } from "./routes/_chat/route";
+import { Route as ChatSettingsRouteRouteImport } from "./routes/_chat/settings/route";
+import { Route as ChatShellRouteRouteImport } from "./routes/_chat/_shell/route";
+import { Route as ChatShellIndexRouteImport } from "./routes/_chat/_shell/index";
+import { Route as ChatSettingsArchivedRouteImport } from "./routes/_chat/settings/archived";
+import { Route as ChatSettingsAppearanceRouteImport } from "./routes/_chat/settings/appearance";
+import { Route as ChatSettingsAgentsRouteImport } from "./routes/_chat/settings/agents";
+import { Route as ChatShellThreadIdRouteImport } from "./routes/_chat/_shell/$threadId";
 
 const ChatRouteRoute = ChatRouteRouteImport.update({
-  id: '/_chat',
+  id: "/_chat",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ChatSettingsRouteRoute = ChatSettingsRouteRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => ChatRouteRoute,
-} as any)
+} as any);
 const ChatShellRouteRoute = ChatShellRouteRouteImport.update({
-  id: '/_shell',
+  id: "/_shell",
   getParentRoute: () => ChatRouteRoute,
-} as any)
+} as any);
 const ChatShellIndexRoute = ChatShellIndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => ChatShellRouteRoute,
-} as any)
+} as any);
 const ChatSettingsArchivedRoute = ChatSettingsArchivedRouteImport.update({
-  id: '/archived',
-  path: '/archived',
+  id: "/archived",
+  path: "/archived",
   getParentRoute: () => ChatSettingsRouteRoute,
-} as any)
+} as any);
 const ChatSettingsAppearanceRoute = ChatSettingsAppearanceRouteImport.update({
-  id: '/appearance',
-  path: '/appearance',
+  id: "/appearance",
+  path: "/appearance",
   getParentRoute: () => ChatSettingsRouteRoute,
-} as any)
+} as any);
 const ChatSettingsAgentsRoute = ChatSettingsAgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
+  id: "/agents",
+  path: "/agents",
   getParentRoute: () => ChatSettingsRouteRoute,
-} as any)
+} as any);
 const ChatShellThreadIdRoute = ChatShellThreadIdRouteImport.update({
-  id: '/$threadId',
-  path: '/$threadId',
+  id: "/$threadId",
+  path: "/$threadId",
   getParentRoute: () => ChatShellRouteRoute,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof ChatShellIndexRoute
-  '/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/$threadId': typeof ChatShellThreadIdRoute
-  '/settings/agents': typeof ChatSettingsAgentsRoute
-  '/settings/appearance': typeof ChatSettingsAppearanceRoute
-  '/settings/archived': typeof ChatSettingsArchivedRoute
+  "/": typeof ChatShellIndexRoute;
+  "/settings": typeof ChatSettingsRouteRouteWithChildren;
+  "/$threadId": typeof ChatShellThreadIdRoute;
+  "/settings/agents": typeof ChatSettingsAgentsRoute;
+  "/settings/appearance": typeof ChatSettingsAppearanceRoute;
+  "/settings/archived": typeof ChatSettingsArchivedRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof ChatShellIndexRoute
-  '/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/$threadId': typeof ChatShellThreadIdRoute
-  '/settings/agents': typeof ChatSettingsAgentsRoute
-  '/settings/appearance': typeof ChatSettingsAppearanceRoute
-  '/settings/archived': typeof ChatSettingsArchivedRoute
+  "/": typeof ChatShellIndexRoute;
+  "/settings": typeof ChatSettingsRouteRouteWithChildren;
+  "/$threadId": typeof ChatShellThreadIdRoute;
+  "/settings/agents": typeof ChatSettingsAgentsRoute;
+  "/settings/appearance": typeof ChatSettingsAppearanceRoute;
+  "/settings/archived": typeof ChatSettingsArchivedRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/_chat': typeof ChatRouteRouteWithChildren
-  '/_chat/_shell': typeof ChatShellRouteRouteWithChildren
-  '/_chat/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/_chat/_shell/$threadId': typeof ChatShellThreadIdRoute
-  '/_chat/settings/agents': typeof ChatSettingsAgentsRoute
-  '/_chat/settings/appearance': typeof ChatSettingsAppearanceRoute
-  '/_chat/settings/archived': typeof ChatSettingsArchivedRoute
-  '/_chat/_shell/': typeof ChatShellIndexRoute
+  __root__: typeof rootRouteImport;
+  "/_chat": typeof ChatRouteRouteWithChildren;
+  "/_chat/_shell": typeof ChatShellRouteRouteWithChildren;
+  "/_chat/settings": typeof ChatSettingsRouteRouteWithChildren;
+  "/_chat/_shell/$threadId": typeof ChatShellThreadIdRoute;
+  "/_chat/settings/agents": typeof ChatSettingsAgentsRoute;
+  "/_chat/settings/appearance": typeof ChatSettingsAppearanceRoute;
+  "/_chat/settings/archived": typeof ChatSettingsArchivedRoute;
+  "/_chat/_shell/": typeof ChatShellIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/settings'
-    | '/$threadId'
-    | '/settings/agents'
-    | '/settings/appearance'
-    | '/settings/archived'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/settings"
+    | "/$threadId"
+    | "/settings/agents"
+    | "/settings/appearance"
+    | "/settings/archived";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/settings'
-    | '/$threadId'
-    | '/settings/agents'
-    | '/settings/appearance'
-    | '/settings/archived'
+    | "/"
+    | "/settings"
+    | "/$threadId"
+    | "/settings/agents"
+    | "/settings/appearance"
+    | "/settings/archived";
   id:
-    | '__root__'
-    | '/_chat'
-    | '/_chat/_shell'
-    | '/_chat/settings'
-    | '/_chat/_shell/$threadId'
-    | '/_chat/settings/agents'
-    | '/_chat/settings/appearance'
-    | '/_chat/settings/archived'
-    | '/_chat/_shell/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/_chat"
+    | "/_chat/_shell"
+    | "/_chat/settings"
+    | "/_chat/_shell/$threadId"
+    | "/_chat/settings/agents"
+    | "/_chat/settings/appearance"
+    | "/_chat/settings/archived"
+    | "/_chat/_shell/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  ChatRouteRoute: typeof ChatRouteRouteWithChildren
+  ChatRouteRoute: typeof ChatRouteRouteWithChildren;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/_chat': {
-      id: '/_chat'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof ChatRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_chat/settings': {
-      id: '/_chat/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof ChatSettingsRouteRouteImport
-      parentRoute: typeof ChatRouteRoute
-    }
-    '/_chat/_shell': {
-      id: '/_chat/_shell'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof ChatShellRouteRouteImport
-      parentRoute: typeof ChatRouteRoute
-    }
-    '/_chat/_shell/': {
-      id: '/_chat/_shell/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof ChatShellIndexRouteImport
-      parentRoute: typeof ChatShellRouteRoute
-    }
-    '/_chat/settings/archived': {
-      id: '/_chat/settings/archived'
-      path: '/archived'
-      fullPath: '/settings/archived'
-      preLoaderRoute: typeof ChatSettingsArchivedRouteImport
-      parentRoute: typeof ChatSettingsRouteRoute
-    }
-    '/_chat/settings/appearance': {
-      id: '/_chat/settings/appearance'
-      path: '/appearance'
-      fullPath: '/settings/appearance'
-      preLoaderRoute: typeof ChatSettingsAppearanceRouteImport
-      parentRoute: typeof ChatSettingsRouteRoute
-    }
-    '/_chat/settings/agents': {
-      id: '/_chat/settings/agents'
-      path: '/agents'
-      fullPath: '/settings/agents'
-      preLoaderRoute: typeof ChatSettingsAgentsRouteImport
-      parentRoute: typeof ChatSettingsRouteRoute
-    }
-    '/_chat/_shell/$threadId': {
-      id: '/_chat/_shell/$threadId'
-      path: '/$threadId'
-      fullPath: '/$threadId'
-      preLoaderRoute: typeof ChatShellThreadIdRouteImport
-      parentRoute: typeof ChatShellRouteRoute
-    }
+    "/_chat": {
+      id: "/_chat";
+      path: "";
+      fullPath: "/";
+      preLoaderRoute: typeof ChatRouteRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_chat/settings": {
+      id: "/_chat/settings";
+      path: "/settings";
+      fullPath: "/settings";
+      preLoaderRoute: typeof ChatSettingsRouteRouteImport;
+      parentRoute: typeof ChatRouteRoute;
+    };
+    "/_chat/_shell": {
+      id: "/_chat/_shell";
+      path: "";
+      fullPath: "/";
+      preLoaderRoute: typeof ChatShellRouteRouteImport;
+      parentRoute: typeof ChatRouteRoute;
+    };
+    "/_chat/_shell/": {
+      id: "/_chat/_shell/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof ChatShellIndexRouteImport;
+      parentRoute: typeof ChatShellRouteRoute;
+    };
+    "/_chat/settings/archived": {
+      id: "/_chat/settings/archived";
+      path: "/archived";
+      fullPath: "/settings/archived";
+      preLoaderRoute: typeof ChatSettingsArchivedRouteImport;
+      parentRoute: typeof ChatSettingsRouteRoute;
+    };
+    "/_chat/settings/appearance": {
+      id: "/_chat/settings/appearance";
+      path: "/appearance";
+      fullPath: "/settings/appearance";
+      preLoaderRoute: typeof ChatSettingsAppearanceRouteImport;
+      parentRoute: typeof ChatSettingsRouteRoute;
+    };
+    "/_chat/settings/agents": {
+      id: "/_chat/settings/agents";
+      path: "/agents";
+      fullPath: "/settings/agents";
+      preLoaderRoute: typeof ChatSettingsAgentsRouteImport;
+      parentRoute: typeof ChatSettingsRouteRoute;
+    };
+    "/_chat/_shell/$threadId": {
+      id: "/_chat/_shell/$threadId";
+      path: "/$threadId";
+      fullPath: "/$threadId";
+      preLoaderRoute: typeof ChatShellThreadIdRouteImport;
+      parentRoute: typeof ChatShellRouteRoute;
+    };
   }
 }
 
 interface ChatShellRouteRouteChildren {
-  ChatShellThreadIdRoute: typeof ChatShellThreadIdRoute
-  ChatShellIndexRoute: typeof ChatShellIndexRoute
+  ChatShellThreadIdRoute: typeof ChatShellThreadIdRoute;
+  ChatShellIndexRoute: typeof ChatShellIndexRoute;
 }
 
 const ChatShellRouteRouteChildren: ChatShellRouteRouteChildren = {
   ChatShellThreadIdRoute: ChatShellThreadIdRoute,
   ChatShellIndexRoute: ChatShellIndexRoute,
-}
+};
 
 const ChatShellRouteRouteWithChildren = ChatShellRouteRoute._addFileChildren(
   ChatShellRouteRouteChildren,
-)
+);
 
 interface ChatSettingsRouteRouteChildren {
-  ChatSettingsAgentsRoute: typeof ChatSettingsAgentsRoute
-  ChatSettingsAppearanceRoute: typeof ChatSettingsAppearanceRoute
-  ChatSettingsArchivedRoute: typeof ChatSettingsArchivedRoute
+  ChatSettingsAgentsRoute: typeof ChatSettingsAgentsRoute;
+  ChatSettingsAppearanceRoute: typeof ChatSettingsAppearanceRoute;
+  ChatSettingsArchivedRoute: typeof ChatSettingsArchivedRoute;
 }
 
 const ChatSettingsRouteRouteChildren: ChatSettingsRouteRouteChildren = {
   ChatSettingsAgentsRoute: ChatSettingsAgentsRoute,
   ChatSettingsAppearanceRoute: ChatSettingsAppearanceRoute,
   ChatSettingsArchivedRoute: ChatSettingsArchivedRoute,
-}
+};
 
-const ChatSettingsRouteRouteWithChildren =
-  ChatSettingsRouteRoute._addFileChildren(ChatSettingsRouteRouteChildren)
+const ChatSettingsRouteRouteWithChildren = ChatSettingsRouteRoute._addFileChildren(
+  ChatSettingsRouteRouteChildren,
+);
 
 interface ChatRouteRouteChildren {
-  ChatShellRouteRoute: typeof ChatShellRouteRouteWithChildren
-  ChatSettingsRouteRoute: typeof ChatSettingsRouteRouteWithChildren
+  ChatShellRouteRoute: typeof ChatShellRouteRouteWithChildren;
+  ChatSettingsRouteRoute: typeof ChatSettingsRouteRouteWithChildren;
 }
 
 const ChatRouteRouteChildren: ChatRouteRouteChildren = {
   ChatShellRouteRoute: ChatShellRouteRouteWithChildren,
   ChatSettingsRouteRoute: ChatSettingsRouteRouteWithChildren,
-}
+};
 
-const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
-  ChatRouteRouteChildren,
-)
+const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(ChatRouteRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   ChatRouteRoute: ChatRouteRouteWithChildren,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

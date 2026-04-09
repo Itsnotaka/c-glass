@@ -1,10 +1,36 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
+  "exclude": ["catalog"],
   "ignore": [".config/oxlint-glass-plugin.mjs"],
-  "ignoreDependencies": ["tailwindcss"],
+  "ignoreDependencies": ["tailwindcss", "react-grab"],
+  "ignoreWorkspaces": ["apps/server", "apps/desktop", "packages/*", "scripts"],
+  "ignoreIssues": {
+    "scripts/**": ["unlisted"],
+    "apps/web/src/components/ui/**": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/lib/**": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/rpc/**": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/session-logic.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/store.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/types.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/ws-rpc-client.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/native-api.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/provider-models.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/orchestration-event-effects.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/orchestration-recovery.ts": ["exports", "types", "nsExports", "nsTypes"],
+    "apps/web/src/components/glass/composer/search.ts": ["exports", "types"],
+    "apps/web/src/components/glass/composer/slash-registry.ts": ["exports", "types"],
+    "apps/web/src/hooks/use-runtime-models.ts": ["exports", "types"]
+  },
   "workspaces": {
     "apps/web": {
-      "project": ["src/**/*.ts", "src/**/*.tsx"]
+      "project": ["src/**/*.ts", "src/**/*.tsx"],
+      "vitest": {
+        "config": ["vitest.browser.config.ts"],
+        "entry": [
+          "**/*.{bench,test,test-d,spec,spec-d}.?(c|m)[jt]s?(x)",
+          "**/__mocks__/**/*.[jt]s?(x)"
+        ]
+      }
     }
   }
 }

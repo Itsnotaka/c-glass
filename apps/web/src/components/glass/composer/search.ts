@@ -166,7 +166,7 @@ export function clearSlash(value: string, hit: SlashMatch) {
   };
 }
 
-export function buildFileValue(path: string, opts: { dir: boolean; quoted: boolean }) {
+function buildFileValue(path: string, opts: { dir: boolean; quoted: boolean }) {
   const need = opts.quoted || path.includes(" ");
   if (!need) return `@${path}`;
   return `@"${path}"`;

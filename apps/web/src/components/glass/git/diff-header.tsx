@@ -30,10 +30,7 @@ const kindLabel: Record<GitFileState, string> = {
   conflicted: "conflict",
 };
 
-export const KindBadge = memo(function KindBadge(props: {
-  state: GitFileState;
-  className?: string;
-}) {
+const KindBadge = memo(function KindBadge(props: { state: GitFileState; className?: string }) {
   return (
     <Badge
       variant={kindVariant[props.state]}

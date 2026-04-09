@@ -66,13 +66,3 @@ export function getDesktopUpdateInstallConfirmationMessage(
   const version = state.downloadedVersion ?? state.availableVersion;
   return `Install update${version ? ` ${version}` : ""} and restart Glass?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.`;
 }
-
-export function canCheckForUpdate(state: DesktopUpdateState | null): boolean {
-  if (!state || !state.enabled) return false;
-  return (
-    state.status !== "checking" &&
-    state.status !== "downloading" &&
-    state.status !== "downloaded" &&
-    state.status !== "disabled"
-  );
-}

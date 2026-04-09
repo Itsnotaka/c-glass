@@ -101,7 +101,7 @@ interface FileRowProps {
   onRevert: () => void;
 }
 
-export const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps) {
+const GlassGitFileRow = memo(function GlassGitFileRow(props: FileRowProps) {
   const { prefix, name } = split(props.file.path);
 
   return (
@@ -170,7 +170,7 @@ interface GroupHeaderProps {
   onToggle: () => void;
 }
 
-export const GlassGitGroupHeader = memo(function GlassGitGroupHeader(props: GroupHeaderProps) {
+const GlassGitGroupHeader = memo(function GlassGitGroupHeader(props: GroupHeaderProps) {
   return (
     <button
       type="button"

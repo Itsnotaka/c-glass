@@ -40,7 +40,7 @@ const thinkingOptions: { label: string; value: ThinkingLevel }[] = [
   { label: "Extra High", value: "xhigh" },
 ];
 
-export function thinkingDetailLabel(level: ThinkingLevel) {
+function thinkingDetailLabel(level: ThinkingLevel) {
   const row = thinkingOptions.find((o) => o.value === level);
   return row?.label ?? level;
 }
@@ -50,7 +50,7 @@ function clamp(level: ThinkingLevel, xhigh: boolean) {
   return level;
 }
 
-export type GlassModelPickerSelection = {
+type GlassModelPickerSelection = {
   model: HarnessModelRef | null;
   fastMode?: boolean;
   thinkingLevel?: ThinkingLevel;
