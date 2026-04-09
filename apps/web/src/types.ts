@@ -1,5 +1,6 @@
 import type {
   ModelSelection,
+  OrchestrationAssistantContent,
   OrchestrationLatestTurn,
   OrchestrationProposedPlanId,
   OrchestrationSessionStatus,
@@ -44,6 +45,7 @@ export interface ChatMessage {
   id: MessageId;
   role: "user" | "assistant" | "system";
   text: string;
+  content?: OrchestrationAssistantContent;
   attachments?: ChatAttachment[];
   turnId?: TurnId | null;
   createdAt: string;

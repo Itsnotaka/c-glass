@@ -34,6 +34,15 @@ interface CommandAvailabilityOptions {
   readonly env?: NodeJS.ProcessEnv;
 }
 
+const DARWIN_APPS: Partial<Record<EditorId, ReadonlyArray<string>>> = {
+  cursor: ["Cursor.app"],
+  trae: ["Trae.app"],
+  vscode: ["Visual Studio Code.app"],
+  "vscode-insiders": ["Visual Studio Code - Insiders.app"],
+  vscodium: ["VSCodium.app"],
+  zed: ["Zed.app"],
+};
+
 const TARGET_WITH_POSITION_PATTERN = /^(.*?):(\d+)(?::(\d+))?$/;
 
 function parseTargetPathAndPosition(target: string): {
@@ -85,6 +94,62 @@ function resolveAvailableCommand(
     }
   }
   return null;
+}
+
+function isDir(filePath: string): boolean {
+  try {
+    return statSync(filePath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function darwinRoots(env: NodeJS.ProcessEnv, dirs?: ReadonlyArray<string>): ReadonlyArray<string> {
+  if (dirs && dirs.length > 0) {
+    return dirs;
+  }
+
+  return [
+    ...(env.HOME ? [join(env.HOME, "Applications")] : []),
+    "/Applications",
+    "/Applications/Setapp",
+    "/System/Applications",
+  ];
+}
+
+function resolveDarwinAppPath(
+  editor: EditorId,
+  env: NodeJS.ProcessEnv,
+  dirs?: ReadonlyArray<string>,
+): string | null {
+  const names = DARWIN_APPS[editor];
+  if (!names) return null;
+
+  for (const dir of darwinRoots(env, dirs)) {
+    for (const name of names) {
+      const app = join(dir, name);
+      if (isDir(app)) {
+        return app;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveDarwinEditorLaunch(
+  editor: (typeof EDITORS)[number],
+  target: string,
+  env: NodeJS.ProcessEnv,
+  dirs?: ReadonlyArray<string>,
+): EditorLaunch | null {
+  const app = resolveDarwinAppPath(editor.id, env, dirs);
+  if (!app) return null;
+
+  return {
+    command: "/usr/bin/open",
+    args: ["-a", app, "--args", ...resolveCommandEditorArgs(editor, target)],
+  };
 }
 
 /**
@@ -219,6 +284,7 @@ export function isCommandAvailable(
 export function resolveAvailableEditors(
   platform: NodeJS.Platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
+  dirs?: ReadonlyArray<string>,
 ): ReadonlyArray<EditorId> {
   const available: EditorId[] = [];
 
@@ -232,6 +298,11 @@ export function resolveAvailableEditors(
 
     const command = resolveAvailableCommand(editor.commands, { platform, env });
     if (command !== null) {
+      available.push(editor.id);
+      continue;
+    }
+
+    if (platform === "darwin" && resolveDarwinAppPath(editor.id, env, dirs)) {
       available.push(editor.id);
     }
   }
@@ -269,6 +340,7 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   input: OpenInEditorInput,
   platform: NodeJS.Platform = process.platform,
   env: NodeJS.ProcessEnv = process.env,
+  dirs?: ReadonlyArray<string>,
 ): Effect.fn.Return<EditorLaunch, OpenError> {
   yield* Effect.annotateCurrentSpan({
     "open.editor": input.editor,
@@ -281,10 +353,23 @@ export const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   }
 
   if (editorDef.commands) {
-    const command =
-      resolveAvailableCommand(editorDef.commands, { platform, env }) ?? editorDef.commands[0];
+    const command = resolveAvailableCommand(editorDef.commands, { platform, env });
+    if (command !== null) {
+      return {
+        command,
+        args: resolveCommandEditorArgs(editorDef, input.cwd),
+      };
+    }
+
+    if (platform === "darwin") {
+      const launch = resolveDarwinEditorLaunch(editorDef, input.cwd, env, dirs);
+      if (launch) {
+        return launch;
+      }
+    }
+
     return {
-      command,
+      command: editorDef.commands[0],
       args: resolveCommandEditorArgs(editorDef, input.cwd),
     };
   }

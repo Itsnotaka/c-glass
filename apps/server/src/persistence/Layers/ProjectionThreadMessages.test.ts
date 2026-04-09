@@ -11,13 +11,16 @@ const layer = it.layer(
 );
 
 layer("ProjectionThreadMessageRepository", (it) => {
-  it.effect("preserves existing attachments when upsert omits attachments", () =>
+  it.effect("preserves existing content and attachments when upsert omits them", () =>
     Effect.gen(function* () {
       const repository = yield* ProjectionThreadMessageRepository;
       const threadId = ThreadId.makeUnsafe("thread-preserve-attachments");
       const messageId = MessageId.makeUnsafe("message-preserve-attachments");
       const createdAt = "2026-02-28T19:00:00.000Z";
       const updatedAt = "2026-02-28T19:00:01.000Z";
+      const persistedContent = [
+        { type: "thinking" as const, thinking: "step 1", summary: "Thinking" },
+      ];
       const persistedAttachments = [
         {
           type: "image" as const,
@@ -32,8 +35,9 @@ layer("ProjectionThreadMessageRepository", (it) => {
         messageId,
         threadId,
         turnId: null,
-        role: "user",
+        role: "assistant",
         text: "initial",
+        content: persistedContent,
         attachments: persistedAttachments,
         isStreaming: false,
         createdAt,
@@ -54,12 +58,14 @@ layer("ProjectionThreadMessageRepository", (it) => {
       const rows = yield* repository.listByThreadId({ threadId });
       assert.equal(rows.length, 1);
       assert.equal(rows[0]?.text, "updated");
+      assert.deepEqual(rows[0]?.content, persistedContent);
       assert.deepEqual(rows[0]?.attachments, persistedAttachments);
 
       const rowById = yield* repository.getByMessageId({ messageId });
       assert.equal(rowById._tag, "Some");
       if (rowById._tag === "Some") {
         assert.equal(rowById.value.text, "updated");
+        assert.deepEqual(rowById.value.content, persistedContent);
         assert.deepEqual(rowById.value.attachments, persistedAttachments);
       }
     }),

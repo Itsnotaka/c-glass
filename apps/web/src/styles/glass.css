@@ -136,6 +136,17 @@
     rgb(var(--glass-cursor-action-rgb)) 45%,
     var(--foreground)
   );
+  --glass-composer-object-bg: var(--glass-plan-mode-selected-bg);
+  --glass-composer-object-bg-active: var(--glass-plan-mode-selected-bg-hover);
+  --glass-composer-object-border: var(--glass-plan-mode-selected-border);
+  --glass-composer-object-border-active: var(--glass-plan-mode-selected-border-hover);
+  --glass-composer-object-fg: var(--glass-plan-mode-selected-fg);
+  --glass-composer-object-inline-pad: 2px;
+  --glass-composer-object-fg-muted: color-mix(
+    in srgb,
+    var(--glass-plan-mode-selected-fg) 84%,
+    var(--foreground)
+  );
 }
 
 /*
@@ -347,25 +358,37 @@ body {
 }
 
 /* Skill/mention highlighting in composer */
-.highlight-file {
-  background: color-mix(in srgb, oklch(0.72 0.16 72) 20%, transparent);
+.highlight-file,
+.highlight-skill {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   border-radius: 4px;
-  padding: 0 2px;
-  color: oklch(0.55 0.16 72);
+  background: var(--glass-composer-object-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-composer-object-border),
+    calc(-1 * var(--glass-composer-object-inline-pad)) 0 0 var(--glass-composer-object-bg),
+    var(--glass-composer-object-inline-pad) 0 0 var(--glass-composer-object-bg);
+  color: var(--glass-composer-object-fg-muted);
+}
+
+.highlight-file--active,
+.highlight-skill--active {
+  background: var(--glass-composer-object-bg-active);
+  box-shadow:
+    inset 0 0 0 1px var(--glass-composer-object-border-active),
+    calc(-1 * var(--glass-composer-object-inline-pad)) 0 0 var(--glass-composer-object-bg-active),
+    var(--glass-composer-object-inline-pad) 0 0 var(--glass-composer-object-bg-active);
+  color: var(--glass-composer-object-fg);
 }
 
 .highlight-command {
-  background: color-mix(in srgb, oklch(0.65 0.21 290) 15%, transparent);
-  border-radius: 4px;
-  padding: 0 2px;
-  color: oklch(0.55 0.18 290);
+  color: color-mix(in srgb, var(--glass-composer-object-fg) 78%, var(--foreground));
 }
 
-.highlight-skill {
-  background: color-mix(in srgb, oklch(0.75 0.14 85) 18%, transparent);
-  border-radius: 4px;
-  padding: 0 2px;
-  color: oklch(0.55 0.14 85);
+.glass-composer-object-row--active {
+  background: var(--glass-composer-object-bg-active);
+  box-shadow: inset 0 0 0 1px var(--glass-composer-object-border-active);
+  color: var(--glass-composer-object-fg);
 }
 
 :root {

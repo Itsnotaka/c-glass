@@ -129,6 +129,7 @@ const reasoningModel: RuntimeModelItem = {
   provider: "openai",
   id: "o1",
   name: "Reasoning",
+  supportsFastMode: false,
   supportsXhigh: true,
   reasoning: true,
 };

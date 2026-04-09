@@ -3,6 +3,8 @@ import {
   type AssistantDeliveryMode,
   CommandId,
   MessageId,
+  type OrchestrationAssistantContent,
+  type OrchestrationAssistantContentBlock,
   type OrchestrationEvent,
   type OrchestrationProposedPlanId,
   CheckpointRef,
@@ -38,6 +40,8 @@ const TURN_MESSAGE_IDS_BY_TURN_CACHE_CAPACITY = 10_000;
 const TURN_MESSAGE_IDS_BY_TURN_TTL = Duration.minutes(120);
 const BUFFERED_MESSAGE_TEXT_BY_MESSAGE_ID_CACHE_CAPACITY = 20_000;
 const BUFFERED_MESSAGE_TEXT_BY_MESSAGE_ID_TTL = Duration.minutes(120);
+const BUFFERED_MESSAGE_CONTENT_BY_MESSAGE_ID_CACHE_CAPACITY = 20_000;
+const BUFFERED_MESSAGE_CONTENT_BY_MESSAGE_ID_TTL = Duration.minutes(120);
 const BUFFERED_PROPOSED_PLAN_BY_ID_CACHE_CAPACITY = 10_000;
 const BUFFERED_PROPOSED_PLAN_BY_ID_TTL = Duration.minutes(120);
 const MAX_BUFFERED_ASSISTANT_CHARS = 24_000;
@@ -60,6 +64,14 @@ type RuntimeIngestionInput =
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
   return value === undefined ? undefined : TurnId.makeUnsafe(String(value));
+}
+
+function assistantMessageId(event: ProviderRuntimeEvent): MessageId {
+  const turnId = toTurnId(event.turnId);
+  if (turnId) {
+    return MessageId.makeUnsafe(`assistant:${turnId}`);
+  }
+  return MessageId.makeUnsafe(`assistant:${event.itemId ?? event.eventId}`);
 }
 
 function toApprovalRequestId(value: string | undefined): ApprovalRequestId | undefined {
@@ -251,6 +263,145 @@ function normalizeRuntimeTurnState(
     default:
       return "completed";
   }
+}
+
+type BufferedAssistantContent = {
+  blocks: Record<string, OrchestrationAssistantContentBlock>;
+  summary: Record<string, string>;
+  textSlot: number | null;
+  thinkingSlot: number | null;
+};
+
+function emptyAssistantContent(): BufferedAssistantContent {
+  return {
+    blocks: {},
+    summary: {},
+    textSlot: null,
+    thinkingSlot: null,
+  };
+}
+
+function nextAssistantSlot(state: BufferedAssistantContent) {
+  const keys = Object.keys(state.blocks)
+    .map((key) => Number.parseInt(key, 10))
+    .filter((key) => Number.isFinite(key));
+  if (keys.length === 0) {
+    return 0;
+  }
+  return Math.max(...keys) + 1;
+}
+
+function joinAssistantSummary(summary: BufferedAssistantContent["summary"]) {
+  const text = Object.entries(summary)
+    .map(([key, val]) => [Number.parseInt(key, 10), val] as const)
+    .filter(([key]) => Number.isFinite(key))
+    .toSorted((left, right) => left[0] - right[0])
+    .map(([, val]) => val.trim())
+    .filter((val) => val.length > 0)
+    .join("\n\n");
+  return text.length > 0 ? text : undefined;
+}
+
+function assistantSlot(
+  state: BufferedAssistantContent,
+  kind: "text" | "thinking",
+  idx: number | undefined,
+) {
+  if (idx !== undefined) {
+    if (kind === "text" && state.textSlot === null) {
+      state.textSlot = idx;
+    }
+    if (kind === "thinking" && state.thinkingSlot === null) {
+      state.thinkingSlot = idx;
+    }
+    return idx;
+  }
+
+  if (kind === "text" && state.textSlot !== null) {
+    return state.textSlot;
+  }
+  if (kind === "thinking" && state.thinkingSlot !== null) {
+    return state.thinkingSlot;
+  }
+
+  const slot = nextAssistantSlot(state);
+  if (kind === "text") {
+    state.textSlot = slot;
+  } else {
+    state.thinkingSlot = slot;
+  }
+  return slot;
+}
+
+function patchAssistantContent(
+  state: BufferedAssistantContent,
+  input: {
+    kind: "assistant_text" | "reasoning_text" | "reasoning_summary_text";
+    delta: string;
+    contentIndex?: number;
+    summaryIndex?: number;
+  },
+) {
+  const next: BufferedAssistantContent = {
+    blocks: { ...state.blocks },
+    summary: { ...state.summary },
+    textSlot: state.textSlot,
+    thinkingSlot: state.thinkingSlot,
+  };
+
+  if (input.kind === "assistant_text") {
+    const slot = assistantSlot(next, "text", input.contentIndex);
+    const cur = next.blocks[String(slot)];
+    next.blocks[String(slot)] = {
+      type: "text",
+      text: `${cur?.type === "text" ? cur.text : ""}${input.delta}`,
+    };
+    return next;
+  }
+
+  const slot = assistantSlot(next, "thinking", input.contentIndex);
+  const cur = next.blocks[String(slot)];
+  const summary =
+    input.kind === "reasoning_summary_text"
+      ? (() => {
+          next.summary[String(input.summaryIndex ?? 0)] =
+            `${next.summary[String(input.summaryIndex ?? 0)] ?? ""}${input.delta}`;
+          return joinAssistantSummary(next.summary);
+        })()
+      : cur?.type === "thinking"
+        ? cur.summary
+        : undefined;
+
+  next.blocks[String(slot)] = {
+    type: "thinking",
+    thinking:
+      input.kind === "reasoning_text"
+        ? `${cur?.type === "thinking" ? cur.thinking : ""}${input.delta}`
+        : cur?.type === "thinking"
+          ? cur.thinking
+          : "",
+    ...(summary !== undefined ? { summary } : {}),
+  };
+  return next;
+}
+
+function materializeAssistantContent(
+  state: BufferedAssistantContent | undefined,
+): OrchestrationAssistantContent {
+  if (!state) {
+    return [];
+  }
+
+  return Object.entries(state.blocks)
+    .map(([key, block]) => [Number.parseInt(key, 10), block] as const)
+    .filter(([key]) => Number.isFinite(key))
+    .toSorted((left, right) => left[0] - right[0])
+    .map(([, block]) => block)
+    .filter((block) =>
+      block.type === "text"
+        ? block.text.length > 0
+        : block.thinking.length > 0 || (block.summary?.length ?? 0) > 0,
+    );
 }
 
 function orchestrationSessionStatusFromRuntimeState(
@@ -662,6 +813,15 @@ const make = Effect.fn("make")(function* () {
     lookup: () => Effect.succeed(""),
   });
 
+  const bufferedAssistantContentByMessageId = yield* Cache.make<
+    MessageId,
+    BufferedAssistantContent
+  >({
+    capacity: BUFFERED_MESSAGE_CONTENT_BY_MESSAGE_ID_CACHE_CAPACITY,
+    timeToLive: BUFFERED_MESSAGE_CONTENT_BY_MESSAGE_ID_TTL,
+    lookup: () => Effect.succeed(emptyAssistantContent()),
+  });
+
   const bufferedProposedPlanById = yield* Cache.make<string, { text: string; createdAt: string }>({
     capacity: BUFFERED_PROPOSED_PLAN_BY_ID_CACHE_CAPACITY,
     timeToLive: BUFFERED_PROPOSED_PLAN_BY_ID_TTL,
@@ -761,6 +921,39 @@ const make = Effect.fn("make")(function* () {
   const clearBufferedAssistantText = (messageId: MessageId) =>
     Cache.invalidate(bufferedAssistantTextByMessageId, messageId);
 
+  const patchBufferedAssistantContent = (
+    messageId: MessageId,
+    input: {
+      kind: "assistant_text" | "reasoning_text" | "reasoning_summary_text";
+      delta: string;
+      contentIndex?: number;
+      summaryIndex?: number;
+    },
+  ) =>
+    Cache.getOption(bufferedAssistantContentByMessageId, messageId).pipe(
+      Effect.flatMap((existing) => {
+        const next = patchAssistantContent(
+          Option.getOrElse(existing, emptyAssistantContent),
+          input,
+        );
+        return Cache.set(bufferedAssistantContentByMessageId, messageId, next).pipe(
+          Effect.as(materializeAssistantContent(next)),
+        );
+      }),
+    );
+
+  const takeBufferedAssistantContent = (messageId: MessageId) =>
+    Cache.getOption(bufferedAssistantContentByMessageId, messageId).pipe(
+      Effect.flatMap((existing) =>
+        Cache.invalidate(bufferedAssistantContentByMessageId, messageId).pipe(
+          Effect.as(materializeAssistantContent(Option.getOrUndefined(existing))),
+        ),
+      ),
+    );
+
+  const clearBufferedAssistantContent = (messageId: MessageId) =>
+    Cache.invalidate(bufferedAssistantContentByMessageId, messageId);
+
   const appendBufferedProposedPlan = (planId: string, delta: string, createdAt: string) =>
     Cache.getOption(bufferedProposedPlanById, planId).pipe(
       Effect.flatMap((existingEntry) => {
@@ -786,7 +979,10 @@ const make = Effect.fn("make")(function* () {
     Cache.invalidate(bufferedProposedPlanById, planId);
 
   const clearAssistantMessageState = (messageId: MessageId) =>
-    clearBufferedAssistantText(messageId);
+    Effect.all([
+      clearBufferedAssistantText(messageId),
+      clearBufferedAssistantContent(messageId),
+    ]).pipe(Effect.asVoid);
 
   const finalizeAssistantMessage = Effect.fn("finalizeAssistantMessage")(function* (input: {
     event: ProviderRuntimeEvent;
@@ -799,20 +995,28 @@ const make = Effect.fn("make")(function* () {
     fallbackText?: string;
   }) {
     const bufferedText = yield* takeBufferedAssistantText(input.messageId);
+    const bufferedContent = yield* takeBufferedAssistantContent(input.messageId);
     const text =
       bufferedText.length > 0
         ? bufferedText
         : (input.fallbackText?.trim().length ?? 0) > 0
           ? input.fallbackText!
           : "";
+    const content =
+      bufferedContent.length > 0
+        ? bufferedContent
+        : text.length > 0
+          ? ([{ type: "text", text }] satisfies OrchestrationAssistantContent)
+          : [];
 
-    if (text.length > 0) {
+    if (text.length > 0 || content.length > 0) {
       yield* orchestrationEngine.dispatch({
         type: "thread.message.assistant.delta",
         commandId: providerCommandId(input.event, input.finalDeltaCommandTag),
         threadId: input.threadId,
         messageId: input.messageId,
         delta: text,
+        ...(content.length > 0 ? { content } : {}),
         ...(input.turnId ? { turnId: input.turnId } : {}),
         createdAt: input.createdAt,
       });
@@ -1139,46 +1343,62 @@ const make = Effect.fn("make")(function* () {
       }
     }
 
-    const assistantDelta =
-      event.type === "content.delta" && event.payload.streamKind === "assistant_text"
-        ? event.payload.delta
+    const assistantStream =
+      event.type === "content.delta" &&
+      (event.payload.streamKind === "assistant_text" ||
+        event.payload.streamKind === "reasoning_text" ||
+        event.payload.streamKind === "reasoning_summary_text")
+        ? event.payload
         : undefined;
     const proposedPlanDelta =
       event.type === "turn.proposed.delta" ? event.payload.delta : undefined;
 
-    if (assistantDelta && assistantDelta.length > 0) {
-      const assistantMessageId = MessageId.makeUnsafe(
-        `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
-      );
+    if (assistantStream && assistantStream.delta.length > 0) {
+      const assistantMessage = assistantMessageId(event);
       const turnId = toTurnId(event.turnId);
       if (turnId) {
-        yield* rememberAssistantMessageId(thread.id, turnId, assistantMessageId);
+        yield* rememberAssistantMessageId(thread.id, turnId, assistantMessage);
       }
 
-      const assistantDeliveryMode: AssistantDeliveryMode = yield* Effect.map(
-        serverSettingsService.getSettings,
-        (settings) => (settings.enableAssistantStreaming ? "streaming" : "buffered"),
-      );
-      if (assistantDeliveryMode === "buffered") {
-        const spillChunk = yield* appendBufferedAssistantText(assistantMessageId, assistantDelta);
-        if (spillChunk.length > 0) {
-          yield* orchestrationEngine.dispatch({
-            type: "thread.message.assistant.delta",
-            commandId: providerCommandId(event, "assistant-delta-buffer-spill"),
-            threadId: thread.id,
-            messageId: assistantMessageId,
-            delta: spillChunk,
-            ...(turnId ? { turnId } : {}),
-            createdAt: now,
-          });
+      const content = yield* patchBufferedAssistantContent(assistantMessage, {
+        kind:
+          assistantStream.streamKind === "assistant_text"
+            ? "assistant_text"
+            : assistantStream.streamKind === "reasoning_text"
+              ? "reasoning_text"
+              : "reasoning_summary_text",
+        delta: assistantStream.delta,
+        ...(assistantStream.contentIndex !== undefined
+          ? { contentIndex: assistantStream.contentIndex }
+          : {}),
+        ...(assistantStream.summaryIndex !== undefined
+          ? { summaryIndex: assistantStream.summaryIndex }
+          : {}),
+      });
+
+      let delta = "";
+      let tag = "assistant-delta";
+      if (assistantStream.streamKind === "assistant_text") {
+        const assistantDeliveryMode: AssistantDeliveryMode = yield* Effect.map(
+          serverSettingsService.getSettings,
+          (settings) => (settings.enableAssistantStreaming ? "streaming" : "buffered"),
+        );
+        if (assistantDeliveryMode === "buffered") {
+          delta = yield* appendBufferedAssistantText(assistantMessage, assistantStream.delta);
+          tag = "assistant-delta-buffer-spill";
+        } else {
+          delta = assistantStream.delta;
         }
-      } else {
+      }
+
+      if (delta.length > 0 || content.length > 0) {
         yield* orchestrationEngine.dispatch({
           type: "thread.message.assistant.delta",
-          commandId: providerCommandId(event, "assistant-delta"),
+          commandId: providerCommandId(event, tag),
           threadId: thread.id,
-          messageId: assistantMessageId,
-          delta: assistantDelta,
+          messageId: assistantMessage,
+          delta,
+          ...(content.length > 0 ? { content } : {}),
           ...(turnId ? { turnId } : {}),
           createdAt: now,
         });
@@ -1193,9 +1413,7 @@ const make = Effect.fn("make")(function* () {
     const assistantCompletion =
       event.type === "item.completed" && event.payload.itemType === "assistant_message"
         ? {
-            messageId: MessageId.makeUnsafe(
-              `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
-            ),
+            messageId: assistantMessageId(event),
             fallbackText: event.payload.detail,
           }
         : undefined;

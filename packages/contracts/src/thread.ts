@@ -15,6 +15,7 @@ export interface ThreadTextBlock {
 export interface ThreadThinkingBlock {
   type: "thinking";
   thinking: string;
+  summary?: string;
 }
 
 export interface ThreadImageBlock {

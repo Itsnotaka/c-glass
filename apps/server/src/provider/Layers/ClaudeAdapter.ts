@@ -1544,6 +1544,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
           payload: {
             streamKind,
             delta: deltaText,
+            contentIndex: event.index,
           },
           providerRefs: nativeProviderRefs(context),
           raw: {

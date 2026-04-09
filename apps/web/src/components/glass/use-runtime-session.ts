@@ -16,12 +16,19 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
 import { useShellState } from "../../hooks/use-shell-cwd";
 import { readNativeApi } from "../../native-api";
+import { useServerProviders } from "../../rpc/server-state";
 import {
+  applyFastMode,
   applyThinking,
+  resolveRuntimeSelection,
+  selectionSupportsFastMode,
+  selectionToFastMode,
+  writeRuntimeDefaultFastMode,
   writeRuntimeDefaultModel,
   writeRuntimeDefaultThinkingLevel,
   type RuntimeModelItem,
 } from "../../lib/runtime-models";
+import { hasStreamingThinking } from "../../lib/assistant-content";
 import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
 import { useThreadSessionStore } from "../../lib/thread-session-store";
 import { derivePendingApprovals, derivePendingUserInputs } from "../../session-logic";
@@ -106,6 +113,7 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
   const navigate = useNavigate();
   const shell = useShellState();
   const defs = useRuntimeDefaults();
+  const providers = useServerProviders();
   const threads = useStore((state) => state.threads);
   const projects = useStore((state) => state.projects);
   const messages = useThreadSessionStore(
@@ -167,9 +175,19 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
 
   const model = sessionId ? sessionModel : defs.model;
   const modelLoading = !sessionId && defs.status === "loading";
+  const fastActive = sessionId ? selectionToFastMode(thread?.modelSelection) : defs.fastMode;
+  const fastSupported = sessionId
+    ? selectionSupportsFastMode(providers, thread?.modelSelection)
+    : defs.fastSupported;
   const since = busy
     ? (work?.startedAt ?? thread?.latestTurn?.startedAt ?? thread?.latestTurn?.requestedAt ?? null)
     : null;
+  const normalize = useCallback(
+    (selection: typeof defs.selection) =>
+      providers.length > 0 ? resolveRuntimeSelection(providers, selection) : selection,
+    [providers],
+  );
+  const thinking = thread ? hasStreamingThinking(thread.messages) : false;
 
   const ensureThread = async (
     seed: string,
@@ -266,17 +284,22 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       return;
     }
     if (!api || !thread) return;
-    const selection = {
+    const selection = normalize({
       provider: next.provider as "codex" | "claudeAgent",
       model: next.id,
-    };
+      ...(thread.modelSelection.provider === next.provider && thread.modelSelection.options
+        ? { options: thread.modelSelection.options }
+        : {}),
+    });
     void api.orchestration.dispatchCommand({
       type: "thread.meta.update",
       commandId: commandId(),
       threadId: thread.id,
-      modelSelection: applyThinking(
-        selection,
-        useThreadSessionStore.getState().snaps[thread.id]?.thinkingLevel ?? "off",
+      modelSelection: normalize(
+        applyThinking(
+          selection,
+          useThreadSessionStore.getState().snaps[thread.id]?.thinkingLevel ?? "off",
+        ),
       ),
     });
   };
@@ -291,8 +314,27 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       type: "thread.meta.update",
       commandId: commandId(),
       threadId: thread.id,
-      modelSelection: applyThinking(thread.modelSelection, level),
+      modelSelection: normalize(applyThinking(thread.modelSelection, level)),
     });
+  };
+
+  const setFastMode = (on: boolean) => {
+    if (!sessionId) {
+      void writeRuntimeDefaultFastMode(on);
+      return;
+    }
+    if (!api || !thread) return;
+    void api.orchestration.dispatchCommand({
+      type: "thread.meta.update",
+      commandId: commandId(),
+      threadId: thread.id,
+      modelSelection: normalize(applyFastMode(thread.modelSelection, on)),
+    });
+  };
+
+  const toggleFastMode = () => {
+    if (!fastSupported) return;
+    setFastMode(!fastActive);
   };
 
   const setInteractionMode = useCallback(
@@ -354,14 +396,19 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
     work,
     ask: askBox?.state ?? null,
     busy,
+    thinking,
     since,
     model,
     modelLoading,
+    fastActive,
+    fastSupported,
     answerAsk,
     send,
     abort,
     setModel,
     setThinkingLevel,
+    setFastMode,
+    toggleFastMode,
     setInteractionMode,
   };
 }

@@ -1,10 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
 import { useDefaultHarness } from "../../lib/harness-picker";
 import { useHarnessDescriptor } from "../../lib/harness-store";
-import { GlassChatComposer } from "./chat-composer";
+import { clearSlash, pendingSlash } from "./composer-search";
+import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
 import { GlassHeroComposerFooter } from "./hero-composer-footer";
 import { GlassHeroStage } from "./hero-stage";
 import { useRuntimeSession } from "./use-runtime-session";
@@ -28,7 +29,6 @@ export function GlassHeroCanvas() {
   const toggleRootPlanInteraction = useGlassChatDraftStore(
     (state) => state.toggleRootPlanInteraction,
   );
-  const planInteraction = useGlassChatDraftStore((state) => state.root.interactionMode);
   const draft = cur ? (items[cur] ?? null) : null;
   const kind = draft?.harness ?? defaultKind;
   const harnessDescriptor = useHarnessDescriptor(kind);
@@ -36,6 +36,15 @@ export function GlassHeroCanvas() {
   const text = draft?.text ?? root.text;
   const files = draft?.files ?? root.files;
   const skills = draft?.skills ?? root.skills;
+  const planActive = (draft?.interactionMode ?? root.interactionMode) === "plan";
+  const composerRef = useRef<GlassChatComposerHandle>(null);
+
+  const clearPlan = useCallback((value: string) => {
+    const hit = pendingSlash(value, value.length);
+    if (!hit) return value;
+    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    return clearSlash(value, hit).value;
+  }, []);
 
   const write = useCallback(
     (next: { text: string; files: typeof files; skills: typeof skills }) => {
@@ -48,15 +57,40 @@ export function GlassHeroCanvas() {
     [draft, save, saveRoot],
   );
 
+  const planOn = useCallback(() => {
+    write({ text: clearPlan(text), files, skills });
+    setActiveInteractionMode("plan");
+  }, [clearPlan, files, setActiveInteractionMode, skills, text, write]);
+
   const planMode = useCallback(() => {
-    toggleRootPlanInteraction();
-  }, [toggleRootPlanInteraction]);
+    if (planActive) {
+      toggleRootPlanInteraction();
+      return;
+    }
+    planOn();
+  }, [planActive, planOn, toggleRootPlanInteraction]);
+
+  const togglePlan = useCallback(() => {
+    if (composerRef.current) {
+      composerRef.current.togglePlan();
+      return;
+    }
+    planMode();
+  }, [planMode]);
+
+  const activatePlan = useCallback(() => {
+    if (composerRef.current) {
+      composerRef.current.activatePlan();
+      return;
+    }
+    planOn();
+  }, [planOn]);
 
   useHotkey(
     "Shift+Tab",
     (event) => {
       event.preventDefault();
-      planMode();
+      togglePlan();
     },
     { preventDefault: true },
   );
@@ -64,11 +98,10 @@ export function GlassHeroCanvas() {
   return (
     <GlassHeroStage
       scene={draft?.id ?? "root"}
-      footer={
-        <GlassHeroComposerFooter onPlanMode={planMode} planActive={planInteraction === "plan"} />
-      }
+      footer={<GlassHeroComposerFooter onPlanMode={activatePlan} planActive={planActive} />}
     >
       <GlassChatComposer
+        ref={composerRef}
         key={draft?.id ?? "root"}
         sessionId={null}
         draft={text}
@@ -83,8 +116,13 @@ export function GlassHeroCanvas() {
         variant="hero"
         onAbort={session.abort}
         onModel={session.setModel}
+        fastActive={session.fastActive}
+        fastSupported={session.fastSupported}
+        onFastMode={session.setFastMode}
         onThinkingLevel={session.setThinkingLevel}
         onPlanMode={() => setActiveInteractionMode("plan")}
+        planActive={planActive}
+        onPlanToggle={planMode}
         onSend={(input) =>
           session.send(
             input,

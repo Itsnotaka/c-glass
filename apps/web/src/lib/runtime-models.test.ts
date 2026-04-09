@@ -2,7 +2,12 @@ import type { ModelSelection, ServerProvider } from "@glass/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { Project } from "../types";
-import { readRuntimeDefaults, resolveRuntimeSelection } from "./runtime-models";
+import {
+  applyFastMode,
+  applyThinking,
+  readRuntimeDefaults,
+  resolveRuntimeSelection,
+} from "./runtime-models";
 
 const original = Object.getOwnPropertyDescriptor(globalThis, "window");
 
@@ -123,6 +128,56 @@ describe("resolveRuntimeSelection", () => {
       options: { reasoningEffort: "high" },
     });
   });
+
+  it("drops unsupported fast mode when the selected model does not support it", () => {
+    expect(
+      resolveRuntimeSelection(providers, {
+        provider: "claudeAgent",
+        model: "claude-sonnet-4-6",
+        options: { effort: "high", fastMode: true },
+      } as ModelSelection),
+    ).toEqual({
+      provider: "claudeAgent",
+      model: "claude-sonnet-4-6",
+      options: { effort: "high" },
+    });
+  });
+});
+
+describe("selection helpers", () => {
+  it("preserves codex fast mode when thinking changes", () => {
+    expect(
+      applyThinking(
+        {
+          provider: "codex",
+          model: "gpt-5.4",
+          options: { reasoningEffort: "high", fastMode: true },
+        },
+        "low",
+      ),
+    ).toEqual({
+      provider: "codex",
+      model: "gpt-5.4",
+      options: { reasoningEffort: "low", fastMode: true },
+    });
+  });
+
+  it("preserves Claude options when fast mode changes", () => {
+    expect(
+      applyFastMode(
+        {
+          provider: "claudeAgent",
+          model: "claude-sonnet-4-6",
+          options: { thinking: true, effort: "high" },
+        },
+        true,
+      ),
+    ).toEqual({
+      provider: "claudeAgent",
+      model: "claude-sonnet-4-6",
+      options: { thinking: true, effort: "high", fastMode: true },
+    });
+  });
 });
 
 describe("readRuntimeDefaults", () => {
@@ -160,8 +215,33 @@ describe("readRuntimeDefaults", () => {
       model: "claude-sonnet-4-6",
       options: { effort: "medium" },
     });
+    expect(defs.fastMode).toBe(false);
+    expect(defs.fastSupported).toBe(false);
     expect(defs.model).toBe("claude-sonnet-4-6");
     expect(defs.thinkingLevel).toBe("medium");
     expect(defs.stored).toBe(true);
+  });
+
+  it("reports fast mode state for the active project selection", () => {
+    setWindow("/alpha");
+
+    const projects: Project[] = [
+      {
+        id: "project-a" as Project["id"],
+        name: "alpha",
+        cwd: "/alpha",
+        defaultModelSelection: {
+          provider: "codex",
+          model: "gpt-5.4",
+          options: { reasoningEffort: "high", fastMode: true },
+        },
+        scripts: [],
+      },
+    ];
+
+    const defs = readRuntimeDefaults(projects, providers);
+
+    expect(defs.fastMode).toBe(true);
+    expect(defs.fastSupported).toBe(true);
   });
 });

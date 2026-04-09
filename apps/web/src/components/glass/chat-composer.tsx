@@ -20,6 +20,7 @@ import {
   IconCrossSmall,
   IconFileBend,
   IconImages1,
+  IconLightning,
   IconPlusLarge,
   IconStop,
 } from "central-icons";
@@ -56,11 +57,13 @@ import { useStore } from "../../store";
 import { GLASS_EDITOR_SET_EVENT } from "../../lib/glass-runtime-constants";
 import { pushComposerDraft } from "../../lib/composer-draft-mirror";
 import {
+  clearSlash,
   applyFile,
   applySlash,
   fileMatch,
   mirrorActiveSeg,
   mirrorSegmentsDraft,
+  pendingSlash,
   rankFileHits,
   slashMatch,
   type MirrorSeg,
@@ -76,6 +79,7 @@ import { GlassComposerTokenMenu } from "./slash-menu";
 import { GlassModelPicker, type GlassModelPickerHandle } from "./model-picker";
 import { applySkill, expandSkills, hydrateSkills, sameSkills, shiftSkills } from "./skill-tokens";
 import { GlassWorkspacePicker } from "./workspace-picker";
+import { useHotkey } from "@tanstack/react-hotkeys";
 
 type Pick = GlassDraftFile;
 
@@ -112,14 +116,20 @@ interface Props {
   busy: boolean;
   harness?: HarnessKind;
   harnessDescriptor?: HarnessDescriptor | null;
+  fastActive?: boolean;
+  fastSupported?: boolean;
+  onFastMode?: (on: boolean) => void;
+  onFastToggle?: () => void;
   onPlanMode?: () => void;
-  /** Dock thread: show plan chip and allow turning plan mode off from the composer. */
+  /** Show plan chip and allow turning plan mode off from the composer. */
   planActive?: boolean;
   onPlanToggle?: () => void;
 }
 
 export interface GlassChatComposerHandle {
   focus: () => void;
+  activatePlan: () => void;
+  togglePlan: () => void;
 }
 
 function same(left: HarnessModelRef | null, right: HarnessModelRef | null) {
@@ -486,11 +496,14 @@ const GlassChatComposerImpl = memo(
     const modelPickerRef = useRef<GlassModelPickerHandle | null>(null);
     const shellRef = useRef<HTMLDivElement | null>(null);
     const nextCursor = useRef<number | null>(null);
+    const nextFocus = useRef(true);
     const draftSink = useRef(props.onDraft);
     draftSink.current = props.onDraft;
     const draftRef = useRef(props.draft);
     draftRef.current = props.draft;
     const [cursor, setCursor] = useState(0);
+    const cursorRef = useRef(cursor);
+    cursorRef.current = cursor;
     const [composing, setComposing] = useState(false);
     const [localFiles, setLocalFiles] = useState<Pick[]>([]);
     const [localSkills, setLocalSkills] = useState<GlassDraftSkill[]>([]);
@@ -502,6 +515,10 @@ const GlassChatComposerImpl = memo(
     const [loading, setLoading] = useState(false);
     const [closed, setClosed] = useState<string | null>(null);
     const [git, setGit] = useState<string | null>(null);
+    const [action, setAction] = useState<{
+      item: GlassSlashItem;
+      value: string;
+    } | null>(null);
     const files = props.files ?? localFiles;
     const marks = props.skills ?? localSkills;
     const skillSink = useRef<(skills: GlassDraftSkill[]) => void>(() => undefined);
@@ -510,6 +527,7 @@ const GlassChatComposerImpl = memo(
     const empty = !props.draft.trim() && files.length === 0;
     const caps = props.harnessDescriptor?.capabilities ?? defaultCaps;
     const branch = metaBranch ?? git;
+    const text = () => area.current?.value ?? draftRef.current;
 
     const writeFiles = (next: Pick[] | ((cur: Pick[]) => Pick[])) => {
       const value = typeof next === "function" ? next(files) : next;
@@ -532,6 +550,19 @@ const GlassChatComposerImpl = memo(
     };
     skillSink.current = writeSkills;
 
+    const update = (
+      value: string,
+      pos?: number,
+      nextSkills?: GlassDraftSkill[],
+      prev?: string,
+      focus = true,
+    ) => {
+      nextCursor.current = pos ?? value.length;
+      nextFocus.current = focus;
+      writeSkills(nextSkills ?? shiftSkills(prev ?? text(), value, marksRef.current));
+      draftSink.current(value);
+    };
+
     useEffect(() => {
       if (props.onFiles) return;
       setLocalFiles([]);
@@ -553,11 +584,109 @@ const GlassChatComposerImpl = memo(
       });
     }, [api, props.variant, shell.cwd]);
 
+    const planHit = () => {
+      const value = text();
+      const pos = area.current?.selectionStart ?? cursorRef.current;
+      const hit = pendingSlash(value, pos);
+      if (!hit) return null;
+      if (!"plan".startsWith(hit.query.toLowerCase())) return null;
+      return { value, hit };
+    };
+
+    const clearPlan = () => {
+      const hit = planHit();
+      if (!hit) return false;
+      const next = clearSlash(hit.value, hit.hit);
+      flushSync(() => update(next.value, next.cursor, undefined, hit.value));
+      return true;
+    };
+
+    const planOn = () => {
+      clearPlan();
+      props.onPlanMode?.();
+    };
+
+    const togglePlan = () => {
+      if (props.planActive && props.onPlanToggle) {
+        props.onPlanToggle();
+        return;
+      }
+      planOn();
+    };
+
+    const exec = (item: GlassSlashItem) => {
+      const t = item.run.type;
+      if (t === "navigate" && item.run.value) {
+        void navigate({ to: item.run.value });
+        return true;
+      }
+      if (t === "new-chat") {
+        void navigate({ to: "/" });
+        return true;
+      }
+      if (t === "open-settings") {
+        settings.openSettings();
+        return true;
+      }
+      if (t === "open-model-picker") {
+        if (!caps.modelPicker) return false;
+        modelPickerRef.current?.open();
+        return true;
+      }
+      if (t === "plan-mode") {
+        if (props.planActive && props.onPlanToggle) {
+          props.onPlanToggle();
+          return true;
+        }
+        props.onPlanMode?.();
+        return true;
+      }
+      if (t === "fast-mode") {
+        props.onFastToggle?.();
+        return true;
+      }
+      return false;
+    };
+
+    const run = (item: GlassSlashItem, raw: string, hit: ReturnType<typeof pendingSlash>) => {
+      if (!hit) return false;
+      if (item.run.type === "open-model-picker" && !caps.modelPicker) return false;
+      recordSlashUse(item.id, item.kind);
+      setRecSnap(readSlashRecents());
+      const next = clearSlash(raw, hit);
+      flushSync(() => {
+        update(next.value, next.cursor, undefined, raw, item.run.type !== "open-model-picker");
+        setAction({ item, value: next.value });
+      });
+      writeFiles([]);
+      return true;
+    };
+
     useImperativeHandle(ref, () => ({
       focus: () => {
         area.current?.focus();
       },
+      activatePlan: () => {
+        planOn();
+      },
+      togglePlan: () => {
+        togglePlan();
+      },
     }));
+
+    useHotkey(
+      "Shift+Tab",
+      (event) => {
+        event.preventDefault();
+        togglePlan();
+      },
+      {
+        target: area,
+        ignoreInputs: false,
+        preventDefault: true,
+        enabled: Boolean(props.onPlanMode || props.onPlanToggle),
+      },
+    );
 
     const locals = useMemo(
       () =>
@@ -568,18 +697,33 @@ const GlassChatComposerImpl = memo(
               ...(caps.modelPicker
                 ? [{ name: "model", description: "Choose model", source: "app" as const }]
                 : []),
+              ...(props.sessionId && props.fastSupported
+                ? [
+                    {
+                      name: "fast",
+                      description: props.fastActive ? "Turn off fast mode" : "Turn on fast mode",
+                      source: "app" as const,
+                    },
+                  ]
+                : []),
               { name: "plan", description: "Switch to plan mode", source: "app" as const },
             ]
           : []) satisfies Cmd[],
-      [caps.commands, caps.modelPicker],
+      [caps.commands, caps.modelPicker, props.fastActive, props.fastSupported, props.sessionId],
     );
 
     useEffect(() => {
       const pos = nextCursor.current;
       if (pos === null) return;
       nextCursor.current = null;
+      const focus = nextFocus.current;
+      nextFocus.current = true;
       const node = area.current;
       if (!node) return;
+      if (!focus) {
+        setCursor(pos);
+        return;
+      }
       window.requestAnimationFrame(() => {
         node.focus();
         node.setSelectionRange(pos, pos);
@@ -611,6 +755,12 @@ const GlassChatComposerImpl = memo(
       [defs],
     );
     const items = useMemo(() => mergeSlashItems(locals, remote), [locals, remote]);
+    const draftPlan = useMemo(() => {
+      const hit = pendingSlash(props.draft, props.draft.length);
+      if (!hit) return null;
+      if (!"plan".startsWith(hit.query.toLowerCase())) return null;
+      return hit;
+    }, [props.draft]);
     const slashRows = useMemo(
       () => buildSlashMenuRows(items, slash?.query ?? "", recSnap),
       [items, slash?.query, recSnap],
@@ -623,16 +773,28 @@ const GlassChatComposerImpl = memo(
       [slashRows],
     );
     const rankedHits = useMemo(() => rankFileHits(hits, at?.query ?? ""), [hits, at?.query]);
-    const slashMarks = useMemo(
+    const slashSkill = useMemo(
+      () => (slash ? (defs.find((item) => item.name === slash.query) ?? null) : null),
+      [defs, slash],
+    );
+    const mirrorMarks = useMemo(
       () => [
-        ...marks.map((item) => ({ start: item.start, end: item.end })),
-        ...(slash ? [{ start: slash.start, end: slash.end }] : []),
+        ...marks.map((item) => ({ kind: "skill" as const, start: item.start, end: item.end })),
+        ...(slash
+          ? [
+              {
+                kind: slashSkill ? ("skill" as const) : ("slash" as const),
+                start: slash.start,
+                end: slash.end,
+              },
+            ]
+          : []),
       ],
-      [marks, slash],
+      [marks, slash, slashSkill],
     );
     const segs = useMemo(
-      () => mirrorSegmentsDraft(props.draft, slashMarks),
-      [props.draft, slashMarks],
+      () => mirrorSegmentsDraft(props.draft, mirrorMarks),
+      [props.draft, mirrorMarks],
     );
     const activeSeg = useMemo(
       () => mirrorActiveSeg(segs, cursor, slash, at),
@@ -683,6 +845,21 @@ const GlassChatComposerImpl = memo(
         setClosed(null);
       }
     }, [key]);
+
+    useEffect(() => {
+      if (!props.planActive || !draftPlan) return;
+      const next = clearSlash(draftRef.current, draftPlan);
+      nextCursor.current = next.cursor;
+      skillSink.current(shiftSkills(draftRef.current, next.value, marksRef.current));
+      draftSink.current(next.value);
+    }, [draftPlan, props.planActive]);
+
+    useEffect(() => {
+      if (!action) return;
+      if (props.draft !== action.value) return;
+      setAction(null);
+      exec(action.item);
+    }, [action, exec, props.draft]);
 
     useEffect(() => {
       if (!api || !at || !shell.cwd) {
@@ -760,121 +937,77 @@ const GlassChatComposerImpl = memo(
       setPreview(null);
     }, [at, filePick]);
 
-    const update = (value: string, pos?: number, nextSkills?: GlassDraftSkill[]) => {
-      nextCursor.current = pos ?? value.length;
-      writeSkills(nextSkills ?? shiftSkills(props.draft, value, marks));
-      props.onDraft(value);
-    };
-
     const spot = () => area.current?.selectionStart ?? cursor;
 
     const runNow = (item: GlassSlashItem) => {
       if (files.length > 0) return false;
-      const hit = slashMatch(props.draft, spot());
+      const raw = text();
+      const hit = pendingSlash(raw, spot());
       if (!hit) return false;
-      const t = item.run.type;
-      if (t === "insert") return false;
-      recordSlashUse(item.id, item.kind);
-      setRecSnap(readSlashRecents());
-      const cleared = `${props.draft.slice(0, hit.start)}${props.draft.slice(hit.end)}`;
-      flushSync(() => update(cleared, hit.start));
-      writeFiles([]);
-      if (t === "navigate" && item.run.value) {
-        void navigate({ to: item.run.value });
-        return true;
-      }
-      if (t === "new-chat") {
-        void navigate({ to: "/" });
-        return true;
-      }
-      if (t === "open-settings") {
-        settings.openSettings();
-        return true;
-      }
-      if (t === "open-model-picker") {
-        if (!caps.modelPicker) return false;
-        queueMicrotask(() => modelPickerRef.current?.open());
-        return true;
-      }
-      if (t === "plan-mode") {
-        props.onPlanMode?.();
-        return true;
-      }
-      return false;
+      if (item.run.type === "insert") return false;
+      return run(item, raw, hit);
     };
 
     const choose = () => {
       if (at && filePick) {
-        const hit = fileMatch(props.draft, spot());
+        const raw = text();
+        const hit = fileMatch(raw, spot());
         if (!hit) return;
-        const next = applyFile(props.draft, hit, filePick);
+        const next = applyFile(raw, hit, filePick);
         setClosed(null);
-        update(next.value, next.cursor);
+        update(next.value, next.cursor, undefined, raw);
         return;
       }
       if (slash && cmdPick) {
-        const hit = slashMatch(props.draft, spot());
+        const raw = text();
+        const hit = pendingSlash(raw, spot());
         if (!hit) return;
         if (runNow(cmdPick)) return;
         recordSlashUse(cmdPick.id, cmdPick.kind);
         setRecSnap(readSlashRecents());
         setClosed(null);
         if (cmdPick.kind === "skill") {
-          const next = applySkill(props.draft, hit, { id: cmdPick.id, name: cmdPick.name }, marks);
-          update(next.value, next.cursor, next.skills);
+          const next = applySkill(raw, hit, { id: cmdPick.id, name: cmdPick.name }, marks);
+          update(next.value, next.cursor, next.skills, raw);
           return;
         }
-        const next = applySlash(props.draft, hit, cmdPick.name);
-        update(next.value, next.cursor);
+        const next = applySlash(raw, hit, cmdPick.name);
+        update(next.value, next.cursor, undefined, raw);
       }
     };
 
     const submit = async () => {
-      const raw = props.draft.trim();
-      if (!files.length && raw === "/new") {
-        props.onDraft("");
-        writeFiles([]);
-        writeSkills([]);
-        void navigate({ to: "/" });
-        return;
-      }
-      if (!files.length && raw === "/settings") {
-        props.onDraft("");
-        writeFiles([]);
-        writeSkills([]);
-        settings.openSettings();
-        return;
-      }
-      if (!files.length && raw === "/model" && caps.modelPicker) {
-        props.onDraft("");
-        writeFiles([]);
-        writeSkills([]);
-        queueMicrotask(() => modelPickerRef.current?.open());
-        return;
-      }
-      if (!files.length && raw === "/plan") {
-        props.onDraft("");
-        writeFiles([]);
-        writeSkills([]);
-        props.onPlanMode?.();
+      const value = text();
+      const raw = value.trim();
+      const item =
+        !files.length && raw.startsWith("/") && !/\s/.test(raw.slice(1))
+          ? (items.find(
+              (entry) =>
+                entry.kind !== "skill" &&
+                entry.run.type !== "insert" &&
+                entry.name === raw.slice(1),
+            ) ?? null)
+          : null;
+      if (item) {
+        run(item, value, pendingSlash(value, value.length));
         return;
       }
       if (!raw && files.length === 0) return;
       if (props.variant === "hero") {
-        const text = shot(props.draft, files);
-        if (text) fireGlassHeroFx(text);
+        const shotText = shot(value, files);
+        if (shotText) fireGlassHeroFx(shotText);
       }
-      let text = props.draft;
+      let body = value;
       if (marks.length > 0 && api) {
         const next = await api.server.listSkills().catch(() => null);
         if (next) {
           setDefs(next);
           setSkillReady(true);
-          text = expandSkills(props.draft, marks, next);
+          body = expandSkills(value, marks, next);
         }
       }
       const res = await props.onSend({
-        text,
+        text: body,
         attachments: files
           .map((item) => {
             if (item.type === "inline") {
@@ -898,7 +1031,7 @@ const GlassChatComposerImpl = memo(
       if (!res.clear) return;
       writeFiles([]);
       writeSkills([]);
-      props.onDraft("");
+      draftSink.current("");
     };
 
     const pickFiles = () => {
@@ -973,29 +1106,31 @@ const GlassChatComposerImpl = memo(
         slashActive={index}
         onSlashHover={setIndex}
         onSlashPick={(item) => {
-          const hit = slashMatch(props.draft, spot());
+          const raw = text();
+          const hit = pendingSlash(raw, spot());
           if (!hit) return;
           if (runNow(item)) return;
           recordSlashUse(item.id, item.kind);
           setRecSnap(readSlashRecents());
           setClosed(null);
           if (item.kind === "skill") {
-            const next = applySkill(props.draft, hit, { id: item.id, name: item.name }, marks);
-            update(next.value, next.cursor, next.skills);
+            const next = applySkill(raw, hit, { id: item.id, name: item.name }, marks);
+            update(next.value, next.cursor, next.skills, raw);
             return;
           }
-          const next = applySlash(props.draft, hit, item.name);
-          update(next.value, next.cursor);
+          const next = applySlash(raw, hit, item.name);
+          update(next.value, next.cursor, undefined, raw);
         }}
         hits={rankedHits}
         fileActive={index}
         onFileHover={setIndex}
         onFilePick={(hit) => {
-          const file = fileMatch(props.draft, spot());
+          const raw = text();
+          const file = fileMatch(raw, spot());
           if (!file) return;
-          const next = applyFile(props.draft, file, hit);
+          const next = applyFile(raw, file, hit);
           setClosed(null);
-          update(next.value, next.cursor);
+          update(next.value, next.cursor, undefined, raw);
         }}
         filePick={filePick}
         preview={preview}
@@ -1086,16 +1221,19 @@ const GlassChatComposerImpl = memo(
                     ) : (
                       segs.map((seg: MirrorSeg, idx: number) => {
                         const on = activeSeg === idx;
-                        const cls =
+                        const cls = cn(
                           seg.kind === "slash"
-                            ? on
-                              ? "text-primary"
-                              : "text-primary/78"
-                            : seg.kind === "mention"
+                            ? "highlight-command"
+                            : seg.kind === "skill"
                               ? on
-                                ? "text-sky-400"
-                                : "text-sky-400/82"
-                              : "text-foreground";
+                                ? "highlight-skill highlight-skill--active"
+                                : "highlight-skill"
+                              : seg.kind === "mention"
+                                ? on
+                                  ? "highlight-file highlight-file--active"
+                                  : "highlight-file"
+                                : "text-foreground",
+                        );
                         return (
                           <span key={`${seg.kind}-${seg.start}-${seg.end}`} className={cls}>
                             {seg.text}
@@ -1107,6 +1245,13 @@ const GlassChatComposerImpl = memo(
                   <textarea
                     ref={area}
                     value={props.draft}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    data-gramm="false"
+                    data-gramm_editor="false"
+                    data-enable-grammarly="false"
                     onChange={(event) => {
                       const value = event.target.value;
                       writeSkills(shiftSkills(props.draft, value, marks));
@@ -1182,24 +1327,42 @@ const GlassChatComposerImpl = memo(
                         ref={modelPickerRef}
                         items={models.items}
                         status={props.modelLoading ? "loading" : models.status}
-                        selection={
-                          caps.thinkingLevels
-                            ? {
-                                model: props.model,
-                                thinkingLevel: snap?.thinkingLevel ?? models.thinkingLevel,
-                              }
-                            : { model: props.model }
-                        }
+                        selection={{
+                          model: props.model,
+                          ...(props.fastActive !== undefined ? { fastMode: props.fastActive } : {}),
+                          ...(caps.thinkingLevels
+                            ? { thinkingLevel: snap?.thinkingLevel ?? models.thinkingLevel }
+                            : {}),
+                        }}
                         disabled={props.busy}
                         variant={props.variant}
                         onSelect={(model) => {
                           props.onModel(model);
                           area.current?.focus();
                         }}
+                        {...(props.onFastMode ? { onFastMode: props.onFastMode } : {})}
                         {...(caps.thinkingLevels ? { onThinkingLevel: props.onThinkingLevel } : {})}
                       />
                     ) : null}
-                    {props.variant === "dock" && props.planActive ? (
+                    {props.sessionId && props.fastActive && props.onFastToggle ? (
+                      <button
+                        type="button"
+                        disabled={props.busy}
+                        className={cn(
+                          "font-glass inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-glass-stroke-strong pl-2 pr-1 text-body shadow-glass-card outline-none backdrop-blur-md transition-colors",
+                          "bg-glass-hover/70 hover:bg-glass-hover focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50",
+                        )}
+                        onClick={() => props.onFastToggle?.()}
+                        aria-pressed
+                        aria-label="Turn off fast mode"
+                        title="Turn off fast mode"
+                      >
+                        <IconLightning className="size-3 shrink-0 opacity-90" />
+                        <span className="max-w-[10rem] truncate">Fast</span>
+                        <IconCrossSmall className="size-3 shrink-0 opacity-80" />
+                      </button>
+                    ) : null}
+                    {props.planActive ? (
                       <button
                         type="button"
                         disabled={props.busy}
@@ -1260,6 +1423,8 @@ const GlassChatComposerImpl = memo(
     left.busy === right.busy &&
     left.harness === right.harness &&
     left.harnessDescriptor?.kind === right.harnessDescriptor?.kind &&
+    left.fastActive === right.fastActive &&
+    left.fastSupported === right.fastSupported &&
     left.planActive === right.planActive &&
     same(left.model, right.model),
 );
@@ -1272,6 +1437,7 @@ const demoModel: RuntimeModelItem = {
   provider: "openai",
   id: "gpt",
   name: "GPT",
+  supportsFastMode: false,
   supportsXhigh: false,
   reasoning: false,
 };

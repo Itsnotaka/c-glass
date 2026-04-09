@@ -19,6 +19,40 @@ function valid(text: string, skill: GlassDraftSkill) {
   return text.slice(skill.start, skill.end) === token(skill);
 }
 
+function escape(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function detect(text: string, defs: GlassSkill[]) {
+  if (defs.length === 0) return [];
+
+  const names = defs.toSorted((left, right) => right.name.length - left.name.length);
+  const byName = new Map(names.map((item) => [item.name, item]));
+  const rx = new RegExp(
+    `(^|[\\s])\\/(${names.map((item) => escape(item.name)).join("|")})(?=$|[\\s])`,
+    "gm",
+  );
+  const found: GlassDraftSkill[] = [];
+  let match: RegExpExecArray | null = null;
+
+  while ((match = rx.exec(text))) {
+    const lead = match[1] ?? "";
+    const name = match[2];
+    if (!name) continue;
+    const item = byName.get(name);
+    if (!item) continue;
+    const start = match.index + lead.length;
+    found.push({
+      id: item.id,
+      name: item.name,
+      start,
+      end: start + item.name.length + 1,
+    });
+  }
+
+  return found;
+}
+
 function edit(prev: string, next: string) {
   let start = 0;
   const limit = Math.min(prev.length, next.length);
@@ -99,7 +133,19 @@ export function applySkill(
 
 export function hydrateSkills(text: string, skills: GlassDraftSkill[], defs: GlassSkill[]) {
   const set = new Set(defs.map((item) => `${item.id}:${item.name}`));
-  return sort(skills.filter((skill) => valid(text, skill) && set.has(`${skill.id}:${skill.name}`)));
+  const kept = skills.filter((skill) => valid(text, skill) && set.has(`${skill.id}:${skill.name}`));
+  const seen = new Set(
+    kept.map((skill) => `${skill.id}:${skill.name}:${skill.start}:${skill.end}`),
+  );
+  return sort([
+    ...kept,
+    ...detect(text, defs).filter((skill) => {
+      const key = `${skill.id}:${skill.name}:${skill.start}:${skill.end}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  ]);
 }
 
 export function expandSkills(text: string, skills: GlassDraftSkill[], defs: GlassSkill[]) {

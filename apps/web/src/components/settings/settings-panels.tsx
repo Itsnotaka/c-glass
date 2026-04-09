@@ -8,6 +8,7 @@ import { useTheme } from "../../hooks/use-theme";
 import { readNativeApi } from "../../native-api";
 import {
   clearRuntimeDefaultModel,
+  writeRuntimeDefaultFastMode,
   writeRuntimeDefaultModel,
   writeRuntimeDefaultThinkingLevel,
 } from "../../lib/runtime-models";
@@ -369,11 +370,20 @@ export function AgentsSettingsPanel() {
               items={defaults.items}
               loading={defaults.loading}
               status={defaults.status}
-              selection={{ model: defaults.model, thinkingLevel: defaults.thinkingLevel }}
+              selection={{
+                model: defaults.model,
+                fastMode: defaults.fastMode,
+                thinkingLevel: defaults.thinkingLevel,
+              }}
               variant="settings"
               onSelect={(item) =>
                 void writeRuntimeDefaultModel(item).catch((error) =>
                   fail(error, "Unable to save the default model."),
+                )
+              }
+              onFastMode={(on) =>
+                void writeRuntimeDefaultFastMode(on).catch((error) =>
+                  fail(error, "Unable to save the default fast mode."),
                 )
               }
               onThinkingLevel={(level) =>

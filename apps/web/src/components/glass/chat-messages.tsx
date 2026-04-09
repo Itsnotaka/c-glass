@@ -8,6 +8,7 @@ export const GlassChatMessages = memo(function GlassChatMessages(props: {
   live: GlassSessionItem | null;
   work: GlassWorkingState | null;
   busy: boolean;
+  thinking: boolean;
   since: string | null;
   expanded: boolean;
 }) {
@@ -68,7 +69,12 @@ export const GlassChatMessages = memo(function GlassChatMessages(props: {
       <ul ref={list} className="mx-auto flex max-w-[43.875rem] flex-col gap-3 px-4 py-4 md:px-8">
         <GlassChatTranscript items={props.messages} expanded={props.expanded} wide={wide} />
         <GlassChatLive item={props.live} expanded={props.expanded} wide={wide} />
-        <GlassChatWorking work={props.work} busy={props.busy} since={props.since} />
+        <GlassChatWorking
+          work={props.work}
+          busy={props.busy}
+          thinking={props.thinking}
+          since={props.since}
+        />
       </ul>
     </ScrollArea>
   );

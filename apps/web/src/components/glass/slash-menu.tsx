@@ -245,7 +245,7 @@ function FilePane(props: {
                     className={cn(
                       "flex w-full items-center gap-[6px] rounded-sm px-1 py-[3px] text-left transition-colors motion-reduce:transition-none",
                       active
-                        ? "bg-glass-active text-foreground"
+                        ? "glass-composer-object-row--active"
                         : "text-foreground/82 hover:bg-glass-hover/40",
                     )}
                     onMouseDown={(event) => {
@@ -256,7 +256,14 @@ function FilePane(props: {
                     onMouseEnter={() => props.onFileHover(i)}
                   >
                     {/* Leading icon slot: 12×16 */}
-                    <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">
+                    <span
+                      className={cn(
+                        "inline-flex h-4 w-3 shrink-0 items-center justify-center",
+                        active
+                          ? "text-[color:var(--glass-composer-object-fg-muted)]"
+                          : "text-muted-foreground/60",
+                      )}
+                    >
                       {item.kind === "dir" ? (
                         <IconFolder1 className="size-3" />
                       ) : item.kind === "image" ? (
@@ -266,12 +273,22 @@ function FilePane(props: {
                       )}
                     </span>
                     <span className="flex min-w-0 flex-1 items-baseline gap-1">
-                      <span className="shrink-0 truncate text-foreground">
+                      <span
+                        className={cn(
+                          "shrink-0 truncate",
+                          active ? "text-current" : "text-foreground",
+                        )}
+                      >
                         {highlightMatch(item.name, props.query)}
                       </span>
                       {dir ? (
                         <span
-                          className="min-w-0 truncate text-[11px] leading-[14px] text-muted-foreground/40"
+                          className={cn(
+                            "min-w-0 truncate text-[11px] leading-[14px]",
+                            active
+                              ? "text-[color:var(--glass-composer-object-fg-muted)]"
+                              : "text-muted-foreground/40",
+                          )}
                           style={{ direction: "rtl", textAlign: "left" }}
                         >
                           {highlightPath(dir, props.query)}
@@ -279,7 +296,14 @@ function FilePane(props: {
                       ) : null}
                     </span>
                     {item.kind === "dir" ? (
-                      <IconChevronRight className="size-2.5 shrink-0 text-muted-foreground/45" />
+                      <IconChevronRight
+                        className={cn(
+                          "size-2.5 shrink-0",
+                          active
+                            ? "text-[color:var(--glass-composer-object-fg-muted)]"
+                            : "text-muted-foreground/45",
+                        )}
+                      />
                     ) : null}
                   </button>
                 );

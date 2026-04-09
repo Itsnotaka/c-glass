@@ -116,6 +116,7 @@ function mapMessage(message: OrchestrationMessage): ChatMessage {
     id: message.id,
     role: message.role,
     text: message.text,
+    ...(message.content !== undefined ? { content: message.content } : {}),
     turnId: message.turnId,
     createdAt: message.createdAt,
     streaming: message.streaming,
@@ -776,6 +777,7 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
           id: event.payload.messageId,
           role: event.payload.role,
           text: event.payload.text,
+          ...(event.payload.content !== undefined ? { content: event.payload.content } : {}),
           ...(event.payload.attachments !== undefined
             ? { attachments: event.payload.attachments }
             : {}),
@@ -796,6 +798,7 @@ export function applyOrchestrationEvent(state: AppState, event: OrchestrationEve
                       : message.text.length > 0
                         ? message.text
                         : entry.text,
+                    ...(message.content !== undefined ? { content: message.content } : {}),
                     streaming: message.streaming,
                     ...(message.turnId !== undefined ? { turnId: message.turnId } : {}),
                     ...(message.streaming

@@ -635,6 +635,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
               return event.payload.text;
             },
           });
+          const nextContent = event.payload.content ?? previousMessage?.content;
           const nextAttachments =
             event.payload.attachments !== undefined
               ? yield* materializeAttachmentsForProjection({
@@ -647,6 +648,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             turnId: event.payload.turnId,
             role: event.payload.role,
             text: nextText,
+            ...(nextContent !== undefined ? { content: nextContent } : {}),
             ...(nextAttachments !== undefined ? { attachments: [...nextAttachments] } : {}),
             isStreaming: event.payload.streaming,
             createdAt: previousMessage?.createdAt ?? event.payload.createdAt,

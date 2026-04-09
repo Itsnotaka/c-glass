@@ -16,7 +16,14 @@ export type GlassSlashItem = {
   section: "recent" | "commands" | "skills" | "subagents" | "app";
   keyword?: string[];
   run: {
-    type: "insert" | "navigate" | "open-settings" | "new-chat" | "open-model-picker" | "plan-mode";
+    type:
+      | "insert"
+      | "navigate"
+      | "open-settings"
+      | "new-chat"
+      | "open-model-picker"
+      | "plan-mode"
+      | "fast-mode";
     value?: string;
   };
 };
@@ -50,6 +57,7 @@ function runFor(cmd: Cmd): GlassSlashItem["run"] {
   if (cmd.source === "app" && cmd.name === "settings") return { type: "open-settings" };
   if (cmd.source === "app" && cmd.name === "model") return { type: "open-model-picker" };
   if (cmd.source === "app" && cmd.name === "plan") return { type: "plan-mode" };
+  if (cmd.source === "app" && cmd.name === "fast") return { type: "fast-mode" };
   return { type: "insert", value: cmd.name };
 }
 

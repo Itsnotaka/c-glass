@@ -101,4 +101,28 @@ describe("skill-tokens", () => {
       ],
     });
   });
+
+  it("hydrates a manually typed exact skill token", () => {
+    expect(
+      hydrateSkills(
+        "/grill-me",
+        [],
+        [
+          {
+            id: "/Users/workgyver/.agents/skills/grill-me",
+            name: "grill-me",
+            description: "Interview the user about a plan",
+            body: "Use the grill-me skill.",
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        id: "/Users/workgyver/.agents/skills/grill-me",
+        name: "grill-me",
+        start: 0,
+        end: 9,
+      },
+    ]);
+  });
 });

@@ -30,6 +30,7 @@ const WORKSPACE_KEY = "glass:workspace-cwd";
 export interface RuntimeModelItem extends HarnessModelRef {
   key: string;
   name: string;
+  supportsFastMode: boolean;
   supportsXhigh: boolean;
 }
 
@@ -38,6 +39,8 @@ export interface RuntimeDefaultsRead {
   selection: ModelSelection;
   provider: string | null;
   model: string | null;
+  fastMode: boolean;
+  fastSupported: boolean;
   thinkingLevel: ThinkingLevel;
   stored: boolean;
   items: RuntimeModelItem[];
@@ -98,6 +101,7 @@ export function toModelItem(
     reasoning:
       Boolean(item.capabilities?.supportsThinkingToggle) ||
       Boolean(item.capabilities?.reasoningEffortLevels.length),
+    supportsFastMode: Boolean(item.capabilities?.supportsFastMode),
     supportsXhigh: supportsXhigh(provider, item.capabilities),
   };
 }
@@ -212,47 +216,117 @@ export function selectionToThinking(selection: ModelSelection | null | undefined
   }
 }
 
+export function selectionToFastMode(selection: ModelSelection | null | undefined) {
+  return selection?.options?.fastMode === true;
+}
+
+export function selectionSupportsFastMode(
+  providers: readonly ServerProvider[],
+  selection: ModelSelection | null | undefined,
+) {
+  if (!selection) return false;
+  return getProviderModelCapabilities(
+    getProviderModels(providers, selection.provider),
+    selection.model,
+    selection.provider,
+  ).supportsFastMode;
+}
+
 export function applyThinking(selection: ModelSelection, level: ThinkingLevel): ModelSelection {
   if (selection.provider === "codex") {
+    const options = {
+      ...(level === "off"
+        ? {}
+        : {
+            reasoningEffort:
+              level === "minimal" || level === "low"
+                ? "low"
+                : level === "medium"
+                  ? "medium"
+                  : level === "xhigh"
+                    ? "xhigh"
+                    : "high",
+          }),
+      ...(selection.options?.fastMode !== undefined
+        ? { fastMode: selection.options.fastMode }
+        : {}),
+    };
     if (level === "off") {
-      return { provider: "codex", model: selection.model };
+      return {
+        provider: "codex",
+        model: selection.model,
+        ...(Object.keys(options).length > 0 ? { options } : {}),
+      };
     }
 
-    const reasoningEffort =
-      level === "minimal" || level === "low"
-        ? "low"
-        : level === "medium"
-          ? "medium"
-          : level === "xhigh"
-            ? "xhigh"
-            : "high";
     return {
       provider: "codex",
       model: selection.model,
-      options: { reasoningEffort },
+      ...(Object.keys(options).length > 0 ? { options } : {}),
     };
   }
 
+  const options = {
+    thinking: level !== "off",
+    ...(level === "off"
+      ? {}
+      : {
+          effort:
+            level === "minimal" || level === "low"
+              ? "low"
+              : level === "medium"
+                ? "medium"
+                : level === "xhigh"
+                  ? "max"
+                  : "high",
+        }),
+    ...(selection.options?.fastMode !== undefined ? { fastMode: selection.options.fastMode } : {}),
+    ...(selection.options?.contextWindow !== undefined
+      ? { contextWindow: selection.options.contextWindow }
+      : {}),
+  };
   if (level === "off") {
     return {
       provider: "claudeAgent",
       model: selection.model,
-      options: { thinking: false },
+      ...(Object.keys(options).length > 0 ? { options } : {}),
     };
   }
 
-  const effort =
-    level === "minimal" || level === "low"
-      ? "low"
-      : level === "medium"
-        ? "medium"
-        : level === "xhigh"
-          ? "max"
-          : "high";
   return {
     provider: "claudeAgent",
     model: selection.model,
-    options: { thinking: true, effort },
+    ...(Object.keys(options).length > 0 ? { options } : {}),
+  };
+}
+
+export function applyFastMode(selection: ModelSelection, on: boolean): ModelSelection {
+  if (selection.provider === "codex") {
+    const options = {
+      ...(selection.options?.reasoningEffort
+        ? { reasoningEffort: selection.options.reasoningEffort }
+        : {}),
+      ...(on || selection.options?.fastMode !== undefined ? { fastMode: on } : {}),
+    };
+    return {
+      provider: "codex",
+      model: selection.model,
+      ...(Object.keys(options).length > 0 ? { options } : {}),
+    };
+  }
+
+  const options = {
+    ...(selection.options?.thinking !== undefined ? { thinking: selection.options.thinking } : {}),
+    ...(selection.options?.effort ? { effort: selection.options.effort } : {}),
+    ...(on || selection.options?.fastMode !== undefined ? { fastMode: on } : {}),
+    ...(selection.options?.contextWindow !== undefined
+      ? { contextWindow: selection.options.contextWindow }
+      : {}),
+  };
+  return {
+    provider: "claudeAgent",
+    model: selection.model,
+    ...(Object.keys(options).length > 0 ? { options } : {}),
   };
 }
 
@@ -271,6 +345,7 @@ export function listRuntimeModelsFromProviders(
       id: cur.id,
       name: cur.name ?? cur.id,
       reasoning: Boolean(cur.reasoning),
+      supportsFastMode: false,
       supportsXhigh: false,
     });
   }
@@ -308,6 +383,8 @@ export function readRuntimeDefaults(
     selection,
     provider: modelRef?.provider ?? null,
     model: modelRef?.id ?? null,
+    fastMode: selectionToFastMode(selection),
+    fastSupported: selectionSupportsFastMode(providers, selection),
     thinkingLevel: selectionToThinking(selection),
     stored: project?.defaultModelSelection !== null,
     items: listRuntimeModelsFromProviders(providers, cur),
@@ -359,5 +436,19 @@ export async function writeRuntimeDefaultThinkingLevel(level: ThinkingLevel) {
     commandId: commandId(),
     projectId: project.id,
     defaultModelSelection: resolveRuntimeSelection(providers, applyThinking(selection, level)),
+  });
+}
+
+export async function writeRuntimeDefaultFastMode(on: boolean) {
+  const api = readNativeApi();
+  const project = resolveActiveProject(useStore.getState().projects);
+  if (!api || !project) return;
+  const providers = getServerConfig()?.providers ?? [];
+  const selection = resolveRuntimeSelection(providers, project.defaultModelSelection);
+  await api.orchestration.dispatchCommand({
+    type: "project.meta.update",
+    commandId: commandId(),
+    projectId: project.id,
+    defaultModelSelection: resolveRuntimeSelection(providers, applyFastMode(selection, on)),
   });
 }

@@ -14,6 +14,7 @@ import { GlassChatMessages } from "./chat-messages";
 import { GlassProviderNoticeBanner } from "./provider-notice-banner";
 import { GlassShell } from "./shell";
 import { useRuntimeSession } from "./use-runtime-session";
+import { clearSlash, pendingSlash } from "./composer-search";
 import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {
@@ -78,16 +79,48 @@ function HeroSession(props: { sessionId: string }) {
   const composerRef = useRef<GlassChatComposerHandle>(null);
   const prevSession = useRef(props.sessionId);
 
+  const clearPlan = useCallback((value: string) => {
+    const hit = pendingSlash(value, value.length);
+    if (!hit) return value;
+    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    return clearSlash(value, hit).value;
+  }, []);
+
+  const planOn = useCallback(() => {
+    setDraft((cur) => clearPlan(cur));
+    session.setInteractionMode("plan");
+  }, [clearPlan, session]);
+
   const planMode = useCallback(() => {
     if (!thread) return;
-    session.setInteractionMode(thread.interactionMode === "plan" ? "default" : "plan");
-  }, [session, thread]);
+    if (thread.interactionMode === "plan") {
+      session.setInteractionMode("default");
+      return;
+    }
+    planOn();
+  }, [planOn, session, thread]);
+
+  const togglePlan = useCallback(() => {
+    if (composerRef.current) {
+      composerRef.current.togglePlan();
+      return;
+    }
+    planMode();
+  }, [planMode]);
+
+  const activatePlan = useCallback(() => {
+    if (composerRef.current) {
+      composerRef.current.activatePlan();
+      return;
+    }
+    planOn();
+  }, [planOn]);
 
   useHotkey(
     "Shift+Tab",
     (event) => {
       event.preventDefault();
-      planMode();
+      togglePlan();
     },
     { preventDefault: true },
   );
@@ -108,7 +141,7 @@ function HeroSession(props: { sessionId: string }) {
       scene={props.sessionId}
       footer={
         <GlassHeroComposerFooter
-          onPlanMode={planMode}
+          onPlanMode={activatePlan}
           planActive={thread?.interactionMode === "plan"}
         />
       }
@@ -125,8 +158,14 @@ function HeroSession(props: { sessionId: string }) {
           variant="hero"
           onAbort={session.abort}
           onModel={session.setModel}
+          fastActive={session.fastActive}
+          fastSupported={session.fastSupported}
+          onFastMode={session.setFastMode}
+          onFastToggle={session.toggleFastMode}
           onThinkingLevel={session.setThinkingLevel}
           onPlanMode={() => session.setInteractionMode("plan")}
+          planActive={thread?.interactionMode === "plan"}
+          onPlanToggle={planMode}
           onSend={session.send}
           harness={kind}
           harnessDescriptor={harnessDescriptor}
@@ -150,17 +189,42 @@ function DockSession(props: { sessionId: string }) {
   const kind = sum?.harness ?? snap?.harness ?? "codex";
   const harnessDescriptor = useHarnessDescriptor(kind);
   const session = useRuntimeSession(props.sessionId, kind);
+  const composerRef = useRef<GlassChatComposerHandle>(null);
+
+  const clearPlan = useCallback((value: string) => {
+    const hit = pendingSlash(value, value.length);
+    if (!hit) return value;
+    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    return clearSlash(value, hit).value;
+  }, []);
+
+  const planOn = useCallback(() => {
+    setDraft((cur) => clearPlan(cur));
+    session.setInteractionMode("plan");
+  }, [clearPlan, session]);
 
   const planMode = useCallback(() => {
     if (!thread) return;
-    session.setInteractionMode(thread.interactionMode === "plan" ? "default" : "plan");
-  }, [session, thread]);
+    if (thread.interactionMode === "plan") {
+      session.setInteractionMode("default");
+      return;
+    }
+    planOn();
+  }, [planOn, session, thread]);
+
+  const togglePlan = useCallback(() => {
+    if (composerRef.current) {
+      composerRef.current.togglePlan();
+      return;
+    }
+    planMode();
+  }, [planMode]);
 
   useHotkey(
     "Shift+Tab",
     (event) => {
       event.preventDefault();
-      planMode();
+      togglePlan();
     },
     { preventDefault: true },
   );
@@ -186,11 +250,13 @@ function DockSession(props: { sessionId: string }) {
         live={session.live}
         work={session.work}
         busy={session.busy}
+        thinking={session.thinking}
         since={session.since}
         expanded={expanded}
       />
       <div className="relative">
         <GlassChatComposer
+          ref={composerRef}
           sessionId={props.sessionId}
           draft={draft}
           onDraft={setDraft}
@@ -200,6 +266,10 @@ function DockSession(props: { sessionId: string }) {
           variant="dock"
           onAbort={session.abort}
           onModel={session.setModel}
+          fastActive={session.fastActive}
+          fastSupported={session.fastSupported}
+          onFastMode={session.setFastMode}
+          onFastToggle={session.toggleFastMode}
           onThinkingLevel={session.setThinkingLevel}
           onPlanMode={() => session.setInteractionMode("plan")}
           planActive={thread?.interactionMode === "plan"}

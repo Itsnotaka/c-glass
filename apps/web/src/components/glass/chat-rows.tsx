@@ -105,6 +105,10 @@ function draw(row: ChatRow, expanded: boolean) {
     return <AssistantBlock key={row.id} text={row.text} />;
   }
 
+  if (row.kind === "thinking") {
+    return <ThinkingBlock key={row.id} row={row} expanded={expanded} />;
+  }
+
   if (row.kind === "assistantError") {
     return <AssistantErrorBlock key={row.id} text={row.text} expanded={expanded} />;
   }
@@ -240,6 +244,40 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   );
 });
 
+function thinkingTitle(row: Extract<ChatRow, { kind: "thinking" }>) {
+  const head = row.summary?.trim() || row.text.trim();
+  if (!head) {
+    return "Thinking";
+  }
+  const line = head.split(/\r?\n/u, 1)[0] ?? "Thinking";
+  return line.length <= 56 ? line : `${line.slice(0, 53)}…`;
+}
+
+const ThinkingBlock = memo(function ThinkingBlock(props: {
+  row: Extract<ChatRow, { kind: "thinking" }>;
+  expanded: boolean;
+}) {
+  const title = useMemo(() => thinkingTitle(props.row), [props.row]);
+  const text = props.row.text.trim();
+
+  return (
+    <RuntimeRailCard
+      icon={<IconBrain className="size-3 shrink-0 text-foreground/48" />}
+      title={title}
+      subtitle={<span className="text-body/[1.375] text-foreground/48">Completed</span>}
+      expanded={props.expanded && text.length > 0}
+    >
+      {text ? (
+        <div className="min-w-0 pt-1.5 pb-2">
+          <pre className="tool-terminal max-h-[min(40vh,20rem)] overflow-y-auto whitespace-pre-wrap break-words font-glass-mono text-detail/[1.45] text-foreground/80">
+            {text}
+          </pre>
+        </div>
+      ) : null}
+    </RuntimeRailCard>
+  );
+});
+
 function workSpan(ms: number) {
   if (!Number.isFinite(ms) || ms < 1_000) return "0s";
   const sec = Math.floor(ms / 1_000);
@@ -305,6 +343,7 @@ function workBody(work: GlassWorkingState | null) {
 const GlassChatWorking = memo(function GlassChatWorking(props: {
   work: GlassWorkingState | null;
   busy: boolean;
+  thinking: boolean;
   since: string | null;
 }) {
   const [now, setNow] = useState(() => Date.now());
@@ -319,6 +358,10 @@ const GlassChatWorking = memo(function GlassChatWorking(props: {
   }, [props.busy]);
 
   if (!props.busy && !props.work) return null;
+
+  if (props.thinking && !props.work?.tool && !props.work?.task) {
+    return null;
+  }
 
   if (!props.work) {
     return (
@@ -1272,6 +1315,7 @@ export function GlassChatRowsIconStripDemo() {
         <GlassChatWorking
           work={null}
           busy={true}
+          thinking={false}
           since={new Date(Date.now() - 15_000).toISOString()}
         />
       </ul>

@@ -80,6 +80,7 @@ function coalesceOrchestrationUiEvents(events: readonly any[]) {
         payload: {
           ...event.payload,
           attachments: event.payload.attachments ?? prev.payload.attachments,
+          content: event.payload.content ?? prev.payload.content,
           createdAt: prev.payload.createdAt,
           text:
             !event.payload.streaming && event.payload.text.length > 0

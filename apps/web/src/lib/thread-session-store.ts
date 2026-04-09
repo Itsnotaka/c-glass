@@ -18,6 +18,7 @@ import { getServerConfig } from "../rpc/server-state";
 import { shouldShowActivity } from "../session-logic";
 import { useStore } from "../store";
 import type { Project, Thread } from "../types";
+import { assistantBlocks } from "./assistant-content";
 
 export type ThreadBootStatus = "loading" | "ready" | "error";
 
@@ -126,7 +127,7 @@ function toMsg(item: Thread["messages"][number]): GlassSessionItem {
       id: item.id,
       message: {
         role: "assistant",
-        content: [{ type: "text", text: item.text }],
+        content: assistantBlocks(item),
       },
     };
   }

@@ -33,6 +33,12 @@ export type ChatRow =
     }
   | {
       id: string;
+      kind: "thinking";
+      text: string;
+      summary: string | null;
+    }
+  | {
+      id: string;
       kind: "assistantError";
       text: string;
     }
@@ -296,8 +302,23 @@ export function buildChatRows(items: GlassSessionItem[]) {
 
       for (const part of items) {
         if (part.type === "thinking") {
+          flush();
           const raw = typeof part.thinking === "string" ? part.thinking : "";
-          if (clean(raw)) thought = true;
+          const text = raw.trim();
+          const summary =
+            typeof part.summary === "string" && clean(part.summary).length > 0
+              ? clean(part.summary)
+              : null;
+          if (!text && !summary) {
+            continue;
+          }
+          thought = true;
+          rows.push({
+            id: `${entry.id}:t:${rows.length}`,
+            kind: "thinking",
+            text,
+            summary,
+          });
           continue;
         }
         if (part.type === "text") {

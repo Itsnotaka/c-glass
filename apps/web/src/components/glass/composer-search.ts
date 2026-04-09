@@ -110,6 +110,20 @@ export function slashMatch(value: string, cursor: number): SlashMatch | null {
   };
 }
 
+export function pendingSlash(value: string, cursor: number): SlashMatch | null {
+  const hit = slashMatch(value, cursor);
+  if (hit) return hit;
+  const text = value.trim();
+  if (!text.startsWith("/") || /\s/.test(text)) return null;
+  const start = value.indexOf(text);
+  if (start < 0) return null;
+  return {
+    query: text.slice(1),
+    start,
+    end: start + text.length,
+  };
+}
+
 export function rank<T>(items: T[], query: string, pick: (item: T) => string) {
   const raw = query.trim().toLowerCase();
   if (!raw) return items;
@@ -145,6 +159,13 @@ export function applySlash(value: string, hit: SlashMatch, name: string) {
   return {
     value: next,
     cursor: hit.start + name.length + 2,
+  };
+}
+
+export function clearSlash(value: string, hit: SlashMatch) {
+  return {
+    value: `${value.slice(0, hit.start)}${value.slice(hit.end)}`,
+    cursor: hit.start,
   };
 }
 
@@ -188,8 +209,14 @@ export function rankFileHits(hits: ShellFileHit[], query: string): ShellFileHit[
 }
 
 export type MirrorSeg = {
-  kind: "plain" | "slash" | "mention";
+  kind: "plain" | "slash" | "skill" | "mention";
   text: string;
+  start: number;
+  end: number;
+};
+
+export type MirrorMark = {
+  kind: Exclude<MirrorSeg["kind"], "plain" | "mention">;
   start: number;
   end: number;
 };
@@ -203,6 +230,12 @@ type MirrorRange = {
 function pushSeg(out: MirrorSeg[], kind: MirrorSeg["kind"], text: string, at: number) {
   if (!text) return;
   out.push({ kind, text, start: at, end: at + text.length });
+}
+
+function rangeOrder(kind: MirrorRange["kind"]) {
+  if (kind === "skill") return 0;
+  if (kind === "mention") return 1;
+  return 2;
 }
 
 function mentionRanges(line: string, base: number): MirrorRange[] {
@@ -233,7 +266,7 @@ function mentionRanges(line: string, base: number): MirrorRange[] {
 
 export function mirrorSegmentsDraft(
   value: string,
-  slash: ReadonlyArray<{ start: number; end: number }> = [],
+  ranges: ReadonlyArray<MirrorMark> = [],
 ): MirrorSeg[] {
   const lines = value.split("\n");
   let offset = 0;
@@ -246,15 +279,18 @@ export function mirrorSegmentsDraft(
   }
 
   marks.push(
-    ...slash
+    ...ranges
       .filter((item) => item.start >= 0 && item.end > item.start && item.end <= value.length)
-      .map((item) => ({ kind: "slash" as const, start: item.start, end: item.end })),
+      .map((item) => ({ kind: item.kind, start: item.start, end: item.end })),
   );
 
   const out: MirrorSeg[] = [];
   let at = 0;
   for (const item of marks.toSorted(
-    (left, right) => left.start - right.start || left.end - right.end,
+    (left, right) =>
+      left.start - right.start ||
+      rangeOrder(left.kind) - rangeOrder(right.kind) ||
+      right.end - left.end,
   )) {
     if (item.start < at) continue;
     pushSeg(out, "plain", value.slice(at, item.start), at);
@@ -271,15 +307,17 @@ export function mirrorActiveSeg(
   slash: SlashMatch | null,
   at: FileMatch | null,
 ): number | null {
-  if (slash) {
-    const idx = segs.findIndex(
-      (s) => s.kind === "slash" && slash.start >= s.start && slash.end <= s.end,
-    );
-    return idx >= 0 ? idx : null;
-  }
   if (at) {
     const idx = segs.findIndex(
       (s) => s.kind === "mention" && at.start >= s.start && at.end <= s.end,
+    );
+    return idx >= 0 ? idx : null;
+  }
+  const skill = segs.findIndex((s) => s.kind === "skill" && cursor >= s.start && cursor <= s.end);
+  if (skill >= 0) return skill;
+  if (slash) {
+    const idx = segs.findIndex(
+      (s) => s.kind === "slash" && slash.start >= s.start && slash.end <= s.end,
     );
     return idx >= 0 ? idx : null;
   }

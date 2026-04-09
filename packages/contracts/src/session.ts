@@ -10,6 +10,7 @@ export interface GlassTextBlock {
 export interface GlassThinkingBlock {
   type: "thinking";
   thinking: string;
+  summary?: string;
 }
 
 export interface GlassImageBlock {

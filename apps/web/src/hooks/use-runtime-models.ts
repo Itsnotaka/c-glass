@@ -14,6 +14,8 @@ export type ThreadBootStatus = "loading" | "ready" | "error";
 
 interface RuntimeModelState {
   items: RuntimeModelItem[];
+  fastMode: boolean;
+  fastSupported: boolean;
   loading: boolean;
   status: ThreadBootStatus;
   thinkingLevel: ThinkingLevel;
@@ -35,6 +37,8 @@ export function useRuntimeModels(cur?: HarnessModelRef | null) {
     const defs = readRuntimeDefaults(projects, providers, undefined, cur);
     return {
       items: listRuntimeModelsFromProviders(providers, cur),
+      fastMode: defs.fastMode,
+      fastSupported: defs.fastSupported,
       loading: status === "loading",
       status,
       thinkingLevel: selectionToThinking(defs.selection),
@@ -52,6 +56,8 @@ export function useRuntimeDefaults() {
     const defs = readRuntimeDefaults(projects, providers);
     return {
       items: defs.items,
+      fastMode: defs.fastMode,
+      fastSupported: defs.fastSupported,
       selection: defs.selection,
       model: defs.modelRef,
       thinkingLevel: defs.thinkingLevel,

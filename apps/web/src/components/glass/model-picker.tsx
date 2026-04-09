@@ -52,6 +52,7 @@ function clamp(level: ThinkingLevel, xhigh: boolean) {
 
 export type GlassModelPickerSelection = {
   model: HarnessModelRef | null;
+  fastMode?: boolean;
   thinkingLevel?: ThinkingLevel;
 };
 
@@ -73,12 +74,14 @@ export const GlassModelPicker = forwardRef<
     status?: "loading" | "ready" | "error";
     variant?: "hero" | "dock" | "settings";
     onSelect: (item: RuntimeModelItem) => void;
+    onFastMode?: (on: boolean) => void;
     onThinkingLevel?: (level: ThinkingLevel) => void;
   }
 >(function GlassModelPicker(props, ref) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const list = useMemo(() => filterRuntimeModels(props.items, query), [props.items, query]);
   const cur = useMemo(
     () =>
@@ -108,11 +111,13 @@ export const GlassModelPicker = forwardRef<
   }, [open]);
 
   const thinkingValue = clamp(props.selection.thinkingLevel ?? "off", xhigh);
+  const fastValue = props.selection.fastMode ? "on" : "off";
   const status = props.status ?? (props.loading ? "loading" : "ready");
   const busy = status === "loading";
   const failed = status === "error";
   const idle = !props.disabled && !busy && !failed && props.items.length > 0;
   const locked = (props.disabled ?? false) || busy || failed;
+  const showFast = Boolean(props.onFastMode && cur?.supportsFastMode);
   const showThinking = Boolean(props.onThinkingLevel && cur?.reasoning);
 
   useImperativeHandle(
@@ -120,10 +125,20 @@ export const GlassModelPicker = forwardRef<
     () => ({
       open: () => {
         if (locked || props.items.length === 0) return;
-        setOpen(true);
+        if (open) {
+          inputRef.current?.focus();
+          return;
+        }
+        const node = triggerRef.current;
+        if (!node) {
+          setOpen(true);
+          return;
+        }
+        node.focus();
+        node.click();
       },
     }),
-    [locked, props.items.length],
+    [locked, open, props.items.length],
   );
 
   const triggerLabel = busy
@@ -152,9 +167,10 @@ export const GlassModelPicker = forwardRef<
       }}
     >
       <Menu.Trigger
+        ref={triggerRef}
         type="button"
         data-size="sm"
-        aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}`}
+        aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}${showFast ? `, fast mode ${fastValue}` : ""}`}
         disabled={!idle}
         className={cn(
           "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body/1 text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
@@ -190,9 +206,11 @@ export const GlassModelPicker = forwardRef<
                 />
               </span>
             </div>
-            {settings && props.onThinkingLevel ? (
+            {settings && (props.onThinkingLevel || showFast) ? (
               <span className="w-full truncate text-left text-caption text-muted-foreground/80">
-                Thinking: {thinkingDetailLabel(thinkingValue)}
+                {props.onThinkingLevel ? `Thinking: ${thinkingDetailLabel(thinkingValue)}` : null}
+                {props.onThinkingLevel && showFast ? " • " : null}
+                {showFast ? `Fast: ${fastValue === "on" ? "On" : "Off"}` : null}
               </span>
             ) : null}
           </>
@@ -285,62 +303,131 @@ export const GlassModelPicker = forwardRef<
                 })}
               </div>
             ) : null}
-            {showThinking ? (
+            {showThinking || showFast ? (
               <>
                 <Menu.Separator className="mx-0 my-0 h-px shrink-0 bg-glass-stroke/50" />
-                <Menu.SubmenuRoot>
-                  <Menu.SubmenuTrigger
-                    disabled={locked}
-                    className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
-                    label="Thinking"
-                  >
-                    <span className="min-w-0 flex-1 text-left">Thinking</span>
-                    <span className="shrink-0 text-muted-foreground/70">
-                      {thinkingDetailLabel(thinkingValue)}
-                    </span>
-                    <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" />
-                  </Menu.SubmenuTrigger>
-                  <Menu.Portal>
-                    <Menu.Positioner
-                      className="z-50 outline-none ring-0"
-                      side="right"
-                      align="end"
-                      sideOffset={2}
+                {showThinking ? (
+                  <Menu.SubmenuRoot>
+                    <Menu.SubmenuTrigger
+                      disabled={locked}
+                      className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
+                      label="Thinking"
                     >
-                      <Menu.Popup
-                        className={cn(
-                          "w-[min(14rem,var(--available-width))] min-w-[10rem] max-w-[14rem] overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble py-1 text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-md focus:outline-none focus-visible:outline-none",
-                        )}
+                      <span className="min-w-0 flex-1 text-left">Thinking</span>
+                      <span className="shrink-0 text-muted-foreground/70">
+                        {thinkingDetailLabel(thinkingValue)}
+                      </span>
+                      <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" />
+                    </Menu.SubmenuTrigger>
+                    <Menu.Portal>
+                      <Menu.Positioner
+                        className="z-50 outline-none ring-0"
+                        side="right"
+                        align="end"
+                        sideOffset={2}
                       >
-                        <Menu.Group>
-                          <Menu.GroupLabel className="px-4 pb-1 pt-2 text-detail text-muted-foreground/70">
-                            Reasoning
-                          </Menu.GroupLabel>
-                          <Menu.RadioGroup
-                            value={thinkingValue}
-                            onValueChange={(v) => {
-                              props.onThinkingLevel?.(v as ThinkingLevel);
-                            }}
+                        <Menu.Popup
+                          className={cn(
+                            "w-[min(14rem,var(--available-width))] min-w-[10rem] max-w-[14rem] overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble py-1 text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-md focus:outline-none focus-visible:outline-none",
+                          )}
+                        >
+                          <Menu.Group>
+                            <Menu.GroupLabel className="px-4 pb-1 pt-2 text-detail text-muted-foreground/70">
+                              Reasoning
+                            </Menu.GroupLabel>
+                            <Menu.RadioGroup
+                              value={thinkingValue}
+                              onValueChange={(v) => {
+                                props.onThinkingLevel?.(v as ThinkingLevel);
+                              }}
+                            >
+                              {thinkingItems.map((opt) => (
+                                <Menu.RadioItem
+                                  key={opt.value}
+                                  value={opt.value}
+                                  closeOnClick={false}
+                                  className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                                >
+                                  <span className="min-w-0 flex-1">{opt.label}</span>
+                                  <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">
+                                    <IconCheckmark1Small className="size-3.5 text-muted-foreground/80" />
+                                  </Menu.RadioItemIndicator>
+                                </Menu.RadioItem>
+                              ))}
+                            </Menu.RadioGroup>
+                          </Menu.Group>
+                        </Menu.Popup>
+                      </Menu.Positioner>
+                    </Menu.Portal>
+                  </Menu.SubmenuRoot>
+                ) : null}
+                {showFast ? (
+                  <>
+                    {showThinking ? (
+                      <Menu.Separator className="mx-0 my-0 h-px shrink-0 bg-glass-stroke/50" />
+                    ) : null}
+                    <Menu.SubmenuRoot>
+                      <Menu.SubmenuTrigger
+                        disabled={locked}
+                        className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-40 focus-visible:outline-none focus-visible:ring-0"
+                        label="Fast Mode"
+                      >
+                        <span className="min-w-0 flex-1 text-left">Fast Mode</span>
+                        <span className="shrink-0 text-muted-foreground/70">
+                          {fastValue === "on" ? "On" : "Off"}
+                        </span>
+                        <IconChevronRight className="size-3.5 shrink-0 text-muted-foreground/60" />
+                      </Menu.SubmenuTrigger>
+                      <Menu.Portal>
+                        <Menu.Positioner
+                          className="z-50 outline-none ring-0"
+                          side="right"
+                          align="end"
+                          sideOffset={2}
+                        >
+                          <Menu.Popup
+                            className={cn(
+                              "w-[min(14rem,var(--available-width))] min-w-[10rem] max-w-[14rem] overflow-hidden rounded-glass-card border border-glass-stroke bg-glass-bubble py-1 text-foreground shadow-glass-popup outline-none ring-0 backdrop-blur-md focus:outline-none focus-visible:outline-none",
+                            )}
                           >
-                            {thinkingItems.map((opt) => (
-                              <Menu.RadioItem
-                                key={opt.value}
-                                value={opt.value}
-                                closeOnClick={false}
-                                className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                            <Menu.Group>
+                              <Menu.GroupLabel className="px-4 pb-1 pt-2 text-detail text-muted-foreground/70">
+                                Service Tier
+                              </Menu.GroupLabel>
+                              <Menu.RadioGroup
+                                value={fastValue}
+                                onValueChange={(v) => {
+                                  props.onFastMode?.(v === "on");
+                                }}
                               >
-                                <span className="min-w-0 flex-1">{opt.label}</span>
-                                <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">
-                                  <IconCheckmark1Small className="size-3.5 text-muted-foreground/80" />
-                                </Menu.RadioItemIndicator>
-                              </Menu.RadioItem>
-                            ))}
-                          </Menu.RadioGroup>
-                        </Menu.Group>
-                      </Menu.Popup>
-                    </Menu.Positioner>
-                  </Menu.Portal>
-                </Menu.SubmenuRoot>
+                                <Menu.RadioItem
+                                  value="off"
+                                  closeOnClick={false}
+                                  className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                                >
+                                  <span className="min-w-0 flex-1">Off</span>
+                                  <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">
+                                    <IconCheckmark1Small className="size-3.5 text-muted-foreground/80" />
+                                  </Menu.RadioItemIndicator>
+                                </Menu.RadioItem>
+                                <Menu.RadioItem
+                                  value="on"
+                                  closeOnClick={false}
+                                  className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-4 py-1 text-body outline-none ring-0 hover:bg-glass-hover data-[highlighted]:bg-glass-hover focus-visible:outline-none focus-visible:ring-0"
+                                >
+                                  <span className="min-w-0 flex-1">On</span>
+                                  <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">
+                                    <IconCheckmark1Small className="size-3.5 text-muted-foreground/80" />
+                                  </Menu.RadioItemIndicator>
+                                </Menu.RadioItem>
+                              </Menu.RadioGroup>
+                            </Menu.Group>
+                          </Menu.Popup>
+                        </Menu.Positioner>
+                      </Menu.Portal>
+                    </Menu.SubmenuRoot>
+                  </>
+                ) : null}
               </>
             ) : null}
           </Menu.Popup>

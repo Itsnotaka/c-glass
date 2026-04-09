@@ -14,11 +14,11 @@ function assistant(id: string, content: Array<Record<string, unknown>>): GlassSe
 }
 
 describe("buildChatRows", () => {
-  it("hides assistant thinking blocks while preserving visible text", () => {
+  it("preserves assistant thinking blocks alongside visible text", () => {
     const rows = buildChatRows([
       assistant("assistant-1", [
         { type: "text", text: "Visible " },
-        { type: "thinking", thinking: "hidden" },
+        { type: "thinking", thinking: "hidden", summary: "Reasoning" },
         { type: "text", text: "reply" },
       ]),
       assistant("assistant-2", [{ type: "thinking", thinking: "internal only" }]),
@@ -28,7 +28,24 @@ describe("buildChatRows", () => {
       {
         id: "assistant-1:a:0",
         kind: "assistant",
-        text: "Visible reply",
+        text: "Visible",
+      },
+      {
+        id: "assistant-1:t:1",
+        kind: "thinking",
+        text: "hidden",
+        summary: "Reasoning",
+      },
+      {
+        id: "assistant-1:a:2",
+        kind: "assistant",
+        text: "reply",
+      },
+      {
+        id: "assistant-2:t:3",
+        kind: "thinking",
+        text: "internal only",
+        summary: null,
       },
     ]);
   });

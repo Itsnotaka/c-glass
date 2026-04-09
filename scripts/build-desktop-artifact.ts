@@ -455,14 +455,15 @@ function resolveDesktopRuntimeDependencies(
     return {};
   }
 
-  const runtimeDependencies: Record<string, string> = {};
-  for (const [name, spec] of Object.entries(dependencies)) {
-    if (name === "electron" || name === "electron-updater") continue;
-    if (typeof spec !== "string") {
-      throw new Error(`Expected string dependency spec for '${name}'`);
-    }
-    runtimeDependencies[name] = spec;
-  }
+  const runtimeDependencies = Object.fromEntries(
+    Object.entries(dependencies).filter(([name, spec]) => {
+      if (name === "electron") return false;
+      if (typeof spec !== "string") {
+        throw new Error(`Expected string dependency spec for '${name}'`);
+      }
+      return true;
+    }),
+  ) as Record<string, string>;
 
   return resolveCatalogDependencies(runtimeDependencies, catalog, "apps/desktop");
 }

@@ -195,10 +195,33 @@ export type OrchestrationProject = typeof OrchestrationProject.Type;
 export const OrchestrationMessageRole = Schema.Literals(["user", "assistant", "system"]);
 export type OrchestrationMessageRole = typeof OrchestrationMessageRole.Type;
 
+export const OrchestrationAssistantTextBlock = Schema.Struct({
+  type: Schema.Literal("text"),
+  text: Schema.String,
+});
+export type OrchestrationAssistantTextBlock = typeof OrchestrationAssistantTextBlock.Type;
+
+export const OrchestrationAssistantThinkingBlock = Schema.Struct({
+  type: Schema.Literal("thinking"),
+  thinking: Schema.String,
+  summary: Schema.optional(Schema.String),
+});
+export type OrchestrationAssistantThinkingBlock = typeof OrchestrationAssistantThinkingBlock.Type;
+
+export const OrchestrationAssistantContentBlock = Schema.Union([
+  OrchestrationAssistantTextBlock,
+  OrchestrationAssistantThinkingBlock,
+]);
+export type OrchestrationAssistantContentBlock = typeof OrchestrationAssistantContentBlock.Type;
+
+export const OrchestrationAssistantContent = Schema.Array(OrchestrationAssistantContentBlock);
+export type OrchestrationAssistantContent = typeof OrchestrationAssistantContent.Type;
+
 export const OrchestrationMessage = Schema.Struct({
   id: MessageId,
   role: OrchestrationMessageRole,
   text: Schema.String,
+  content: Schema.optional(OrchestrationAssistantContent),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,
@@ -588,6 +611,7 @@ const ThreadMessageAssistantDeltaCommand = Schema.Struct({
   threadId: ThreadId,
   messageId: MessageId,
   delta: Schema.String,
+  content: Schema.optional(OrchestrationAssistantContent),
   turnId: Schema.optional(TurnId),
   createdAt: IsoDateTime,
 });
@@ -769,6 +793,7 @@ export const ThreadMessageSentPayload = Schema.Struct({
   messageId: MessageId,
   role: OrchestrationMessageRole,
   text: Schema.String,
+  content: Schema.optional(OrchestrationAssistantContent),
   attachments: Schema.optional(Schema.Array(ChatAttachment)),
   turnId: Schema.NullOr(TurnId),
   streaming: Schema.Boolean,
