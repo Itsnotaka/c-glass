@@ -24,9 +24,9 @@ import {
   IconLightning,
 } from "central-icons";
 import type { ReactNode, RefObject } from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "~/lib/utils";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { GlassComposerFilePreview } from "./composer-file-preview";
+import { GlassComposerFilePreview } from "./file-preview";
 import type { GlassSlashItem, SlashMenuRow } from "./slash-registry";
 
 function kindGlyph(kind: GlassSlashItem["kind"]) {

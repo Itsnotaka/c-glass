@@ -13,8 +13,8 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { CommandPalette } from "~/components/ui/command-palette";
 import { Kbd } from "~/components/ui/kbd";
-import { useTheme } from "../../hooks/use-theme";
-import type { GlassAppShellPanels } from "./app-shell";
+import { useTheme } from "~/hooks/use-theme";
+import type { GlassAppShellPanels } from "./app";
 
 interface Props {
   panels: GlassAppShellPanels;

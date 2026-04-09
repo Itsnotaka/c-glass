@@ -1,14 +1,14 @@
 import { useCallback, useRef } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
-import { useDefaultHarness } from "../../lib/harness-picker";
-import { useHarnessDescriptor } from "../../lib/harness-store";
-import { clearSlash, draftSlash, slashPrefix } from "./composer-search";
-import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
+import { useGlassChatDraftStore } from "~/lib/glass-chat-draft-store";
+import { useDefaultHarness } from "~/lib/harness-picker";
+import { useHarnessDescriptor } from "~/lib/harness-store";
+import { clearSlash, draftSlash, slashPrefix } from "~/components/glass/composer/search";
+import { GlassChatComposer, type GlassChatComposerHandle } from "~/components/glass/composer/chat";
 import { GlassHeroComposerFooter } from "./hero-composer-footer";
 import { GlassHeroStage } from "./hero-stage";
-import { useRuntimeSession } from "./use-runtime-session";
+import { useRuntimeSession } from "~/components/glass/session/runtime";
 
 function title(text: string, files: { name: string }[]) {
   const line = text.trim().split("\n")[0]?.trim();

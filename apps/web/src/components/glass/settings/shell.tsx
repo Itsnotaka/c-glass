@@ -3,12 +3,12 @@
 import { Outlet, useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import { useGlassShellStore } from "../../lib/glass-shell-store";
-import { GlassAppShell } from "./app-shell";
-import { GlassSettingsNavRail } from "./settings-nav-rail";
-import { GlassSidebarFooter } from "./sidebar-footer";
+import { useGlassShellPanels } from "~/hooks/use-glass-shell-panels";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import { useGlassShellStore } from "~/lib/glass-shell-store";
+import { GlassAppShell } from "~/components/glass/shell/app";
+import { GlassSettingsNavRail } from "./nav-rail";
+import { GlassSidebarFooter } from "~/components/glass/sidebar/footer";
 
 export function GlassSettingsShell() {
   const navigate = useNavigate();

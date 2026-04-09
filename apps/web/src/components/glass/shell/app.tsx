@@ -8,8 +8,8 @@ import {
 } from "central-icons";
 import { type PointerEvent as Evt, type ReactNode, useEffect, useRef, useState } from "react";
 
-import { isElectronHost } from "../../env";
-import { cn } from "../../lib/utils";
+import { isElectronHost } from "~/env";
+import { cn } from "~/lib/utils";
 
 type Side = "left" | "right";
 

@@ -1,7 +1,7 @@
 import type { GlassSessionItem, GlassWorkingState } from "@glass/contracts";
 import { memo, useEffect, useRef, useState } from "react";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { GlassChatLive, GlassChatTranscript, GlassChatWorking } from "./chat-rows";
+import { GlassChatLive, GlassChatTranscript, GlassChatWorking } from "./rows";
 
 export const GlassChatMessages = memo(function GlassChatMessages(props: {
   messages: GlassSessionItem[];

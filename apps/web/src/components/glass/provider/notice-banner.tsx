@@ -3,8 +3,8 @@ import type { OrchestrationThreadActivity, ProviderKind } from "@glass/contracts
 import { PROVIDER_NOTICE_KIND } from "@glass/contracts";
 import { useEffect, useState } from "react";
 
-import { deriveProviderNotice, formatNoticeWait } from "../../lib/provider-notice";
-import { cn } from "../../lib/utils";
+import { deriveProviderNotice, formatNoticeWait } from "~/lib/provider-notice";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 
 function Icon(props: { kind: string; level: "warning" | "error" }) {

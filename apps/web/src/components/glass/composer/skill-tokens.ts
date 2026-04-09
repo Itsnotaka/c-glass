@@ -1,7 +1,7 @@
 import type { GlassSkill } from "@glass/contracts";
 
-import type { GlassDraftSkill } from "../../lib/glass-chat-draft-store";
-import type { SlashMatch } from "./composer-search";
+import type { GlassDraftSkill } from "~/lib/glass-chat-draft-store";
+import type { SlashMatch } from "./search";
 
 function sort(skills: GlassDraftSkill[]) {
   return skills.toSorted((left, right) => {

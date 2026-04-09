@@ -1,5 +1,5 @@
-import type { GlassSidebarSection } from "../../lib/glass-view-model";
-import { GlassAgentList } from "./agent-list";
+import type { GlassSidebarSection } from "~/lib/glass-view-model";
+import { GlassAgentList } from "~/components/glass/agents/list";
 
 export function GlassThreadRail(props: {
   sections: GlassSidebarSection[];

@@ -7,11 +7,11 @@ import {
   IconFolderOpen,
 } from "central-icons";
 
-import { usePreferredEditor } from "../../editor-preferences";
-import { ensureNativeApi } from "../../native-api";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import { useTheme } from "../../hooks/use-theme";
-import { cn } from "../../lib/utils";
+import { usePreferredEditor } from "~/editor-preferences";
+import { ensureNativeApi } from "~/native-api";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import { useTheme } from "~/hooks/use-theme";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 
 // SVG icon paths for editors - using official brand assets

@@ -1,7 +1,7 @@
 "use client";
 
-import { useGlassProviderAuthStore } from "../../lib/glass-provider-auth-store";
-import { GlassProviderKeyDialog } from "./provider-key-dialog";
+import { useGlassProviderAuthStore } from "~/lib/glass-provider-auth-store";
+import { GlassProviderKeyDialog } from "~/components/glass/provider/key-dialog";
 
 export function GlassProviderShellOverlay() {
   const req = useGlassProviderAuthStore((state) => state.req);

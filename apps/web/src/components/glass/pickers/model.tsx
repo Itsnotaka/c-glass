@@ -3,14 +3,14 @@ import { Menu } from "@base-ui/react/menu";
 import { IconBrain, IconCheckmark1Small, IconChevronRight } from "central-icons";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
-import { usePretextOneLine } from "../../hooks/use-glass-pretext-one-line";
+import { usePretextOneLine } from "~/hooks/use-glass-pretext-one-line";
 import {
   displayModelName,
   displayProviderName,
   filterRuntimeModels,
   type RuntimeModelItem,
-} from "../../lib/runtime-models";
-import { cn } from "../../lib/utils";
+} from "~/lib/runtime-models";
+import { cn } from "~/lib/utils";
 
 function PretextOneLine(props: {
   text: string;

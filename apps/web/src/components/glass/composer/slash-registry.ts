@@ -1,4 +1,4 @@
-import { rank } from "./composer-search";
+import { rank } from "./search";
 import { recentBoost, type SlashRecentsSnapshot } from "./slash-recents";
 import type { GlassSlashItemKind } from "./slash-types";
 

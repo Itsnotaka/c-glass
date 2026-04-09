@@ -1,5 +1,5 @@
-import { cn } from "../../lib/utils";
-import { GlassOpenPicker } from "./open-picker";
+import { cn } from "~/lib/utils";
+import { GlassOpenPicker } from "~/components/glass/pickers/open";
 
 export function GlassHeroComposerFooter(props: { onPlanMode: () => void; planActive?: boolean }) {
   return (

@@ -2,7 +2,7 @@ import type { GitFileState } from "@glass/contracts";
 import { FileDiff, type FileDiffMetadata } from "@pierre/diffs/react";
 import { memo } from "react";
 import { cn } from "~/lib/utils";
-import { useTheme } from "../../hooks/use-theme";
+import { useTheme } from "~/hooks/use-theme";
 
 interface Props {
   fileDiff: FileDiffMetadata | null;

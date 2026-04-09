@@ -3,18 +3,18 @@
 import { AnimatePresence } from "motion/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useHarnessDescriptor } from "../../lib/harness-store";
-import { useThreadSessionStore, useThreadSummary } from "../../lib/thread-session-store";
-import { useStore } from "../../store";
+import { useHarnessDescriptor } from "~/lib/harness-store";
+import { useThreadSessionStore, useThreadSummary } from "~/lib/thread-session-store";
+import { useStore } from "~/store";
 import { GlassAskTool } from "./ask-tool";
 import { GlassHeroComposerFooter } from "./hero-composer-footer";
-import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
+import { GlassChatComposer, type GlassChatComposerHandle } from "~/components/glass/composer/chat";
 import { GlassHeroStage } from "./hero-stage";
-import { GlassChatMessages } from "./chat-messages";
-import { GlassProviderNoticeBanner } from "./provider-notice-banner";
-import { GlassShell } from "./shell";
-import { useRuntimeSession } from "./use-runtime-session";
-import { clearSlash, draftSlash, slashPrefix } from "./composer-search";
+import { GlassChatMessages } from "./messages";
+import { GlassProviderNoticeBanner } from "~/components/glass/provider/notice-banner";
+import { GlassShell } from "~/components/glass/shell/root";
+import { useRuntimeSession } from "~/components/glass/session/runtime";
+import { clearSlash, draftSlash, slashPrefix } from "~/components/glass/composer/search";
 import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {

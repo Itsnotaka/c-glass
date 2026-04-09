@@ -15,15 +15,15 @@ import {
 } from "central-icons";
 import React from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { ChatMarkdown } from "../../lib/chat-markdown";
-import { useGlassDiffStylePreference } from "../../hooks/use-glass-git";
-import { useTheme } from "../../hooks/use-theme";
+import { ChatMarkdown } from "~/lib/chat-markdown";
+import { useGlassDiffStylePreference } from "~/hooks/use-glass-git";
+import { useTheme } from "~/hooks/use-theme";
 import {
   glassUserAttachmentFileRow,
   glassUserAttachmentImageCard,
-} from "../../lib/glass-attachment-styles";
-import { buildChatRows, type ChatRow, type ChatUserAttachment } from "../../lib/chat-timeline";
-import { VsFileIcon } from "../../lib/vscode-file-icon";
+} from "~/lib/glass-attachment-styles";
+import { buildChatRows, type ChatRow, type ChatUserAttachment } from "~/lib/chat-timeline";
+import { VsFileIcon } from "~/lib/vscode-file-icon";
 import {
   humanTool,
   isFileTool,
@@ -34,8 +34,8 @@ import {
   toolDiffStat,
   toolFileDiff,
   toolPathFromCall,
-} from "../../lib/tool-renderers";
-import { cn } from "../../lib/utils";
+} from "~/lib/tool-renderers";
+import { cn } from "~/lib/utils";
 
 /** Runtime cards: full border + soft fill, no left accent rail. */
 const cardShell =

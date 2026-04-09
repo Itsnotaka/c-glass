@@ -8,8 +8,8 @@ import {
 import type { ComponentType } from "react";
 
 import { Button } from "~/components/ui/button";
-import { useSettingsRestore } from "../settings/settings-panels";
-import { cn } from "../../lib/utils";
+import { useSettingsRestore } from "../../settings/settings-panels";
+import { cn } from "~/lib/utils";
 
 const items: {
   to: "/settings/appearance" | "/settings/agents" | "/settings/archived";

@@ -1,6 +1,6 @@
 import { IconCollaborationPointerRight } from "central-icons";
 
-import { GlassRowButton } from "./row-button";
+import { GlassRowButton } from "~/components/glass/shared/row-button";
 
 export function GlassSidebarHeader(props: { onNewChat: () => void }) {
   return (

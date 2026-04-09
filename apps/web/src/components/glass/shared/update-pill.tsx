@@ -2,18 +2,18 @@ import { IconArrowRotateClockwise, IconCloudDownload } from "central-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
-import { isElectron } from "../../env";
+import { isElectron } from "~/env";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
-} from "../../lib/desktop-update-react-query";
+} from "~/lib/desktop-update-react-query";
 import {
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
   shouldShowDesktopUpdateButton,
-} from "../desktop-update.logic";
+} from "../../desktop-update.logic";
 import { toast } from "sonner";
 
 export function GlassUpdatePill() {

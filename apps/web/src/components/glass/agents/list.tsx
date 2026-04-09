@@ -2,9 +2,9 @@ import { IconChevronBottom, IconDotGrid1x3HorizontalTight, IconPlusLarge } from 
 import { useEffect, useId, useMemo, useState } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 
-import type { GlassSidebarSection } from "../../lib/glass-view-model";
-import { cn } from "../../lib/utils";
-import { GlassAgentRow } from "./agent-row";
+import type { GlassSidebarSection } from "~/lib/glass-view-model";
+import { cn } from "~/lib/utils";
+import { GlassAgentRow } from "./row";
 
 const initialMaxVisible = 5;
 const pageStep = 8;

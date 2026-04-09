@@ -3,24 +3,24 @@
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect } from "react";
 
-import { isElectron } from "../../env";
-import { useGlassAgents } from "../../hooks/use-glass-agents";
-import { useGlassGitPanel } from "../../hooks/use-glass-git";
-import { useGlassShellPanels } from "../../hooks/use-glass-shell-panels";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import { useGlassChatDraftStore, hasDraft } from "../../lib/glass-chat-draft-store";
-import { switchWorkspace } from "../../lib/glass-workspace";
-import { cn } from "../../lib/utils";
-import { useDefaultHarness } from "../../lib/harness-picker";
-import { useGlassShellStore } from "../../lib/glass-shell-store";
-import { useThreadSummariesStatus } from "../../lib/thread-session-store";
-import { useStore } from "../../store";
-import { GlassAppShell } from "./app-shell";
+import { isElectron } from "~/env";
+import { useGlassAgents } from "~/hooks/use-glass-agents";
+import { useGlassGitPanel } from "~/hooks/use-glass-git";
+import { useGlassShellPanels } from "~/hooks/use-glass-shell-panels";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import { useGlassChatDraftStore, hasDraft } from "~/lib/glass-chat-draft-store";
+import { switchWorkspace } from "~/lib/glass-workspace";
+import { cn } from "~/lib/utils";
+import { useDefaultHarness } from "~/lib/harness-picker";
+import { useGlassShellStore } from "~/lib/glass-shell-store";
+import { useThreadSummariesStatus } from "~/lib/thread-session-store";
+import { useStore } from "~/store";
+import { GlassAppShell } from "./app";
 import { GlassCommandPalette } from "./command-palette";
-import { GlassGitPanel } from "./git-panel";
-import { GlassSidebarFooter } from "./sidebar-footer";
-import { GlassSidebarHeader } from "./sidebar-header";
-import { GlassThreadRail } from "./thread-rail";
+import { GlassGitPanel } from "~/components/glass/git/panel";
+import { GlassSidebarFooter } from "~/components/glass/sidebar/footer";
+import { GlassSidebarHeader } from "~/components/glass/sidebar/header";
+import { GlassThreadRail } from "~/components/glass/sidebar/thread-rail";
 
 export function GlassChatShell() {
   const navigate = useNavigate();

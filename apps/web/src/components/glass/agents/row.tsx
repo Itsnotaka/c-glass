@@ -1,8 +1,8 @@
 import { IconFormCircle } from "central-icons";
 import { memo } from "react";
 
-import type { GlassSidebarChat } from "../../lib/glass-view-model";
-import { GlassRowButton } from "./row-button";
+import type { GlassSidebarChat } from "~/lib/glass-view-model";
+import { GlassRowButton } from "~/components/glass/shared/row-button";
 
 function StatusDot(props: { item: GlassSidebarChat }) {
   if (props.item.kind === "draft") {

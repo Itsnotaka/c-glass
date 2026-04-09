@@ -5,10 +5,10 @@ import {
   type DiffRow,
   type GlassGitPanelModel,
   useGlassDiffStylePreference,
-} from "../../hooks/use-glass-git";
-import { useGitViewed } from "../../hooks/use-glass-git-viewed";
-import { isElectron } from "../../env";
-import { cn } from "../../lib/utils";
+} from "~/hooks/use-glass-git";
+import { useGitViewed } from "~/hooks/use-glass-git-viewed";
+import { isElectron } from "~/env";
+import { cn } from "~/lib/utils";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {

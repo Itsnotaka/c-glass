@@ -1,9 +1,9 @@
-import "../../styles/tailwind.css";
-import "../../styles/app.css";
-import "../../styles/glass.css";
+import "../../../styles/tailwind.css";
+import "../../../styles/app.css";
+import "../../../styles/glass.css";
 
 import type { HarnessDescriptor } from "@glass/contracts";
-import type { GlassDraftFile } from "../../lib/glass-chat-draft-store";
+import type { GlassDraftFile } from "~/lib/glass-chat-draft-store";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { page } from "vitest/browser";
@@ -44,19 +44,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../native-api", () => ({
+vi.mock("~/native-api", () => ({
   readNativeApi: () => mocks.api,
 }));
 
-vi.mock("../../hooks/use-runtime-models", () => ({
+vi.mock("~/hooks/use-runtime-models", () => ({
   useRuntimeModels: () => mocks.runtime,
 }));
 
-vi.mock("../../hooks/use-shell-cwd", () => ({
+vi.mock("~/hooks/use-shell-cwd", () => ({
   useShellState: () => ({ cwd: "/tmp/project" }),
 }));
 
-vi.mock("../../lib/thread-session-store", () => ({
+vi.mock("~/lib/thread-session-store", () => ({
   useThreadSessionStore: (pick: (state: object) => unknown) =>
     pick({
       snaps: {
@@ -68,14 +68,14 @@ vi.mock("../../lib/thread-session-store", () => ({
     }),
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("~/store", () => ({
   useStore: (pick: (state: object) => unknown) =>
     pick({
       threads: [{ id: "thread-fast", branch: null }],
     }),
 }));
 
-vi.mock("./settings-context", () => ({
+vi.mock("~/components/glass/settings/context", () => ({
   useGlassSettings: () => ({ openSettings: mocks.openSettings }),
 }));
 
@@ -87,7 +87,7 @@ vi.mock("@tanstack/react-hotkeys", () => ({
   useHotkey: () => undefined,
 }));
 
-import { GlassChatComposer } from "./chat-composer";
+import { GlassChatComposer } from "./chat";
 
 const descriptor: HarnessDescriptor = {
   kind: "codex",

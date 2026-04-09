@@ -5,7 +5,7 @@ import { IconArrowRotateCounterClockwise, IconBarsThree, IconSplit } from "centr
 import { memo } from "react";
 
 import { Badge } from "~/components/ui/badge";
-import { cn } from "../../lib/utils";
+import { cn } from "~/lib/utils";
 
 const kindVariant: Record<
   GitFileState,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clearSlash, draftSlash, mirrorSegmentsDraft, slashPrefix } from "./composer-search";
+import { clearSlash, draftSlash, mirrorSegmentsDraft, slashPrefix } from "./search";
 
 describe("mirrorSegmentsDraft", () => {
   it("finds a bare slash draft", () => {

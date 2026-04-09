@@ -7,8 +7,8 @@ import { createRoot } from "react-dom/client";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { GlassModelPicker } from "./model-picker";
-import type { RuntimeModelItem } from "../../lib/runtime-models";
+import { GlassModelPicker } from "./model";
+import type { RuntimeModelItem } from "~/lib/runtime-models";
 
 const fastModel: RuntimeModelItem = {
   key: "codex/gpt-5.4",

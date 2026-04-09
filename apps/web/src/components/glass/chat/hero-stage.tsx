@@ -3,8 +3,8 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, type ReactNode } from "react";
 
-import { useGlassHeroFxStore } from "../../lib/glass-hero-fx-store";
-import { cn } from "../../lib/utils";
+import { useGlassHeroFxStore } from "~/lib/glass-hero-fx-store";
+import { cn } from "~/lib/utils";
 
 export function GlassHeroStage(props: { children: ReactNode; footer?: ReactNode; scene?: string }) {
   const reduce = useReducedMotion();

@@ -9,7 +9,7 @@ import type {
   ShellFileHit,
   ShellFilePreview,
 } from "@glass/contracts";
-import type { RuntimeModelItem } from "../../lib/runtime-models";
+import type { RuntimeModelItem } from "~/lib/runtime-models";
 import {
   IconArrowUp,
   IconBranchSimple,
@@ -38,23 +38,23 @@ import {
 import { flushSync } from "react-dom";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useNavigate } from "@tanstack/react-router";
-import { readNativeApi } from "../../native-api";
-import { useRuntimeModels } from "../../hooks/use-runtime-models";
-import { fireGlassHeroFx } from "../../lib/glass-hero-fx-store";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import type { GlassDraftFile, GlassDraftSkill } from "../../lib/glass-chat-draft-store";
-import { useThreadSessionStore } from "../../lib/thread-session-store";
+import { readNativeApi } from "~/native-api";
+import { useRuntimeModels } from "~/hooks/use-runtime-models";
+import { fireGlassHeroFx } from "~/lib/glass-hero-fx-store";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import type { GlassDraftFile, GlassDraftSkill } from "~/lib/glass-chat-draft-store";
+import { useThreadSessionStore } from "~/lib/thread-session-store";
 import {
   glassComposerAttachmentChip,
   glassComposerAttachmentStrip,
   glassComposerImageGrid,
   glassComposerImageThumbnail,
-} from "../../lib/glass-attachment-styles";
-import { cn } from "../../lib/utils";
-import { useGlassSettings } from "./settings-context";
-import { useStore } from "../../store";
-import { GLASS_EDITOR_SET_EVENT } from "../../lib/glass-runtime-constants";
-import { pushComposerDraft } from "../../lib/composer-draft-mirror";
+} from "~/lib/glass-attachment-styles";
+import { cn } from "~/lib/utils";
+import { useGlassSettings } from "~/components/glass/settings/context";
+import { useStore } from "~/store";
+import { GLASS_EDITOR_SET_EVENT } from "~/lib/glass-runtime-constants";
+import { pushComposerDraft } from "~/lib/composer-draft-mirror";
 import {
   clearSlash,
   applyFile,
@@ -66,11 +66,11 @@ import {
   slashPrefix,
   slashMatch,
   type MirrorSeg,
-} from "./composer-search";
+} from "./search";
 import { buildSlashMenuRows, type GlassSlashItem, type SlashMenuRow } from "./slash-registry";
 import { readSlashRecents, recordSlashUse } from "./slash-recents";
 import { GlassComposerTokenMenu } from "./slash-menu";
-import { GlassModelPicker, type GlassModelPickerHandle } from "./model-picker";
+import { GlassModelPicker, type GlassModelPickerHandle } from "~/components/glass/pickers/model";
 import {
   applySkill,
   dropSkill,
@@ -79,7 +79,7 @@ import {
   snapSkillSelection,
   touchSkill,
 } from "./skill-tokens";
-import { GlassWorkspacePicker } from "./workspace-picker";
+import { GlassWorkspacePicker } from "~/components/glass/pickers/workspace";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 type Pick = GlassDraftFile;

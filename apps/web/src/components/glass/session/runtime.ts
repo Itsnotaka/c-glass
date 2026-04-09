@@ -13,10 +13,10 @@ import type {
 import { startTransition, useCallback, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
-import { useRuntimeDefaults } from "../../hooks/use-runtime-models";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import { readNativeApi } from "../../native-api";
-import { useServerProviders } from "../../rpc/server-state";
+import { useRuntimeDefaults } from "~/hooks/use-runtime-models";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import { readNativeApi } from "~/native-api";
+import { useServerProviders } from "~/rpc/server-state";
 import {
   applyFastMode,
   applyThinking,
@@ -27,12 +27,12 @@ import {
   writeRuntimeDefaultModel,
   writeRuntimeDefaultThinkingLevel,
   type RuntimeModelItem,
-} from "../../lib/runtime-models";
-import { hasStreamingThinking } from "../../lib/assistant-content";
-import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
-import { useThreadSessionStore } from "../../lib/thread-session-store";
-import { derivePendingApprovals, derivePendingUserInputs } from "../../session-logic";
-import { useStore } from "../../store";
+} from "~/lib/runtime-models";
+import { hasStreamingThinking } from "~/lib/assistant-content";
+import { useGlassChatDraftStore } from "~/lib/glass-chat-draft-store";
+import { useThreadSessionStore } from "~/lib/thread-session-store";
+import { derivePendingApprovals, derivePendingUserInputs } from "~/session-logic";
+import { useStore } from "~/store";
 
 const empty: GlassSessionItem[] = [];
 

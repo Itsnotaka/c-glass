@@ -1,8 +1,8 @@
 import { IconChevronDownSmall, IconFolder1 } from "central-icons";
-import { useShellState } from "../../hooks/use-shell-cwd";
-import { shortWorkspacePathLabel } from "../../lib/glass-path-label";
-import { pickWorkspace } from "../../lib/glass-workspace";
-import { cn } from "../../lib/utils";
+import { useShellState } from "~/hooks/use-shell-cwd";
+import { shortWorkspacePathLabel } from "~/lib/glass-path-label";
+import { pickWorkspace } from "~/lib/glass-workspace";
+import { cn } from "~/lib/utils";
 
 export function GlassWorkspacePicker(props: { className?: string; variant?: "rail" | "composer" }) {
   const shell = useShellState();
