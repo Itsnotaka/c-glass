@@ -14,7 +14,7 @@ import { GlassChatMessages } from "./chat-messages";
 import { GlassProviderNoticeBanner } from "./provider-notice-banner";
 import { GlassShell } from "./shell";
 import { useRuntimeSession } from "./use-runtime-session";
-import { clearSlash, pendingSlash } from "./composer-search";
+import { clearSlash, pendingSlash, slashPrefix } from "./composer-search";
 import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {
@@ -82,7 +82,7 @@ function HeroSession(props: { sessionId: string }) {
   const clearPlan = useCallback((value: string) => {
     const hit = pendingSlash(value, value.length);
     if (!hit) return value;
-    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    if (!slashPrefix(hit, "plan")) return value;
     return clearSlash(value, hit).value;
   }, []);
 
@@ -194,7 +194,7 @@ function DockSession(props: { sessionId: string }) {
   const clearPlan = useCallback((value: string) => {
     const hit = pendingSlash(value, value.length);
     if (!hit) return value;
-    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    if (!slashPrefix(hit, "plan")) return value;
     return clearSlash(value, hit).value;
   }, []);
 

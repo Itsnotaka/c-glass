@@ -4,9 +4,9 @@ import "../../styles/glass.css";
 
 import type { HarnessDescriptor } from "@glass/contracts";
 import { useState } from "react";
+import { createRoot } from "react-dom/client";
 import { page } from "vitest/browser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
 
 const mocks = vi.hoisted(() => ({
   api: {
@@ -150,9 +150,11 @@ async function mount(supported = true) {
   mocks.runtime.fastSupported = supported;
   const host = document.createElement("div");
   document.body.append(host);
-  const screen = await render(<Harness supported={supported} />, { container: host });
+  const root = createRoot(host);
+  root.render(<Harness supported={supported} />);
+  await Promise.resolve();
   const cleanup = async () => {
-    await screen.unmount();
+    root.unmount();
     host.remove();
   };
   return {
@@ -161,10 +163,30 @@ async function mount(supported = true) {
   };
 }
 
+function seg(text: string) {
+  return [...document.querySelectorAll<HTMLSpanElement>(".glass-composer-mirror span")].find(
+    (node) => node.textContent === text,
+  );
+}
+
+function check(node: HTMLSpanElement) {
+  const style = getComputedStyle(node);
+  const cut =
+    style.getPropertyValue("box-decoration-break") ||
+    style.getPropertyValue("-webkit-box-decoration-break");
+  expect(parseFloat(style.paddingLeft)).toBeGreaterThan(0);
+  expect(parseFloat(style.paddingRight)).toBeGreaterThan(0);
+  expect(parseFloat(style.borderRadius)).toBeGreaterThan(0);
+  expect(cut).toBe("clone");
+  expect(style.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+}
+
 describe("GlassChatComposer fast mode", () => {
   beforeEach(() => {
+    mocks.api.server.listSkills.mockImplementation(async () => []);
     mocks.api.server.listSkills.mockClear();
     mocks.api.projects.searchEntries.mockClear();
+    mocks.api.projects.searchEntries.mockImplementation(async () => ({ entries: [] }));
     mocks.navigate.mockClear();
     mocks.openSettings.mockClear();
     mocks.send.mockClear();
@@ -213,7 +235,11 @@ describe("GlassChatComposer fast mode", () => {
     await using _ = await mount(true);
 
     await page.getByRole("textbox").fill("/fast");
-    await page.getByRole("textbox").press("Enter");
+    document
+      .querySelector("textarea")
+      ?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Enter" }),
+      );
 
     await vi.waitFor(() => {
       expect(mocks.send).not.toHaveBeenCalled();
@@ -233,5 +259,53 @@ describe("GlassChatComposer fast mode", () => {
       expect(document.body.textContent ?? "").not.toContain("/fast");
       expect(document.body.textContent ?? "").not.toContain("Turn on fast mode");
     });
+  });
+});
+
+describe("GlassChatComposer mirror tokens", () => {
+  beforeEach(() => {
+    mocks.api.server.listSkills.mockClear();
+    mocks.api.server.listSkills.mockImplementation(async () => []);
+    mocks.api.projects.searchEntries.mockClear();
+    mocks.api.projects.searchEntries.mockImplementation(async () => ({ entries: [] }));
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("renders padded selection-style highlights for skills and quoted file mentions", async () => {
+    mocks.api.server.listSkills.mockResolvedValue([
+      {
+        id: "/Users/workgyver/.agents/skills/tailwind",
+        name: "tailwind",
+        body: "Use the Tailwind skill.",
+        description: "Tailwind CSS guidance.",
+      },
+    ]);
+
+    await using _ = await mount(true);
+
+    await page.getByRole("textbox").fill('/tailwind @"foo bar"');
+
+    await vi.waitFor(() => {
+      expect(seg("/tailwind")).toBeTruthy();
+      expect(seg('@"foo bar"')).toBeTruthy();
+    });
+
+    check(seg("/tailwind")!);
+    check(seg('@"foo bar"')!);
+  });
+
+  it("renders pending slash text with the same padded token treatment", async () => {
+    await using _ = await mount(true);
+
+    await page.getByRole("textbox").fill("/tai");
+
+    await vi.waitFor(() => {
+      expect(seg("/tai")).toBeTruthy();
+    });
+
+    check(seg("/tai")!);
   });
 });

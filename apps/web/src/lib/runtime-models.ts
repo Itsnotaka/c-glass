@@ -1,5 +1,7 @@
 import {
+  type ClaudeModelOptions,
   CommandId,
+  type CodexModelOptions,
   DEFAULT_MODEL_BY_PROVIDER,
   type HarnessModelRef,
   type ModelSelection,
@@ -234,75 +236,59 @@ export function selectionSupportsFastMode(
 
 export function applyThinking(selection: ModelSelection, level: ThinkingLevel): ModelSelection {
   if (selection.provider === "codex") {
-    const options = {
-      ...(level === "off"
-        ? {}
-        : {
-            reasoningEffort:
-              level === "minimal" || level === "low"
-                ? "low"
-                : level === "medium"
-                  ? "medium"
-                  : level === "xhigh"
-                    ? "xhigh"
-                    : "high",
-          }),
+    const reasoningEffort: CodexModelOptions["reasoningEffort"] =
+      level === "off"
+        ? undefined
+        : level === "minimal" || level === "low"
+          ? "low"
+          : level === "medium"
+            ? "medium"
+            : level === "xhigh"
+              ? "xhigh"
+              : "high";
+    const options: CodexModelOptions = {
+      ...(reasoningEffort ? { reasoningEffort } : {}),
       ...(selection.options?.fastMode !== undefined
         ? { fastMode: selection.options.fastMode }
         : {}),
     };
-    if (level === "off") {
-      return {
-        provider: "codex",
-        model: selection.model,
-        ...(Object.keys(options).length > 0 ? { options } : {}),
-      };
-    }
-
-    return {
+    const next: Extract<ModelSelection, { provider: "codex" }> = {
       provider: "codex",
       model: selection.model,
       ...(Object.keys(options).length > 0 ? { options } : {}),
     };
+    return next;
   }
 
-  const options = {
+  const effort: ClaudeModelOptions["effort"] =
+    level === "off"
+      ? undefined
+      : level === "minimal" || level === "low"
+        ? "low"
+        : level === "medium"
+          ? "medium"
+          : level === "xhigh"
+            ? "max"
+            : "high";
+  const options: ClaudeModelOptions = {
     thinking: level !== "off",
-    ...(level === "off"
-      ? {}
-      : {
-          effort:
-            level === "minimal" || level === "low"
-              ? "low"
-              : level === "medium"
-                ? "medium"
-                : level === "xhigh"
-                  ? "max"
-                  : "high",
-        }),
+    ...(effort ? { effort } : {}),
     ...(selection.options?.fastMode !== undefined ? { fastMode: selection.options.fastMode } : {}),
     ...(selection.options?.contextWindow !== undefined
       ? { contextWindow: selection.options.contextWindow }
       : {}),
   };
-  if (level === "off") {
-    return {
-      provider: "claudeAgent",
-      model: selection.model,
-      ...(Object.keys(options).length > 0 ? { options } : {}),
-    };
-  }
-
-  return {
+  const next: Extract<ModelSelection, { provider: "claudeAgent" }> = {
     provider: "claudeAgent",
     model: selection.model,
     ...(Object.keys(options).length > 0 ? { options } : {}),
   };
+  return next;
 }
 
 export function applyFastMode(selection: ModelSelection, on: boolean): ModelSelection {
   if (selection.provider === "codex") {
-    const options = {
+    const options: CodexModelOptions = {
       ...(selection.options?.reasoningEffort
         ? { reasoningEffort: selection.options.reasoningEffort }
         : {}),
@@ -315,7 +301,7 @@ export function applyFastMode(selection: ModelSelection, on: boolean): ModelSele
     };
   }
 
-  const options = {
+  const options: ClaudeModelOptions = {
     ...(selection.options?.thinking !== undefined ? { thinking: selection.options.thinking } : {}),
     ...(selection.options?.effort ? { effort: selection.options.effort } : {}),
     ...(on || selection.options?.fastMode !== undefined ? { fastMode: on } : {}),

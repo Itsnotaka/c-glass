@@ -471,6 +471,40 @@ function codexEventMessage(
   return asObject(payload?.msg);
 }
 
+function contentDeltaFields(
+  payload: Record<string, unknown> | undefined,
+  textDelta: string | undefined,
+): {
+  delta?: string;
+  contentIndex?: number;
+  summaryIndex?: number;
+} {
+  const msg = codexEventMessage(payload);
+  const delta =
+    textDelta ??
+    asString(payload?.delta) ??
+    asString(payload?.text) ??
+    asString(asObject(payload?.content)?.text) ??
+    asString(msg?.delta) ??
+    asString(msg?.text) ??
+    asString(asObject(msg?.content)?.text);
+  const contentIndex =
+    asNumber(payload?.contentIndex) ??
+    asNumber(payload?.content_index) ??
+    asNumber(msg?.contentIndex) ??
+    asNumber(msg?.content_index);
+  const summaryIndex =
+    asNumber(payload?.summaryIndex) ??
+    asNumber(payload?.summary_index) ??
+    asNumber(msg?.summaryIndex) ??
+    asNumber(msg?.summary_index);
+  return {
+    ...(delta !== undefined ? { delta } : {}),
+    ...(contentIndex !== undefined ? { contentIndex } : {}),
+    ...(summaryIndex !== undefined ? { summaryIndex } : {}),
+  };
+}
+
 function codexEventBase(
   event: ProviderEvent,
   canonicalThreadId: ThreadId,
@@ -578,7 +612,7 @@ function mapItemLifecycle(
   };
 }
 
-function mapToRuntimeEvents(
+export function mapCodexProviderEventToRuntimeEvents(
   event: ProviderEvent,
   canonicalThreadId: ThreadId,
 ): ReadonlyArray<ProviderRuntimeEvent> {
@@ -936,27 +970,24 @@ function mapToRuntimeEvents(
     event.method === "item/reasoning/summaryTextDelta" ||
     event.method === "item/reasoning/textDelta"
   ) {
-    const delta =
-      event.textDelta ??
-      asString(payload?.delta) ??
-      asString(payload?.text) ??
-      asString(asObject(payload?.content)?.text);
+    const next = contentDeltaFields(payload, event.textDelta);
+    const delta = next.delta;
     if (!delta || delta.length === 0) {
       return [];
     }
     return [
       {
-        ...runtimeEventBase(event, canonicalThreadId),
+        ...(event.method === "item/reasoning/summaryTextDelta" ||
+        event.method === "item/reasoning/textDelta" ||
+        event.method === "item/agentMessage/delta"
+          ? codexEventBase(event, canonicalThreadId)
+          : runtimeEventBase(event, canonicalThreadId)),
         type: "content.delta",
         payload: {
           streamKind: contentStreamKindFromMethod(event.method),
           delta,
-          ...(typeof payload?.contentIndex === "number"
-            ? { contentIndex: payload.contentIndex }
-            : {}),
-          ...(typeof payload?.summaryIndex === "number"
-            ? { summaryIndex: payload.summaryIndex }
-            : {}),
+          ...(next.contentIndex !== undefined ? { contentIndex: next.contentIndex } : {}),
+          ...(next.summaryIndex !== undefined ? { summaryIndex: next.summaryIndex } : {}),
         },
       },
     ];
@@ -1095,8 +1126,8 @@ function mapToRuntimeEvents(
   }
 
   if (event.method === "codex/event/reasoning_content_delta") {
-    const msg = codexEventMessage(payload);
-    const delta = asString(msg?.delta);
+    const next = contentDeltaFields(payload, event.textDelta);
+    const delta = next.delta;
     if (!delta) {
       return [];
     }
@@ -1106,13 +1137,12 @@ function mapToRuntimeEvents(
         type: "content.delta",
         payload: {
           streamKind:
-            asNumber(msg?.summary_index) !== undefined
+            next.summaryIndex !== undefined
               ? "reasoning_summary_text"
               : "reasoning_text",
           delta,
-          ...(asNumber(msg?.summary_index) !== undefined
-            ? { summaryIndex: asNumber(msg?.summary_index) }
-            : {}),
+          ...(next.contentIndex !== undefined ? { contentIndex: next.contentIndex } : {}),
+          ...(next.summaryIndex !== undefined ? { summaryIndex: next.summaryIndex } : {}),
         },
       },
     ];
@@ -1588,7 +1618,7 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     const services = yield* Effect.services<never>();
     const listenerEffect = Effect.fn("listener")(function* (event: ProviderEvent) {
       yield* writeNativeEvent(event);
-      const runtimeEvents = mapToRuntimeEvents(event, event.threadId);
+      const runtimeEvents = mapCodexProviderEventToRuntimeEvents(event, event.threadId);
       if (runtimeEvents.length === 0) {
         yield* Effect.logDebug("ignoring unhandled Codex provider event", {
           method: event.method,

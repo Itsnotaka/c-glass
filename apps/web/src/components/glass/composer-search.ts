@@ -124,6 +124,12 @@ export function pendingSlash(value: string, cursor: number): SlashMatch | null {
   };
 }
 
+export function slashPrefix(hit: SlashMatch | null, name: string) {
+  const query = hit?.query.trim().toLowerCase() ?? "";
+  if (!query) return false;
+  return name.startsWith(query);
+}
+
 export function rank<T>(items: T[], query: string, pick: (item: T) => string) {
   const raw = query.trim().toLowerCase();
   if (!raw) return items;

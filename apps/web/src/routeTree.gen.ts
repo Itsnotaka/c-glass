@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ChatRouteRouteImport } from './routes/_chat/route'
-import { Route as DevIconsRouteImport } from './routes/dev.icons'
 import { Route as ChatSettingsRouteRouteImport } from './routes/_chat/settings/route'
 import { Route as ChatShellRouteRouteImport } from './routes/_chat/_shell/route'
 import { Route as ChatShellIndexRouteImport } from './routes/_chat/_shell/index'
@@ -21,11 +20,6 @@ import { Route as ChatShellThreadIdRouteImport } from './routes/_chat/_shell/$th
 
 const ChatRouteRoute = ChatRouteRouteImport.update({
   id: '/_chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevIconsRoute = DevIconsRouteImport.update({
-  id: '/dev/icons',
-  path: '/dev/icons',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatSettingsRouteRoute = ChatSettingsRouteRouteImport.update({
@@ -66,7 +60,6 @@ const ChatShellThreadIdRoute = ChatShellThreadIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof ChatShellIndexRoute
   '/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/dev/icons': typeof DevIconsRoute
   '/$threadId': typeof ChatShellThreadIdRoute
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
@@ -75,7 +68,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof ChatShellIndexRoute
   '/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/dev/icons': typeof DevIconsRoute
   '/$threadId': typeof ChatShellThreadIdRoute
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
@@ -86,7 +78,6 @@ export interface FileRoutesById {
   '/_chat': typeof ChatRouteRouteWithChildren
   '/_chat/_shell': typeof ChatShellRouteRouteWithChildren
   '/_chat/settings': typeof ChatSettingsRouteRouteWithChildren
-  '/dev/icons': typeof DevIconsRoute
   '/_chat/_shell/$threadId': typeof ChatShellThreadIdRoute
   '/_chat/settings/agents': typeof ChatSettingsAgentsRoute
   '/_chat/settings/appearance': typeof ChatSettingsAppearanceRoute
@@ -98,7 +89,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
-    | '/dev/icons'
     | '/$threadId'
     | '/settings/agents'
     | '/settings/appearance'
@@ -107,7 +97,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/settings'
-    | '/dev/icons'
     | '/$threadId'
     | '/settings/agents'
     | '/settings/appearance'
@@ -117,7 +106,6 @@ export interface FileRouteTypes {
     | '/_chat'
     | '/_chat/_shell'
     | '/_chat/settings'
-    | '/dev/icons'
     | '/_chat/_shell/$threadId'
     | '/_chat/settings/agents'
     | '/_chat/settings/appearance'
@@ -127,7 +115,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   ChatRouteRoute: typeof ChatRouteRouteWithChildren
-  DevIconsRoute: typeof DevIconsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -137,13 +124,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ChatRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dev/icons': {
-      id: '/dev/icons'
-      path: '/dev/icons'
-      fullPath: '/dev/icons'
-      preLoaderRoute: typeof DevIconsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_chat/settings': {
@@ -243,7 +223,6 @@ const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   ChatRouteRoute: ChatRouteRouteWithChildren,
-  DevIconsRoute: DevIconsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

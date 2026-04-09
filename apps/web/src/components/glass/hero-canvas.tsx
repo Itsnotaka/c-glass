@@ -4,7 +4,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { useGlassChatDraftStore } from "../../lib/glass-chat-draft-store";
 import { useDefaultHarness } from "../../lib/harness-picker";
 import { useHarnessDescriptor } from "../../lib/harness-store";
-import { clearSlash, pendingSlash } from "./composer-search";
+import { clearSlash, pendingSlash, slashPrefix } from "./composer-search";
 import { GlassChatComposer, type GlassChatComposerHandle } from "./chat-composer";
 import { GlassHeroComposerFooter } from "./hero-composer-footer";
 import { GlassHeroStage } from "./hero-stage";
@@ -42,7 +42,7 @@ export function GlassHeroCanvas() {
   const clearPlan = useCallback((value: string) => {
     const hit = pendingSlash(value, value.length);
     if (!hit) return value;
-    if (!"plan".startsWith(hit.query.toLowerCase())) return value;
+    if (!slashPrefix(hit, "plan")) return value;
     return clearSlash(value, hit).value;
   }, []);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clearSlash, mirrorSegmentsDraft, pendingSlash } from "./composer-search";
+import { clearSlash, mirrorSegmentsDraft, pendingSlash, slashPrefix } from "./composer-search";
 
 describe("mirrorSegmentsDraft", () => {
   it("finds a bare slash token even when the cursor is no longer at the end", () => {
@@ -49,6 +49,10 @@ describe("mirrorSegmentsDraft", () => {
       start: 2,
       end: 6,
     });
+  });
+
+  it("does not treat a bare slash as a command prefix match", () => {
+    expect(slashPrefix({ query: "", start: 0, end: 1 }, "plan")).toBe(false);
   });
 
   it("treats a bare @ as plain text", () => {

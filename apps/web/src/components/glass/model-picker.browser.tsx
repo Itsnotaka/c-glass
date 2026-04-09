@@ -3,9 +3,9 @@ import "../../styles/app.css";
 import "../../styles/glass.css";
 
 import { useState } from "react";
+import { createRoot } from "react-dom/client";
 import { page } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
 
 import { GlassModelPicker } from "./model-picker";
 import type { RuntimeModelItem } from "../../lib/runtime-models";
@@ -39,7 +39,7 @@ function Harness(props: { item: RuntimeModelItem }) {
           provider: props.item.provider,
           id: props.item.id,
           name: props.item.name,
-          reasoning: props.item.reasoning,
+          reasoning: Boolean(props.item.reasoning),
         },
         fastMode: fast,
       }}
@@ -53,9 +53,11 @@ function Harness(props: { item: RuntimeModelItem }) {
 async function mount(item: RuntimeModelItem) {
   const host = document.createElement("div");
   document.body.append(host);
-  const screen = await render(<Harness item={item} />, { container: host });
+  const root = createRoot(host);
+  root.render(<Harness item={item} />);
+  await Promise.resolve();
   const cleanup = async () => {
-    await screen.unmount();
+    root.unmount();
     host.remove();
   };
   return {

@@ -65,6 +65,7 @@ import {
   mirrorSegmentsDraft,
   pendingSlash,
   rankFileHits,
+  slashPrefix,
   slashMatch,
   type MirrorSeg,
 } from "./composer-search";
@@ -95,6 +96,16 @@ const defaultCaps = {
   interactive: true,
   fileAttachments: true,
 } as const;
+
+function segCls(kind: MirrorSeg["kind"], on: boolean) {
+  if (kind === "plain") return "text-foreground";
+  return cn(
+    "box-decoration-clone rounded-sm px-1.5 py-px [-webkit-box-decoration-break:clone]",
+    on
+      ? "bg-[var(--glass-composer-object-bg-active)] text-[color:var(--glass-composer-object-fg)] shadow-[inset_0_0_0_1px_var(--glass-composer-object-border-active)]"
+      : "bg-[var(--glass-composer-object-bg)] text-[color:var(--glass-composer-object-fg-muted)] shadow-[inset_0_0_0_1px_var(--glass-composer-object-border)]",
+  );
+}
 
 interface Props {
   variant: "hero" | "dock";
@@ -515,10 +526,6 @@ const GlassChatComposerImpl = memo(
     const [loading, setLoading] = useState(false);
     const [closed, setClosed] = useState<string | null>(null);
     const [git, setGit] = useState<string | null>(null);
-    const [action, setAction] = useState<{
-      item: GlassSlashItem;
-      value: string;
-    } | null>(null);
     const files = props.files ?? localFiles;
     const marks = props.skills ?? localSkills;
     const skillSink = useRef<(skills: GlassDraftSkill[]) => void>(() => undefined);
@@ -589,7 +596,7 @@ const GlassChatComposerImpl = memo(
       const pos = area.current?.selectionStart ?? cursorRef.current;
       const hit = pendingSlash(value, pos);
       if (!hit) return null;
-      if (!"plan".startsWith(hit.query.toLowerCase())) return null;
+      if (!slashPrefix(hit, "plan")) return null;
       return { value, hit };
     };
 
@@ -655,10 +662,17 @@ const GlassChatComposerImpl = memo(
       setRecSnap(readSlashRecents());
       const next = clearSlash(raw, hit);
       flushSync(() => {
+        setClosed(`slash:${hit.query}`);
         update(next.value, next.cursor, undefined, raw, item.run.type !== "open-model-picker");
-        setAction({ item, value: next.value });
       });
       writeFiles([]);
+      if (item.run.type === "open-model-picker") {
+        window.requestAnimationFrame(() => {
+          exec(item);
+        });
+        return true;
+      }
+      exec(item);
       return true;
     };
 
@@ -758,7 +772,7 @@ const GlassChatComposerImpl = memo(
     const draftPlan = useMemo(() => {
       const hit = pendingSlash(props.draft, props.draft.length);
       if (!hit) return null;
-      if (!"plan".startsWith(hit.query.toLowerCase())) return null;
+      if (!slashPrefix(hit, "plan")) return null;
       return hit;
     }, [props.draft]);
     const slashRows = useMemo(
@@ -853,13 +867,6 @@ const GlassChatComposerImpl = memo(
       skillSink.current(shiftSkills(draftRef.current, next.value, marksRef.current));
       draftSink.current(next.value);
     }, [draftPlan, props.planActive]);
-
-    useEffect(() => {
-      if (!action) return;
-      if (props.draft !== action.value) return;
-      setAction(null);
-      exec(action.item);
-    }, [action, exec, props.draft]);
 
     useEffect(() => {
       if (!api || !at || !shell.cwd) {
@@ -1220,22 +1227,11 @@ const GlassChatComposerImpl = memo(
                       <span className="text-foreground">{props.draft}</span>
                     ) : (
                       segs.map((seg: MirrorSeg, idx: number) => {
-                        const on = activeSeg === idx;
-                        const cls = cn(
-                          seg.kind === "slash"
-                            ? "highlight-command"
-                            : seg.kind === "skill"
-                              ? on
-                                ? "highlight-skill highlight-skill--active"
-                                : "highlight-skill"
-                              : seg.kind === "mention"
-                                ? on
-                                  ? "highlight-file highlight-file--active"
-                                  : "highlight-file"
-                                : "text-foreground",
-                        );
                         return (
-                          <span key={`${seg.kind}-${seg.start}-${seg.end}`} className={cls}>
+                          <span
+                            key={`${seg.kind}-${seg.start}-${seg.end}`}
+                            className={segCls(seg.kind, activeSeg === idx)}
+                          >
                             {seg.text}
                           </span>
                         );

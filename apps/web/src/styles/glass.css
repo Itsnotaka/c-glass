@@ -141,7 +141,6 @@
   --glass-composer-object-border: var(--glass-plan-mode-selected-border);
   --glass-composer-object-border-active: var(--glass-plan-mode-selected-border-hover);
   --glass-composer-object-fg: var(--glass-plan-mode-selected-fg);
-  --glass-composer-object-inline-pad: 2px;
   --glass-composer-object-fg-muted: color-mix(
     in srgb,
     var(--glass-plan-mode-selected-fg) 84%,
@@ -355,34 +354,6 @@ body {
     transition: none !important;
     animation: none !important;
   }
-}
-
-/* Skill/mention highlighting in composer */
-.highlight-file,
-.highlight-skill {
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  border-radius: 4px;
-  background: var(--glass-composer-object-bg);
-  box-shadow:
-    inset 0 0 0 1px var(--glass-composer-object-border),
-    calc(-1 * var(--glass-composer-object-inline-pad)) 0 0 var(--glass-composer-object-bg),
-    var(--glass-composer-object-inline-pad) 0 0 var(--glass-composer-object-bg);
-  color: var(--glass-composer-object-fg-muted);
-}
-
-.highlight-file--active,
-.highlight-skill--active {
-  background: var(--glass-composer-object-bg-active);
-  box-shadow:
-    inset 0 0 0 1px var(--glass-composer-object-border-active),
-    calc(-1 * var(--glass-composer-object-inline-pad)) 0 0 var(--glass-composer-object-bg-active),
-    var(--glass-composer-object-inline-pad) 0 0 var(--glass-composer-object-bg-active);
-  color: var(--glass-composer-object-fg);
-}
-
-.highlight-command {
-  color: color-mix(in srgb, var(--glass-composer-object-fg) 78%, var(--foreground));
 }
 
 .glass-composer-object-row--active {
