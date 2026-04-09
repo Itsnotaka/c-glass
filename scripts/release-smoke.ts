@@ -19,7 +19,7 @@ const workspaceFiles = [
   "pnpm-workspace.yaml",
   "pnpm-lock.yaml",
   "apps/desktop/package.json",
-  "apps/desktop/package.json",
+  "apps/server/package.json",
   "apps/web/package.json",
   "packages/contracts/package.json",
   "packages/shared/package.json",
