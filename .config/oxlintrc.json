@@ -36,7 +36,6 @@
         "**/packages/contracts/src/session.ts",
         "**/apps/desktop/src/main.ts",
         "**/apps/desktop/src/preload.ts",
-        "**/apps/desktop/src/cursor-provider.ts",
         "**/build-desktop-artifact.ts",
         "**/update-release-package-versions.ts"
       ],
