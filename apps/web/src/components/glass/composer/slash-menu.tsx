@@ -104,6 +104,7 @@ export function GlassComposerTokenMenu(props: {
         >
           {/* Root menu shell: 12px/16px, elevated surface, soft shadow */}
           <Popover.Popup
+            data-slot="popover-token-menu"
             initialFocus={false}
             finalFocus={false}
             className={cn(

@@ -4,11 +4,12 @@ import "./styles/tailwind.css";
 import "./styles/app.css";
 import "./styles/glass.css";
 
-import React from "react";
+import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { createHashHistory, createBrowserHistory } from "@tanstack/react-router";
 
+import { ReactGrabDevPlugins } from "./components/dev/react-grab-dev-plugins";
 import { isElectron } from "./env";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
@@ -21,7 +22,10 @@ const router = getRouter(history);
 document.title = APP_DISPLAY_NAME;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
+  <StrictMode>
+    <>
+      {import.meta.env.DEV ? <ReactGrabDevPlugins /> : null}
+      <RouterProvider router={router} />
+    </>
+  </StrictMode>,
 );

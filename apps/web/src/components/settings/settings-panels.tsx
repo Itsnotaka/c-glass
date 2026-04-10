@@ -62,7 +62,13 @@ function SettingsSection(props: { label: string; children: ReactNode }) {
   );
 }
 
-function SettingsRow(props: { label: string; description: string; control?: ReactNode }) {
+function SettingsRow(props: {
+  label: string;
+  description: string;
+  control?: ReactNode;
+  /** Wider control column (e.g. model pickers, split buttons) so labels are not over-truncated. */
+  controlWide?: boolean;
+}) {
   return (
     <div className="flex min-h-14 flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="min-w-0 flex-1">
@@ -74,7 +80,16 @@ function SettingsRow(props: { label: string; description: string; control?: Reac
         </div>
       </div>
       {props.control ? (
-        <div className="shrink-0 sm:max-w-[min(100%,20rem)] sm:justify-end">{props.control}</div>
+        <div
+          className={cn(
+            "min-w-0 shrink-0 sm:flex sm:justify-end",
+            props.controlWide
+              ? "sm:max-w-[min(100%,min(36rem,58%))]"
+              : "sm:max-w-[min(100%,20rem)]",
+          )}
+        >
+          {props.control}
+        </div>
       ) : null}
     </div>
   );
@@ -302,7 +317,8 @@ export function AgentsSettingsPanel() {
     <div className="glass-settings-page mx-auto w-full max-w-2xl px-1 py-2">
       <h1 className="font-semibold tracking-tight text-foreground">Agents</h1>
       <p className="mt-1 text-muted-foreground">
-        Enable the harnesses you want in Glass and choose which one new chats should start with.
+        Turn providers on or off, set which harness new chats use, then pick the default model for
+        that harness.
       </p>
 
       <SettingsSection label="Workspace">
@@ -318,8 +334,9 @@ export function AgentsSettingsPanel() {
         <SettingsRow
           label="Workspace actions"
           description="Add a workspace to Glass or open it in your editor."
+          controlWide
           control={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -349,6 +366,7 @@ export function AgentsSettingsPanel() {
                 <Button
                   type="button"
                   size="sm"
+                  className="min-w-[7.25rem]"
                   variant={defaultKind === item.kind ? "default" : "outline"}
                   onClick={() => void setDefaultHarness(item.kind)}
                 >
@@ -364,7 +382,8 @@ export function AgentsSettingsPanel() {
       <SettingsSection label="Default model">
         <SettingsRow
           label="New chat model"
-          description="This updates the active project default model selection."
+          description="Default model for new chats in this project (for the harness marked default above)."
+          controlWide
           control={
             <GlassModelPicker
               items={defaults.items}

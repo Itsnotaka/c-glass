@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  IconClipboard,
+  IconHashtag,
   IconPlusLarge,
   IconSettingsGear2,
   IconSidebar,
@@ -10,15 +12,18 @@ import {
 import { useCallback, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
+import { toast } from "sonner";
 
 import { CommandPalette } from "~/components/ui/command-palette";
 import { Kbd } from "~/components/ui/kbd";
 import { useTheme } from "~/hooks/use-theme";
+import { useGlassChatDraftStore } from "~/lib/glass-chat-draft-store";
 import type { GlassAppShellPanels } from "./app";
 
 interface Props {
   panels: GlassAppShellPanels;
   onNewChat: () => void;
+  routeThreadId: string | null;
 }
 
 export function GlassCommandPalette(props: Props) {
@@ -35,6 +40,39 @@ export function GlassCommandPalette(props: Props) {
     setOpen(false);
     cb();
   }, []);
+
+  const appendThreadId = useCallback(() => {
+    const tid = props.routeThreadId;
+    if (!tid) {
+      toast.error("No active thread");
+      return;
+    }
+    const s = useGlassChatDraftStore.getState();
+    if (s.cur === null) {
+      const t = s.root.text;
+      if (t.endsWith(tid)) {
+        toast.info("Thread id already in composer");
+        return;
+      }
+      const next = t.length > 0 && !/\s$/.test(t) ? `${t} ${tid}` : `${t}${tid}`;
+      s.saveRoot(next, s.root.files, s.root.skills);
+      toast.success("Thread id added to composer");
+      return;
+    }
+    const item = s.items[s.cur];
+    if (!item) {
+      toast.error("No active draft");
+      return;
+    }
+    const t = item.text;
+    if (t.endsWith(tid)) {
+      toast.info("Thread id already in composer");
+      return;
+    }
+    const next = t.length > 0 && !/\s$/.test(t) ? `${t} ${tid}` : `${t}${tid}`;
+    s.save(s.cur, next, item.files, item.skills);
+    toast.success("Thread id added to composer");
+  }, [props.routeThreadId]);
 
   return (
     <CommandPalette.Dialog open={open} onOpenChange={setOpen} label="Command palette" loop>
@@ -112,6 +150,27 @@ export function GlassCommandPalette(props: Props) {
             <span className="flex-1">Use System Theme</span>
           </CommandPalette.Item>
         </CommandPalette.Group>
+
+        {import.meta.env.DEV ? (
+          <CommandPalette.Group heading="Developer">
+            <CommandPalette.Item
+              value="dev debug intents"
+              keywords={["provider", "runtime", "intents", "debug", "mapping", "ui"]}
+              onSelect={() => run(() => void navigate({ to: "/debug/intents" }))}
+            >
+              <IconClipboard className="size-4 shrink-0 text-muted-foreground/60" />
+              <span className="flex-1">Dev: Debug intents</span>
+            </CommandPalette.Item>
+            <CommandPalette.Item
+              value="dev add thread id"
+              keywords={["thread", "uuid", "composer", "draft", "id"]}
+              onSelect={() => run(appendThreadId)}
+            >
+              <IconHashtag className="size-4 shrink-0 text-muted-foreground/60" />
+              <span className="flex-1">Dev: Add thread id</span>
+            </CommandPalette.Item>
+          </CommandPalette.Group>
+        ) : null}
       </CommandPalette.List>
     </CommandPalette.Dialog>
   );

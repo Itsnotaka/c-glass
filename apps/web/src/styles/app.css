@@ -320,3 +320,22 @@ label:has(> select#reasoning-effort) select {
   -webkit-background-clip: text;
   animation: ultrathink-rainbow 10s linear infinite;
 }
+
+/* Dev: React Grab plugin toggles `html.glass-overlay-debug` — outlines overlay hosts (see `react-grab-overlay-debug.ts`). */
+html.glass-overlay-debug [data-slot="tooltip-content"],
+html.glass-overlay-debug [data-slot="popover-token-menu"],
+html.glass-overlay-debug [data-slot="context-menu-popup"] {
+  outline: 2px solid hsl(280 85% 58% / 0.88);
+  outline-offset: 2px;
+}
+
+html.glass-overlay-debug [data-slot="tooltip-trigger"],
+html.glass-overlay-debug [data-slot="context-menu-trigger"] {
+  outline: 1px dashed hsl(200 78% 52% / 0.85);
+  outline-offset: 2px;
+}
+
+html.glass-overlay-debug [data-slot="context-menu-root"] {
+  outline: 1px dotted hsl(45 90% 55% / 0.45);
+  outline-offset: 1px;
+}

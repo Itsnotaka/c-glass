@@ -668,6 +668,14 @@ function configureApplicationMenu(): void {
         { role: "reload" },
         { role: "forceReload" },
         { role: "toggleDevTools" },
+        {
+          label: "Provider intents (debug)",
+          click: () => {
+            const target = BrowserWindow.getFocusedWindow() ?? mainWindow;
+            if (!target) return;
+            void target.webContents.executeJavaScript("window.location.hash = '#/debug/intents'");
+          },
+        },
         { type: "separator" },
         { role: "resetZoom" },
         { role: "zoomIn", accelerator: "CmdOrCtrl+=" },

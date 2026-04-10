@@ -25,11 +25,17 @@ export function GlassThreadContextMenu(props: {
   onArchive: () => void;
 }) {
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger className="w-full min-w-0">{props.children}</ContextMenu.Trigger>
+    <ContextMenu.Root data-slot="context-menu-root">
+      <ContextMenu.Trigger className="w-full min-w-0" data-slot="context-menu-trigger">
+        {props.children}
+      </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Positioner className="z-50 outline-none" sideOffset={8} align="start">
-          <ContextMenu.Popup finalFocus={false} className={cn(popupSurface, "z-50")}>
+          <ContextMenu.Popup
+            data-slot="context-menu-popup"
+            finalFocus={false}
+            className={cn(popupSurface, "z-50")}
+          >
             <div className="flex max-h-72 min-h-0 flex-col gap-px overflow-y-auto overscroll-contain p-1">
               <ContextMenu.Item label="Rename" onClick={props.onRename} className={itemClass}>
                 <span className="inline-flex h-4 w-3 shrink-0 items-center justify-center text-muted-foreground/60">

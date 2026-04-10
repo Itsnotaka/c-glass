@@ -648,6 +648,17 @@ register("find", find);
 register("ask", ask);
 register("ls", ls);
 
+export const TOOL_RENDERER_KEYS = [
+  "read",
+  "edit",
+  "write",
+  "bash",
+  "grep",
+  "find",
+  "ask",
+  "ls",
+] as const;
+
 // Embedded renderers: same logic but without outer wrapper containers
 // for use inside collapsible panels that already provide structure
 

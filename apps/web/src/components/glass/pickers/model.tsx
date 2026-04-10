@@ -173,10 +173,10 @@ export const GlassModelPicker = forwardRef<
         aria-label={`Model: ${triggerLabel}${props.onThinkingLevel ? `, thinking ${thinkingDetailLabel(thinkingValue)}` : ""}${showFast ? `, fast mode ${fastValue}` : ""}`}
         disabled={!idle}
         className={cn(
-          "ui-model-picker__trigger inline-flex max-w-[min(100%,280px)] min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body/1 text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
+          "ui-model-picker__trigger inline-flex min-w-0 gap-1.5 rounded border border-transparent bg-transparent text-left text-body/1 text-muted-foreground outline-none transition-colors hover:bg-glass-hover/50 hover:text-foreground/90 focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none",
           settings
-            ? "h-auto min-h-6 flex-col items-start gap-0.5 py-1 pl-2 pr-1"
-            : "h-6 items-center pl-2 pr-1",
+            ? "h-auto min-h-6 w-full max-w-full flex-col items-stretch gap-0.5 py-1 pl-2 pr-1"
+            : "h-6 max-w-[min(100%,280px)] items-center pl-2 pr-1",
           !idle && "opacity-50",
         )}
       >
@@ -189,7 +189,7 @@ export const GlassModelPicker = forwardRef<
           </div>
         ) : (
           <>
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className={cn("flex min-w-0 items-center gap-1.5", settings && "w-full")}>
               {cur?.reasoning ? (
                 <span
                   className="inline-flex shrink-0 items-center text-muted-foreground/70"

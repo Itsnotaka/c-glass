@@ -3,6 +3,7 @@ import {
   PROVIDER_RUNTIME_EVENT_TYPES,
   type ProviderRuntimeEventType,
 } from "@glass/contracts";
+import { TOOL_RENDERER_KEYS } from "./tool-renderers";
 
 export type ProviderIntentStatus = "rendered" | "hidden" | "not-mapped-yet";
 
@@ -15,6 +16,7 @@ export interface ProviderIntentComponent {
 export interface ProviderIntentRow extends ProviderIntentComponent {
   eventType: ProviderRuntimeEventType;
   intent: string;
+  toolRenderers: ReadonlyArray<string> | null;
 }
 
 export const PROVIDER_INTENT_COMPONENTS = {
@@ -255,10 +257,25 @@ export const PROVIDER_INTENT_COMPONENTS = {
   },
 } as const satisfies Record<ProviderRuntimeEventType, ProviderIntentComponent>;
 
+const toolRenderers = [...TOOL_RENDERER_KEYS, "fallback"] as const;
+
+function renderer(eventType: ProviderRuntimeEventType): ReadonlyArray<string> | null {
+  if (eventType === "item.started") return toolRenderers;
+  if (eventType === "item.updated") return toolRenderers;
+  if (eventType === "item.completed") return toolRenderers;
+  return null;
+}
+
 export const PROVIDER_INTENT_ROWS: ProviderIntentRow[] = PROVIDER_RUNTIME_EVENT_TYPES.map(
-  (eventType) => ({
-    eventType,
-    intent: PROVIDER_RUNTIME_EVENT_INTENTS[eventType],
-    ...PROVIDER_INTENT_COMPONENTS[eventType],
-  }),
+  (eventType) => {
+    const view = PROVIDER_INTENT_COMPONENTS[eventType];
+    return {
+      eventType,
+      intent: PROVIDER_RUNTIME_EVENT_INTENTS[eventType],
+      toolRenderers: renderer(eventType),
+      componentName: view.componentName,
+      status: view.status,
+      note: view.note,
+    };
+  },
 );
