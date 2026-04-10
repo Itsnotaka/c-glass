@@ -1,5 +1,6 @@
 import type { ServerLifecycleStreamEvent } from "@glass/contracts";
-import { Effect, Layer, PubSub, Ref, Context, Stream } from "effect";
+import { Effect, Layer, PubSub, Ref, Stream } from "effect";
+import * as Context from "effect/ServiceMap";
 
 type LifecycleEventInput =
   | Omit<Extract<ServerLifecycleStreamEvent, { type: "welcome" }>, "sequence">

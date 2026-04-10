@@ -15,7 +15,7 @@ function act(input: {
   until?: string | null;
 }): OrchestrationThreadActivity {
   return {
-    id: EventId.make(`evt:${input.kind}:${input.provider}`),
+    id: EventId.makeUnsafe(`evt:${input.kind}:${input.provider}`),
     tone: "info",
     kind: input.kind,
     summary: "Notice",

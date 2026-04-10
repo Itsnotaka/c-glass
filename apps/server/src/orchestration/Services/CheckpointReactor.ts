@@ -6,7 +6,7 @@
  *
  * @module CheckpointReactor
  */
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect, Scope } from "effect";
 
 /**

@@ -7,19 +7,8 @@ import {
   ThreadId,
 } from "@glass/contracts";
 import { resolveModelSlugForProvider } from "@glass/shared/model";
-import {
-  Data,
-  Deferred,
-  Effect,
-  Exit,
-  Layer,
-  Option,
-  Path,
-  Queue,
-  Ref,
-  Scope,
-  Context,
-} from "effect";
+import { Data, Deferred, Effect, Exit, Layer, Option, Path, Queue, Ref, Scope } from "effect";
+import * as Context from "effect/ServiceMap";
 
 import { ServerConfig } from "./config";
 import { Keybindings } from "./keybindings";
@@ -169,7 +158,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
 
       if (Option.isNone(existingProject)) {
         const createdAt = new Date().toISOString();
-        nextProjectId = ProjectId.make(crypto.randomUUID());
+        nextProjectId = ProjectId.makeUnsafe(crypto.randomUUID());
         const bootstrapProjectTitle = path.basename(serverConfig.cwd) || "project";
         nextProjectDefaultModelSelection = {
           provider: "codex",
@@ -177,7 +166,7 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         };
         yield* orchestrationEngine.dispatch({
           type: "project.create",
-          commandId: CommandId.make(crypto.randomUUID()),
+          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
           projectId: nextProjectId,
           title: bootstrapProjectTitle,
           workspaceRoot: serverConfig.cwd,
@@ -198,10 +187,10 @@ const autoBootstrapWelcome = Effect.gen(function* () {
         yield* projectionReadModelQuery.getFirstActiveThreadIdByProjectId(nextProjectId);
       if (Option.isNone(existingThreadId)) {
         const createdAt = new Date().toISOString();
-        const createdThreadId = ThreadId.make(crypto.randomUUID());
+        const createdThreadId = ThreadId.makeUnsafe(crypto.randomUUID());
         yield* orchestrationEngine.dispatch({
           type: "thread.create",
-          commandId: CommandId.make(crypto.randomUUID()),
+          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
           threadId: createdThreadId,
           projectId: nextProjectId,
           title: "New thread",

@@ -956,10 +956,11 @@ export const makeGitCore = Effect.fn("makeGitCore")(function* (options?: {
     return true as const;
   });
 
-  const statusUpstreamRefreshCache = yield* Cache.makeWith(refreshStatusUpstreamCacheEntry, {
+  const statusUpstreamRefreshCache = yield* Cache.makeWith({
     capacity: STATUS_UPSTREAM_REFRESH_CACHE_CAPACITY,
+    lookup: refreshStatusUpstreamCacheEntry,
     // Keep successful refreshes warm and briefly back off failed refreshes to avoid retry storms.
-    timeToLive: (exit, _key) =>
+    timeToLive: (exit) =>
       Exit.isSuccess(exit)
         ? STATUS_UPSTREAM_REFRESH_INTERVAL
         : STATUS_UPSTREAM_REFRESH_FAILURE_COOLDOWN,

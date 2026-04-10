@@ -13,7 +13,7 @@ import type {
   ProjectId,
   ThreadId,
 } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Option } from "effect";
 import type { Effect } from "effect";
 

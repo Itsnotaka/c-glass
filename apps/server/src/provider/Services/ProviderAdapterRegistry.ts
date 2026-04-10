@@ -8,7 +8,7 @@
  * @module ProviderAdapterRegistry
  */
 import type { ProviderKind } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type { ProviderAdapterError, ProviderUnsupportedError } from "../Errors.ts";

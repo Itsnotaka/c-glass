@@ -7,7 +7,8 @@
  * @module ProjectionProjectRepository
  */
 import { IsoDateTime, ModelSelection, ProjectId, ProjectScript } from "@glass/contracts";
-import { Option, Schema, Context } from "effect";
+import { Option, Schema } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type { ProjectionRepositoryError } from "../Errors.ts";

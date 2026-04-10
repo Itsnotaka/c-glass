@@ -49,7 +49,7 @@ export interface RuntimeDefaultsRead {
   modelRef: RuntimeModelItem | HarnessModelRef | null;
 }
 
-const commandId = () => CommandId.make(crypto.randomUUID());
+const commandId = () => CommandId.makeUnsafe(crypto.randomUUID());
 
 export function readStoredCwd() {
   if (typeof window === "undefined") return null;

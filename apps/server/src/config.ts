@@ -6,7 +6,8 @@
  *
  * @module ServerConfig
  */
-import { Effect, FileSystem, Layer, LogLevel, Path, Schema, Context } from "effect";
+import { Effect, FileSystem, Layer, LogLevel, Path, Schema } from "effect";
+import * as Context from "effect/ServiceMap";
 
 export const DEFAULT_PORT = 3773;
 

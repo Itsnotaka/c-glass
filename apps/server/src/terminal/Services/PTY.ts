@@ -6,7 +6,8 @@
  *
  * @module PtyAdapter
  */
-import { Effect, Schema, Context } from "effect";
+import { Effect, Schema } from "effect";
+import * as Context from "effect/ServiceMap";
 
 /**
  * PtyError - Error type for PTY adapter operations.

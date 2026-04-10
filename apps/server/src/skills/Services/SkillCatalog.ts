@@ -1,4 +1,5 @@
-import { Schema, Context } from "effect";
+import { Schema } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type { GlassSkill } from "@glass/contracts";

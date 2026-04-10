@@ -10,7 +10,7 @@
  *
  * @module CodexAdapter
  */
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 
 import type { ProviderAdapterError } from "../Errors.ts";
 import type { ProviderAdapterShape } from "./ProviderAdapter.ts";

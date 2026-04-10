@@ -34,7 +34,7 @@ import { ServerSettingsService } from "../../serverSettings.ts";
 
 const providerTurnKey = (threadId: ThreadId, turnId: TurnId) => `${threadId}:${turnId}`;
 const providerCommandId = (event: ProviderRuntimeEvent, tag: string): CommandId =>
-  CommandId.make(`provider:${event.eventId}:${tag}:${crypto.randomUUID()}`);
+  CommandId.makeUnsafe(`provider:${event.eventId}:${tag}:${crypto.randomUUID()}`);
 
 const TURN_MESSAGE_IDS_BY_TURN_CACHE_CAPACITY = 10_000;
 const TURN_MESSAGE_IDS_BY_TURN_TTL = Duration.minutes(120);
@@ -63,19 +63,19 @@ type RuntimeIngestionInput =
     };
 
 function toTurnId(value: TurnId | string | undefined): TurnId | undefined {
-  return value === undefined ? undefined : TurnId.make(String(value));
+  return value === undefined ? undefined : TurnId.makeUnsafe(String(value));
 }
 
 function assistantMessageId(event: ProviderRuntimeEvent): MessageId {
   const turnId = toTurnId(event.turnId);
   if (turnId) {
-    return MessageId.make(`assistant:${turnId}`);
+    return MessageId.makeUnsafe(`assistant:${turnId}`);
   }
-  return MessageId.make(`assistant:${event.itemId ?? event.eventId}`);
+  return MessageId.makeUnsafe(`assistant:${event.itemId ?? event.eventId}`);
 }
 
 function toApprovalRequestId(value: string | undefined): ApprovalRequestId | undefined {
-  return value === undefined ? undefined : ApprovalRequestId.make(value);
+  return value === undefined ? undefined : ApprovalRequestId.makeUnsafe(value);
 }
 
 function sameId(left: string | null | undefined, right: string | null | undefined): boolean {
@@ -1294,7 +1294,7 @@ const make = Effect.fn("make")(function* () {
 
       yield* orchestrationEngine.dispatch({
         type: "thread.proposed-plan.upsert",
-        commandId: CommandId.make(
+        commandId: CommandId.makeUnsafe(
           `provider:source-proposed-plan-implemented:${implementationThreadId}:${crypto.randomUUID()}`,
         ),
         threadId: sourceThread.id,
@@ -1555,7 +1555,7 @@ const make = Effect.fn("make")(function* () {
           type: "thread.message.tool-result.append",
           commandId: providerCommandId(event, "tool-result-append"),
           threadId: thread.id,
-          messageId: MessageId.make(`toolResult:${id}`),
+          messageId: MessageId.makeUnsafe(`toolResult:${id}`),
           toolCallId: id,
           toolName: name,
           ...(text.length > 0
@@ -1710,7 +1710,7 @@ const make = Effect.fn("make")(function* () {
         if (thread.checkpoints.some((c) => c.turnId === turnId)) {
           // Already tracked; no-op.
         } else {
-          const assistantMessageId = MessageId.make(
+          const assistantMessageId = MessageId.makeUnsafe(
             `assistant:${event.itemId ?? event.turnId ?? event.eventId}`,
           );
           const maxTurnCount = thread.checkpoints.reduce(
@@ -1723,7 +1723,7 @@ const make = Effect.fn("make")(function* () {
             threadId: thread.id,
             turnId,
             completedAt: now,
-            checkpointRef: CheckpointRef.make(`provider-diff:${event.eventId}`),
+            checkpointRef: CheckpointRef.makeUnsafe(`provider-diff:${event.eventId}`),
             status: "missing",
             files: [],
             assistantMessageId,

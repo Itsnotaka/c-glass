@@ -24,7 +24,7 @@ import type {
   ThreadId,
   ProviderTurnStartResult,
 } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect, Stream } from "effect";
 
 import type { ProviderServiceError } from "../Errors.ts";

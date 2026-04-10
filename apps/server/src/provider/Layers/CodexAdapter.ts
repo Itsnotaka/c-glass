@@ -22,7 +22,8 @@ import {
   TurnId,
   ProviderSendTurnInput,
 } from "@glass/contracts";
-import { Effect, FileSystem, Layer, Queue, Schema, Context, Stream } from "effect";
+import { Effect, FileSystem, Layer, Queue, Schema, Stream } from "effect";
+import * as Context from "effect/ServiceMap";
 
 import {
   ProviderAdapterProcessError,
@@ -47,7 +48,7 @@ const PROVIDER = "codex" as const;
 
 export interface CodexAdapterLiveOptions {
   readonly manager?: CodexAppServerManager;
-  readonly makeManager?: (services?: Context.Context<never>) => CodexAppServerManager;
+  readonly makeManager?: (services?: Context.ServiceMap<never>) => CodexAppServerManager;
   readonly nativeEventLogPath?: string;
   readonly nativeEventLogger?: EventNdjsonLogger;
 }
@@ -163,11 +164,11 @@ function normalizeCodexTokenUsage(value: unknown): ThreadTokenUsageSnapshot | un
 }
 
 function toTurnId(value: string | undefined): TurnId | undefined {
-  return value?.trim() ? TurnId.make(value) : undefined;
+  return value?.trim() ? TurnId.makeUnsafe(value) : undefined;
 }
 
 function toProviderItemId(value: string | undefined): ProviderItemId | undefined {
-  return value?.trim() ? ProviderItemId.make(value) : undefined;
+  return value?.trim() ? ProviderItemId.makeUnsafe(value) : undefined;
 }
 
 function toTurnStatus(value: unknown): "completed" | "failed" | "cancelled" | "interrupted" {
@@ -425,15 +426,15 @@ function extractProposedPlanMarkdown(text: string | undefined): string | undefin
 }
 
 function asRuntimeItemId(itemId: ProviderItemId): RuntimeItemId {
-  return RuntimeItemId.make(itemId);
+  return RuntimeItemId.makeUnsafe(itemId);
 }
 
 function asRuntimeRequestId(requestId: string): RuntimeRequestId {
-  return RuntimeRequestId.make(requestId);
+  return RuntimeRequestId.makeUnsafe(requestId);
 }
 
 function asRuntimeTaskId(taskId: string): RuntimeTaskId {
-  return RuntimeTaskId.make(taskId);
+  return RuntimeTaskId.makeUnsafe(taskId);
 }
 
 function codexEventMessage(

@@ -39,10 +39,10 @@ import {
   SchemaIssue,
   SchemaTransformation,
   Ref,
-  Context,
   Scope,
   Stream,
 } from "effect";
+import * as Context from "effect/ServiceMap";
 import * as Semaphore from "effect/Semaphore";
 import { ServerConfig } from "./config";
 import { fromLenientJson } from "@glass/shared/schemaJson";

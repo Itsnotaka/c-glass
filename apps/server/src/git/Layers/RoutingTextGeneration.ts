@@ -9,7 +9,8 @@
  *
  * @module RoutingTextGeneration
  */
-import { Effect, Layer, Context } from "effect";
+import { Effect, Layer } from "effect";
+import * as Context from "effect/ServiceMap";
 
 import {
   TextGeneration,

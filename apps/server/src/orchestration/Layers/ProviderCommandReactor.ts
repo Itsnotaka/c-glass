@@ -67,7 +67,7 @@ const turnStartKeyForEvent = (event: ProviderIntentEvent): string =>
   event.commandId !== null ? `command:${event.commandId}` : `event:${event.eventId}`;
 
 const serverCommandId = (tag: string): CommandId =>
-  CommandId.make(`server:${tag}:${crypto.randomUUID()}`);
+  CommandId.makeUnsafe(`server:${tag}:${crypto.randomUUID()}`);
 
 const HANDLED_TURN_START_KEY_MAX = 10_000;
 const HANDLED_TURN_START_KEY_TTL = Duration.minutes(30);
@@ -195,7 +195,7 @@ const make = Effect.gen(function* () {
       commandId: serverCommandId("provider-failure-activity"),
       threadId: input.threadId,
       activity: {
-        id: EventId.make(crypto.randomUUID()),
+        id: EventId.makeUnsafe(crypto.randomUUID()),
         tone: "error",
         kind: input.kind,
         summary: input.summary,

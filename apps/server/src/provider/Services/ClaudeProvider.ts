@@ -1,4 +1,4 @@
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 
 import type { ServerProviderShape } from "./ServerProvider";
 

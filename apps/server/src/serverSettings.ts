@@ -34,10 +34,10 @@ import {
   Schema,
   SchemaIssue,
   Scope,
-  Context,
   Stream,
   Cause,
 } from "effect";
+import * as Context from "effect/ServiceMap";
 import * as Semaphore from "effect/Semaphore";
 import { ServerConfig } from "./config";
 import { type DeepPartial, deepMerge } from "@glass/shared/Struct";

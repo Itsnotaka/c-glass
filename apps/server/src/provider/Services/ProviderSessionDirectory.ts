@@ -4,7 +4,8 @@ import type {
   RuntimeMode,
   ThreadId,
 } from "@glass/contracts";
-import { Option, Context } from "effect";
+import { Option } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type {

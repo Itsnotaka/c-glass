@@ -15,7 +15,8 @@
  * @module RuntimeReceiptBus
  */
 import { CheckpointRef, IsoDateTime, NonNegativeInt, ThreadId, TurnId } from "@glass/contracts";
-import { Schema, Context } from "effect";
+import { Schema } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect, Stream } from "effect";
 
 export const CheckpointBaselineCapturedReceipt = Schema.Struct({

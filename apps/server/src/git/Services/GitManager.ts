@@ -19,7 +19,7 @@ import {
   GitStatusInput,
   GitStatusResult,
 } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 import type { GitManagerServiceError } from "@glass/contracts";
 

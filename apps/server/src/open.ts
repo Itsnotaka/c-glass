@@ -11,7 +11,8 @@ import { accessSync, constants, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 import { EDITORS, OpenError, type EditorId } from "@glass/contracts";
-import { Context, Effect, Layer } from "effect";
+import { Effect, Layer } from "effect";
+import * as Context from "effect/ServiceMap";
 
 // ==============================
 // Definitions

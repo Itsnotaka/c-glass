@@ -73,7 +73,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
     const workspaceEntries = yield* WorkspaceEntries;
     const workspaceFileSystem = yield* WorkspaceFileSystem;
     const projectSetupScriptRunner = yield* ProjectSetupScriptRunner;
-    const serverCommandId = (tag: string) => CommandId.make(`server:${tag}:${crypto.randomUUID()}`);
+    const serverCommandId = (tag: string) => CommandId.makeUnsafe(`server:${tag}:${crypto.randomUUID()}`);
 
     const appendSetupScriptActivity = (input: {
       readonly threadId: ThreadId;
@@ -88,7 +88,7 @@ const WsRpcLayer = WsRpcGroup.toLayer(
         commandId: serverCommandId("setup-script-activity"),
         threadId: input.threadId,
         activity: {
-          id: EventId.make(crypto.randomUUID()),
+          id: EventId.makeUnsafe(crypto.randomUUID()),
           tone: input.tone,
           kind: input.kind,
           summary: input.summary,

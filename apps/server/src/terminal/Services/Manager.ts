@@ -23,7 +23,8 @@ import {
   TerminalWriteInput,
 } from "@glass/contracts";
 import { PtyProcess } from "./PTY";
-import { Effect, Context } from "effect";
+import { Effect } from "effect";
+import * as Context from "effect/ServiceMap";
 
 export {
   TerminalCwdError,

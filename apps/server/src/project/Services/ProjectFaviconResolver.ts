@@ -6,7 +6,7 @@
  *
  * @module ProjectFaviconResolver
  */
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 /**

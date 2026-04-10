@@ -12,7 +12,7 @@ import type {
   OrchestrationGetTurnDiffInput,
   OrchestrationGetTurnDiffResult,
 } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type { CheckpointServiceError } from "../Errors.ts";

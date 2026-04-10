@@ -7,7 +7,7 @@
  * @module OrchestrationProjectionPipeline
  */
 import type { OrchestrationEvent } from "@glass/contracts";
-import { Context } from "effect";
+import * as Context from "effect/ServiceMap";
 import type { Effect } from "effect";
 
 import type { ProjectionRepositoryError } from "../../persistence/Errors.ts";

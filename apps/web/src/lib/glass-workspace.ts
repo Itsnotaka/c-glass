@@ -8,7 +8,7 @@ const WORKSPACE_KEY = "glass:workspace-cwd";
 
 function projectId() {
   const seed = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}`;
-  return ProjectId.make(`project-${seed}`);
+  return ProjectId.makeUnsafe(`project-${seed}`);
 }
 
 export async function pickWorkspace() {
@@ -22,7 +22,7 @@ export async function pickWorkspace() {
   if (!hit) {
     await api.orchestration.dispatchCommand({
       type: "project.create",
-      commandId: CommandId.make(crypto.randomUUID()),
+      commandId: CommandId.makeUnsafe(crypto.randomUUID()),
       projectId: projectId(),
       title:
         cwd

@@ -10,13 +10,13 @@ import { describe, expect, it } from "vitest";
 
 import { mapCodexProviderEventToRuntimeEvents } from "./CodexAdapter.ts";
 
-const threadId = ThreadId.make("thread-codex");
-const turnId = TurnId.make("turn-codex");
-const itemId = ProviderItemId.make("item-codex");
+const threadId = ThreadId.makeUnsafe("thread-codex");
+const turnId = TurnId.makeUnsafe("turn-codex");
+const itemId = ProviderItemId.makeUnsafe("item-codex");
 
 function evt(method: string, payload: unknown): ProviderEvent {
   return {
-    id: EventId.make(`event:${method}`),
+    id: EventId.makeUnsafe(`event:${method}`),
     kind: "notification",
     provider: "codex",
     threadId,
@@ -42,12 +42,12 @@ describe("mapCodexProviderEventToRuntimeEvents", () => {
 
     expect(events).toEqual([
       {
-        eventId: EventId.make("event:item/reasoning/textDelta"),
+        eventId: EventId.makeUnsafe("event:item/reasoning/textDelta"),
         provider: "codex",
         threadId,
         createdAt: "2026-04-09T04:00:00.000Z",
         turnId,
-        itemId: RuntimeItemId.make(itemId),
+        itemId: RuntimeItemId.makeUnsafe(itemId),
         providerRefs: {
           providerTurnId: turnId,
           providerItemId: itemId,
@@ -88,7 +88,7 @@ describe("mapCodexProviderEventToRuntimeEvents", () => {
     );
 
     expect(events[0]?.turnId).toBe(turnId);
-    expect(events[0]?.itemId).toBe(RuntimeItemId.make(itemId));
+    expect(events[0]?.itemId).toBe(RuntimeItemId.makeUnsafe(itemId));
     expect(events[0]?.type).toBe("content.delta");
     expect(events[0]?.payload).toEqual({
       streamKind: "reasoning_summary_text",
@@ -111,7 +111,7 @@ describe("mapCodexProviderEventToRuntimeEvents", () => {
     );
 
     expect(events[0]?.turnId).toBe(turnId);
-    expect(events[0]?.itemId).toBe(RuntimeItemId.make(itemId));
+    expect(events[0]?.itemId).toBe(RuntimeItemId.makeUnsafe(itemId));
     expect(events[0]?.type).toBe("content.delta");
     expect(events[0]?.payload).toEqual({
       streamKind: "reasoning_summary_text",

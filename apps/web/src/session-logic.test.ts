@@ -5,7 +5,7 @@ import { derivePendingUserInputs, shouldShowActivity } from "./session-logic";
 
 function act(kind: OrchestrationThreadActivity["kind"]): OrchestrationThreadActivity {
   return {
-    id: EventId.make(`evt:${kind}`),
+    id: EventId.makeUnsafe(`evt:${kind}`),
     tone: "info",
     kind,
     summary: "Activity",
@@ -32,7 +32,7 @@ describe("shouldShowActivity", () => {
 describe("derivePendingUserInputs", () => {
   it("drops stale pending requests when provider failure uses user input wording", () => {
     const requested: OrchestrationThreadActivity = {
-      id: EventId.make("evt:user-input.requested"),
+      id: EventId.makeUnsafe("evt:user-input.requested"),
       tone: "info",
       kind: "user-input.requested",
       summary: "User input requested",
@@ -51,7 +51,7 @@ describe("derivePendingUserInputs", () => {
       createdAt: "2026-04-08T00:00:00.000Z",
     };
     const failed: OrchestrationThreadActivity = {
-      id: EventId.make("evt:provider.user-input.respond.failed"),
+      id: EventId.makeUnsafe("evt:provider.user-input.respond.failed"),
       tone: "error",
       kind: "provider.user-input.respond.failed",
       summary: "Provider user input response failed",
