@@ -141,7 +141,7 @@ export const CanonicalRequestType = Schema.Literals([
 ]);
 export type CanonicalRequestType = typeof CanonicalRequestType.Type;
 
-const ProviderRuntimeEventType = Schema.Literals([
+export const PROVIDER_RUNTIME_EVENT_TYPES = [
   "session.started",
   "session.configured",
   "session.state.changed",
@@ -189,8 +189,60 @@ const ProviderRuntimeEventType = Schema.Literals([
   "files.persisted",
   "runtime.warning",
   "runtime.error",
-]);
+] as const;
+
+const ProviderRuntimeEventType = Schema.Literals(PROVIDER_RUNTIME_EVENT_TYPES);
 export type ProviderRuntimeEventType = typeof ProviderRuntimeEventType.Type;
+
+export const PROVIDER_RUNTIME_EVENT_INTENTS = {
+  "session.started": "Provider runtime session started.",
+  "session.configured": "Provider runtime session configuration applied.",
+  "session.state.changed": "Provider runtime session state changed.",
+  "session.exited": "Provider runtime session exited.",
+  "thread.started": "Provider thread became available.",
+  "thread.state.changed": "Provider thread state changed.",
+  "thread.metadata.updated": "Provider thread metadata changed.",
+  "thread.token-usage.updated": "Provider thread token usage changed.",
+  "thread.realtime.started": "Provider realtime stream opened.",
+  "thread.realtime.item-added": "Provider realtime item arrived.",
+  "thread.realtime.audio.delta": "Provider realtime audio delta arrived.",
+  "thread.realtime.error": "Provider realtime stream errored.",
+  "thread.realtime.closed": "Provider realtime stream closed.",
+  "turn.started": "Provider turn started.",
+  "turn.completed": "Provider turn completed.",
+  "turn.aborted": "Provider turn aborted.",
+  "turn.plan.updated": "Provider turn plan updated.",
+  "turn.proposed.delta": "Provider proposed plan delta arrived.",
+  "turn.proposed.completed": "Provider proposed plan completed.",
+  "turn.diff.updated": "Provider turn diff updated.",
+  "item.started": "Provider item lifecycle started.",
+  "item.updated": "Provider item lifecycle updated.",
+  "item.completed": "Provider item lifecycle completed.",
+  "content.delta": "Provider content delta arrived.",
+  "request.opened": "Provider request opened.",
+  "request.resolved": "Provider request resolved.",
+  "user-input.requested": "Provider requested user input.",
+  "user-input.resolved": "Provider user input resolved.",
+  "task.started": "Provider task started.",
+  "task.progress": "Provider task progress updated.",
+  "task.completed": "Provider task completed.",
+  "hook.started": "Provider hook started.",
+  "hook.progress": "Provider hook progress updated.",
+  "hook.completed": "Provider hook completed.",
+  "tool.progress": "Provider tool progress updated.",
+  "tool.summary": "Provider tool summary updated.",
+  "auth.status": "Provider auth status changed.",
+  "account.updated": "Provider account metadata changed.",
+  "account.rate-limits.updated": "Provider rate limits changed.",
+  "mcp.status.updated": "Provider MCP status changed.",
+  "mcp.oauth.completed": "Provider MCP OAuth completed.",
+  "model.rerouted": "Provider model rerouted.",
+  "config.warning": "Provider configuration warning emitted.",
+  "deprecation.notice": "Provider deprecation notice emitted.",
+  "files.persisted": "Provider persisted files.",
+  "runtime.warning": "Provider runtime warning emitted.",
+  "runtime.error": "Provider runtime error emitted.",
+} as const satisfies Record<ProviderRuntimeEventType, string>;
 
 const SessionStartedType = Schema.Literal("session.started");
 const SessionConfiguredType = Schema.Literal("session.configured");

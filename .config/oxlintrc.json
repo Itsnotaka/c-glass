@@ -7,7 +7,6 @@
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
     "**/routeTree.gen.ts",
-    ".pi/**",
     ".config/oxlint-glass-plugin.mjs"
   ],
   "plugins": ["eslint", "oxc", "react", "unicorn", "typescript"],
@@ -34,24 +33,10 @@
     },
     {
       "files": [
-        "**/apps/desktop/src/pi-runtime/pi-rpc-client.ts",
-        "**/apps/desktop/src/pi-runtime/pi-runtime-service.ts"
-      ],
-      "rules": {
-        "glass/no-tiny-wrapper-function": "off"
-      }
-    },
-    {
-      "files": [
         "**/packages/contracts/src/session.ts",
         "**/apps/desktop/src/main.ts",
         "**/apps/desktop/src/preload.ts",
         "**/apps/desktop/src/cursor-provider.ts",
-        "**/apps/desktop/src/pi-runtime/pi-rpc-types.ts",
-        "**/apps/desktop/src/pi-runtime/pi-runtime-normalizer.ts",
-        "**/apps/desktop/src/pi-runtime/pi-runtime-store.ts",
-        "**/apps/desktop/src/pi-runtime/pi-read-cache.ts",
-        "**/apps/desktop/src/pi-runtime/pi-runtime-service.ts",
         "**/build-desktop-artifact.ts",
         "**/update-release-package-versions.ts"
       ],

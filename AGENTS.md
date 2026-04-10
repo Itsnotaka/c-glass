@@ -26,11 +26,12 @@ Imports:
 
 ### Canonical naming (Glass runtime)
 
-The renderer and shared IPC types use **Glass**, **thread**, and **harness** vocabulary (`@glass/contracts`: `GlassSessionSnapshot`, `ThreadSummary`, `HarnessKind`, …). Do not prefix shared UI or cross-package DTOs with `pi-` unless the value is strictly Pi-adapter internals. Pi subprocess code lives under `apps/desktop` adapter paths (e.g. `pi-runtime/`); the web app imports `thread-session-store`, `chat-composer`, `use-runtime-session`, and `runtime-models` — not `pi-session-store` / `pi-composer` for product chrome.
+The renderer and shared IPC types use **Glass**, **thread**, and **harness** vocabulary (`@glass/contracts`: `GlassSessionSnapshot`, `ThreadSummary`, `HarnessKind`, …). Do not prefix shared UI or cross-package DTOs with `pi-` unless the value is strictly Pi-adapter internals. the web app imports `thread-session-store`, `chat-composer`, `use-runtime-session`, and `runtime-models`
 
 ### Tailwind CSS
 
 Keep utility strings where the editor Tailwind extension can see them: **inline** on the element as `className={cn("…", "…", className)}` (multiple string-literal arguments for logical groups), not long module-level `const` blobs. Same pattern as `apps/web/src/components/glass/settings-nav-rail.tsx` (`activeProps` / `inactiveProps`). That preserves autocomplete, lint, and hover for class names.
+Use Tailwind skills when asked about UI or styling.
 
 ## Package roles
 
@@ -89,7 +90,7 @@ Prefer single word names for variables and functions. Only use multiple words if
 
 Good short names to prefer: `pid`, `cfg`, `err`, `opts`, `dir`, `root`, `child`, `state`, `timeout`.
 
-Examples to avoid unless truly required: `inputPID`, `existingClient`, `connectTimeout`, `workerPath`.
+Examples to avoid unless truly required: `PatchedEditor`, `inputPID`, `existingClient`, `connectTimeout`, `workerPath`.
 
 ```ts
 // Good
