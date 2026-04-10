@@ -7,23 +7,23 @@ settings:
 catalogs:
   default:
     '@effect/atom-react':
-      specifier: ^4.0.0-beta.44
-      version: 4.0.0-beta.44
+      specifier: 4.0.0-beta.43
+      version: 4.0.0-beta.43
     '@effect/language-service':
       specifier: ^0.85.0
       version: 0.85.0
     '@effect/platform-node':
-      specifier: ^4.0.0-beta.44
-      version: 4.0.0-beta.44
+      specifier: 4.0.0-beta.43
+      version: 4.0.0-beta.43
     '@effect/vitest':
-      specifier: ^4.0.0-beta.44
-      version: 4.0.0-beta.44
+      specifier: 4.0.0-beta.43
+      version: 4.0.0-beta.43
     '@types/node':
       specifier: ^25.5.2
       version: 25.5.2
     effect:
-      specifier: ^4.0.0-beta.44
-      version: 4.0.0-beta.44
+      specifier: 4.0.0-beta.43
+      version: 4.0.0-beta.43
     tsdown:
       specifier: ^0.21.7
       version: 0.21.7
@@ -35,6 +35,7 @@ catalogs:
       version: 4.1.4
 
 overrides:
+  '@effect/platform-node-shared': 4.0.0-beta.43
   vite: ^8.0.8
 
 importers:
@@ -68,7 +69,7 @@ importers:
     dependencies:
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
       electron:
         specifier: 40.6.0
         version: 40.6.0
@@ -105,13 +106,13 @@ importers:
         version: 0.2.98(zod@4.3.6)
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(ioredis@5.10.1)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(ioredis@5.10.1)
       '@pierre/diffs':
         specifier: ^1.1.13
         version: 1.1.13(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -124,7 +125,7 @@ importers:
         version: 0.85.0
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(vitest@4.1.4)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@4.1.4)
       '@glass/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -154,7 +155,7 @@ importers:
         version: 0.0.5
       '@effect/atom-react':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(react@19.2.5)(scheduler@0.27.0)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(react@19.2.5)(scheduler@0.27.0)
       '@glass/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -187,7 +188,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
       motion:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -263,7 +264,7 @@ importers:
     dependencies:
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
     devDependencies:
       '@effect/language-service':
         specifier: 'catalog:'
@@ -288,14 +289,14 @@ importers:
         version: link:../contracts
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
     devDependencies:
       '@effect/language-service':
         specifier: 'catalog:'
         version: 0.85.0
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(vitest@4.1.4)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@4.1.4)
       '@types/node':
         specifier: 'catalog:'
         version: 25.5.2
@@ -310,20 +311,20 @@ importers:
     dependencies:
       '@effect/platform-node':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(ioredis@5.10.1)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(ioredis@5.10.1)
       '@glass/shared':
         specifier: workspace:*
         version: link:../packages/shared
       effect:
         specifier: 'catalog:'
-        version: 4.0.0-beta.44
+        version: 4.0.0-beta.43
     devDependencies:
       '@effect/language-service':
         specifier: 'catalog:'
         version: 0.85.0
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.0.0-beta.44(effect@4.0.0-beta.44)(vitest@4.1.4)
+        version: 4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@4.1.4)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -519,10 +520,10 @@ packages:
   '@chevrotain/utils@11.1.2':
     resolution: {integrity: sha512-4mudFAQ6H+MqBTfqLmU7G1ZwRzCLfJEooL/fsF6rCX5eePMbGhoy5n4g+G4vlh2muDcsCTJtL+uKbOzWxs5LHA==}
 
-  '@effect/atom-react@4.0.0-beta.44':
-    resolution: {integrity: sha512-NpWDp6QgIkw96lkubm72N7NZGVAw5SAhZPs/Hcoo8r1nOEk480mS25Pho9uGjLxN0/Ci9ufHyBGhAK8JJ5RGpw==}
+  '@effect/atom-react@4.0.0-beta.43':
+    resolution: {integrity: sha512-xSrRbGXuo4d0g4ph66TQST1GNSjtQZrZj8V7OiAQFuzMYcZ0kwRIPUUFwOBtbWHK43/zNENdNWOnlXh/iYM1dw==}
     peerDependencies:
-      effect: ^4.0.0-beta.44
+      effect: ^4.0.0-beta.43
       react: ^19.2.4
       scheduler: '*'
 
@@ -530,23 +531,23 @@ packages:
     resolution: {integrity: sha512-crQwaeLmpmUfKaH2K42STNFMD5cywR6kBGKZI0FkvCbDyG3xM7CikJKucMIXOBvnUviO8loq0afT1ZSCtZiaaw==}
     hasBin: true
 
-  '@effect/platform-node-shared@4.0.0-beta.44':
-    resolution: {integrity: sha512-ib1kQa0dASG85TlLHQ84+hgESigqCO0gZZ8KVgn8feyrAOnvxVtJDVxcwrbfUNIfDQCdjIZwpnFjcdkMJuiIYw==}
+  '@effect/platform-node-shared@4.0.0-beta.43':
+    resolution: {integrity: sha512-A9q0GEb61pYcQ06Dr6gXj1nKlDI3KHsar1sk3qb1ZY+kVSR64tBAylI8zGon23KY+NPtTUj/sEIToB7jc3Qt5w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-beta.44
+      effect: ^4.0.0-beta.43
 
-  '@effect/platform-node@4.0.0-beta.44':
-    resolution: {integrity: sha512-TptiMDRneDH96dwDlbrasU+5xyj1wWBFMVYQPB5gyFTT8siKnSQ6D4ZGL2OFUNGccCycwc1jM6gNdg7Pz/iJkA==}
+  '@effect/platform-node@4.0.0-beta.43':
+    resolution: {integrity: sha512-Uq6E1rjaIpjHauzjwoB2HzAg3battYt2Boy8XO50GoHiWCXKE6WapYZ0/AnaBx5v5qg2sOfqpuiLsUf9ZgxOkA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      effect: ^4.0.0-beta.44
+      effect: ^4.0.0-beta.43
       ioredis: ^5.7.0
 
-  '@effect/vitest@4.0.0-beta.44':
-    resolution: {integrity: sha512-SQ6uz06n9bnVxEiZGuvROrjPcrdXGamfY6weGFfXRFTAG2P0Cs83YNK+AgxYEkIZz05twqsrB577KP96FHpSpg==}
+  '@effect/vitest@4.0.0-beta.43':
+    resolution: {integrity: sha512-XN2LAwiUWPqbV2jrsYYRjrVydQ8MIgwr83MVImtUaOQco4vk43+8OHlXQMRN/u2HnGK29KT+O2yTMMBdk2Q6Sw==}
     peerDependencies:
-      effect: ^4.0.0-beta.44
+      effect: ^4.0.0-beta.43
       vitest: ^3.0.0 || ^4.0.0
 
   '@electron/get@2.0.3':
@@ -2681,8 +2682,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  effect@4.0.0-beta.44:
-    resolution: {integrity: sha512-xnhOHv0LXFYRbetB4EOvOgUhuxvermpghgnnj6XcCB62zPY8EL5GgSIyvcFA8A9Dk8QoyESavWy6DKzWD9r8zw==}
+  effect@4.0.0-beta.43:
+    resolution: {integrity: sha512-AJYyDimIwJOn87uUz/JzmgDc5GfjxJbXvEbTvNzMa+M3Uer344bLo/O5mMRkqc1vBleA+Ygs4+dbE3QsqOkKTQ==}
 
   electron-to-chromium@1.5.330:
     resolution: {integrity: sha512-jFNydB5kFtYUobh4IkWUnXeyDbjf/r9gcUEXe1xcrcUxIGfTdzPXA+ld6zBRbwvgIGVzDll/LTIiDztEtckSnA==}
@@ -4831,27 +4832,27 @@ snapshots:
 
   '@chevrotain/utils@11.1.2': {}
 
-  '@effect/atom-react@4.0.0-beta.44(effect@4.0.0-beta.44)(react@19.2.5)(scheduler@0.27.0)':
+  '@effect/atom-react@4.0.0-beta.43(effect@4.0.0-beta.43)(react@19.2.5)(scheduler@0.27.0)':
     dependencies:
-      effect: 4.0.0-beta.44
+      effect: 4.0.0-beta.43
       react: 19.2.5
       scheduler: 0.27.0
 
   '@effect/language-service@0.85.0': {}
 
-  '@effect/platform-node-shared@4.0.0-beta.44(effect@4.0.0-beta.44)':
+  '@effect/platform-node-shared@4.0.0-beta.43(effect@4.0.0-beta.43)':
     dependencies:
       '@types/ws': 8.18.1
-      effect: 4.0.0-beta.44
+      effect: 4.0.0-beta.43
       ws: 8.20.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-beta.44(effect@4.0.0-beta.44)(ioredis@5.10.1)':
+  '@effect/platform-node@4.0.0-beta.43(effect@4.0.0-beta.43)(ioredis@5.10.1)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-beta.44(effect@4.0.0-beta.44)
-      effect: 4.0.0-beta.44
+      '@effect/platform-node-shared': 4.0.0-beta.43(effect@4.0.0-beta.43)
+      effect: 4.0.0-beta.43
       ioredis: 5.10.1
       mime: 4.1.0
       undici: 7.24.7
@@ -4859,9 +4860,9 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/vitest@4.0.0-beta.44(effect@4.0.0-beta.44)(vitest@4.1.4)':
+  '@effect/vitest@4.0.0-beta.43(effect@4.0.0-beta.43)(vitest@4.1.4)':
     dependencies:
-      effect: 4.0.0-beta.44
+      effect: 4.0.0-beta.43
       vitest: 4.1.4(@opentelemetry/api@1.9.1)(@types/node@25.5.2)(@vitest/browser-playwright@4.1.4)(msw@2.12.11(@types/node@25.5.2)(typescript@6.0.2))(vite@8.0.8(@types/node@25.5.2)(esbuild@0.27.4)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
 
   '@electron/get@2.0.3':
@@ -6723,7 +6724,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-beta.44:
+  effect@4.0.0-beta.43:
     dependencies:
       '@standard-schema/spec': 1.1.0
       fast-check: 4.6.0
