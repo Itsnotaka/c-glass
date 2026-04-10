@@ -13,6 +13,10 @@ function hasThinking(block: NonNullable<ChatMessage["content"]>[number]) {
   return hasText(block.thinking) || hasText(block.summary ?? "");
 }
 
+function hasMessageThinking(message: Pick<ChatMessage, "content">) {
+  return Boolean(message.content?.some(hasThinking));
+}
+
 export function assistantBlocks(message: Pick<ChatMessage, "text" | "content">): GlassBlock[] {
   if (!message.content || message.content.length === 0) {
     return message.text.length > 0 ? [{ type: "text", text: message.text }] : [];
@@ -64,7 +68,26 @@ export function hasStreamingThinking(
     if (!message || message.role !== "assistant" || !message.streaming) {
       continue;
     }
-    return Boolean(message.content?.some((block) => block.type === "thinking"));
+    return hasMessageThinking(message);
+  }
+  return false;
+}
+
+export function hasTurnThinking(
+  messages: ReadonlyArray<Pick<ChatMessage, "role" | "turnId" | "content">>,
+  turn: ChatMessage["turnId"],
+) {
+  if (!turn) {
+    return false;
+  }
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (!message || message.role !== "assistant" || message.turnId !== turn) {
+      continue;
+    }
+    if (hasMessageThinking(message)) {
+      return true;
+    }
   }
   return false;
 }

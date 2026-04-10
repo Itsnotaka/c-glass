@@ -15,4 +15,4 @@ export default Effect.gen(function* () {
     ALTER TABLE projection_threads
     ADD COLUMN archived_at TEXT
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/017_ProjectionThreadsArchivedAt"));

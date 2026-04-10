@@ -1,10 +1,14 @@
 "use client";
 
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useHarnessDescriptor } from "~/lib/harness-store";
-import { useThreadSessionStore, useThreadSummary } from "~/lib/thread-session-store";
+import {
+  isThreadPending,
+  useThreadSessionStore,
+  useThreadSummary,
+} from "~/lib/thread-session-store";
 import { useStore } from "~/store";
 import { GlassAskTool } from "./ask-tool";
 import { GlassHeroComposerFooter } from "./hero-composer-footer";
@@ -18,6 +22,7 @@ import { clearSlash, draftSlash, slashPrefix } from "~/components/glass/composer
 import { Skeleton } from "~/components/ui/skeleton";
 
 export function GlassChatSession(props: { sessionId: string }) {
+  const reduce = useReducedMotion();
   const sum = useThreadSummary(props.sessionId);
   const snap = useThreadSessionStore((state) => state.snaps[props.sessionId]);
   const boot = useStore((state) => state.bootstrapComplete);
@@ -26,6 +31,7 @@ export function GlassChatSession(props: { sessionId: string }) {
   );
   const count = sum?.messageCount ?? snap?.messages.length ?? thread?.messages.length ?? 0;
   const live =
+    isThreadPending(props.sessionId) ||
     Boolean(snap?.live) ||
     Boolean(snap?.isStreaming) ||
     thread?.session?.orchestrationStatus === "starting" ||
@@ -34,20 +40,29 @@ export function GlassChatSession(props: { sessionId: string }) {
   const load = !boot && !thread && !sum && !snap;
 
   return (
-    <GlassShell>
-      <GlassProviderNoticeBanner
-        sessionId={props.sessionId}
-        provider={provider}
-        activities={thread?.activities ?? []}
-      />
-      {load ? (
-        <BootView />
-      ) : count === 0 && !live ? (
-        <HeroSession sessionId={props.sessionId} />
-      ) : (
-        <DockSession sessionId={props.sessionId} />
-      )}
-    </GlassShell>
+    <motion.div
+      key={props.sessionId}
+      initial={reduce ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      style={{ willChange: "opacity" }}
+    >
+      <GlassShell>
+        <GlassProviderNoticeBanner
+          sessionId={props.sessionId}
+          provider={provider}
+          activities={thread?.activities ?? []}
+        />
+        {load ? (
+          <BootView />
+        ) : count === 0 && !live ? (
+          <HeroSession sessionId={props.sessionId} />
+        ) : (
+          <DockSession sessionId={props.sessionId} />
+        )}
+      </GlassShell>
+    </motion.div>
   );
 }
 

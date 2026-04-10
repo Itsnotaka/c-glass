@@ -128,7 +128,7 @@ const withMetricsImpl = <A, E, R>(
       return exit.value;
     }
     return yield* Effect.failCause(exit.cause);
-  });
+  }).pipe(Effect.withSpan("observability/withMetrics"));
 
 export const withMetrics: {
   <A, E, R>(

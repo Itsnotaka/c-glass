@@ -26,4 +26,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_provider_session_runtime_provider
     ON provider_session_runtime(provider_name)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/004_ProviderSessionRuntime"));

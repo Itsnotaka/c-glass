@@ -574,5 +574,5 @@ export const CodexProviderLive = Layer.effect(
       haveSettingsChanged: (previous, next) => !Equal.equals(previous, next),
       checkProvider,
     });
-  }),
+  }).pipe(Effect.withSpan("provider/Layers/CodexProvider")),
 );

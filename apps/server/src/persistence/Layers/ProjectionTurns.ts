@@ -343,7 +343,7 @@ const makeProjectionTurnRepository = Effect.gen(function* () {
     clearCheckpointTurnConflict,
     deleteByThreadId,
   } satisfies ProjectionTurnRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionTurns"));
 
 export const ProjectionTurnRepositoryLive = Layer.effect(
   ProjectionTurnRepository,

@@ -28,9 +28,13 @@ import {
   writeRuntimeDefaultThinkingLevel,
   type RuntimeModelItem,
 } from "~/lib/runtime-models";
-import { hasStreamingThinking } from "~/lib/assistant-content";
+import { hasTurnThinking } from "~/lib/assistant-content";
 import { useGlassChatDraftStore } from "~/lib/glass-chat-draft-store";
-import { useThreadSessionStore } from "~/lib/thread-session-store";
+import {
+  clearThreadPending,
+  markThreadPending,
+  useThreadSessionStore,
+} from "~/lib/thread-session-store";
 import { derivePendingApprovals, derivePendingUserInputs } from "~/session-logic";
 import { useStore } from "~/store";
 
@@ -238,7 +242,8 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       providers.length > 0 ? resolveRuntimeSelection(providers, selection) : selection,
     [providers],
   );
-  const thinking = thread ? hasStreamingThinking(thread.messages) : false;
+  const turn = thread?.session?.activeTurnId ?? thread?.latestTurn?.turnId ?? null;
+  const thinking = thread ? hasTurnThinking(thread.messages, turn) : false;
 
   const ensureThread = async (
     seed: string,
@@ -294,8 +299,9 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
     if (!payload.text && payload.attachments.length === 0) return false;
     if (!api) return false;
 
+    const nextThreadId = await ensureThread(payload.text.slice(0, 80), draft);
+    markThreadPending(nextThreadId);
     try {
-      const nextThreadId = await ensureThread(payload.text.slice(0, 80), draft);
       const current = useStore.getState().threads.find((item) => item.id === nextThreadId) ?? null;
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
@@ -315,6 +321,8 @@ export function useRuntimeSession(sessionId: string | null, harness?: HarnessKin
       return { clear: !draft?.id };
     } catch {
       return false;
+    } finally {
+      clearThreadPending(nextThreadId);
     }
   };
 

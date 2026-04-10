@@ -84,6 +84,6 @@ export const makeWorkspacePaths = Effect.gen(function* () {
     normalizeWorkspaceRoot,
     resolveRelativePathWithinRoot,
   } satisfies WorkspacePathsShape;
-});
+}).pipe(Effect.withSpan("workspace/Layers/WorkspacePaths"));
 
 export const WorkspacePathsLive = Layer.effect(WorkspacePaths, makeWorkspacePaths);

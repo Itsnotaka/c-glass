@@ -151,7 +151,7 @@ export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShap
           devUrl,
           noBrowser: false,
         } satisfies ServerConfigShape;
-      }),
+      }).pipe(Effect.withSpan("config/ServerConfig.layerTest")),
     );
 }
 

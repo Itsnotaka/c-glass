@@ -121,7 +121,7 @@ export const makeProjectFaviconResolver = Effect.gen(function* () {
   return {
     resolvePath,
   } satisfies ProjectFaviconResolverShape;
-});
+}).pipe(Effect.withSpan("project/Layers/ProjectFaviconResolver"));
 
 export const ProjectFaviconResolverLive = Layer.effect(
   ProjectFaviconResolver,

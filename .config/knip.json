@@ -2,7 +2,12 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "exclude": ["catalog"],
   "ignore": [".config/oxlint-glass-plugin.mjs"],
-  "ignoreDependencies": ["tailwindcss", "react-grab"],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "react-grab",
+    "react-scan",
+    "@react-scan/vite-plugin-react-scan"
+  ],
   "ignoreWorkspaces": ["apps/server", "apps/desktop", "packages/*", "scripts"],
   "ignoreIssues": {
     "scripts/**": ["unlisted"],

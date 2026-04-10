@@ -121,4 +121,4 @@ export default Effect.gen(function* () {
     END
     WHERE provider_name IN ('pi', 'claudeCode', 'claude')
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/020_CanonicalizeLegacyProviderKinds"));

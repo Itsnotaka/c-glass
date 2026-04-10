@@ -17,6 +17,7 @@ import { Route as ChatSettingsArchivedRouteImport } from './routes/_chat/setting
 import { Route as ChatSettingsAppearanceRouteImport } from './routes/_chat/settings/appearance'
 import { Route as ChatSettingsAgentsRouteImport } from './routes/_chat/settings/agents'
 import { Route as ChatShellThreadIdRouteImport } from './routes/_chat/_shell/$threadId'
+import { Route as ChatShellDebugIntentsRouteImport } from './routes/_chat/_shell/debug/intents'
 
 const ChatRouteRoute = ChatRouteRouteImport.update({
   id: '/_chat',
@@ -56,6 +57,11 @@ const ChatShellThreadIdRoute = ChatShellThreadIdRouteImport.update({
   path: '/$threadId',
   getParentRoute: () => ChatShellRouteRoute,
 } as any)
+const ChatShellDebugIntentsRoute = ChatShellDebugIntentsRouteImport.update({
+  id: '/debug/intents',
+  path: '/debug/intents',
+  getParentRoute: () => ChatShellRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatShellIndexRoute
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/settings/archived': typeof ChatSettingsArchivedRoute
+  '/debug/intents': typeof ChatShellDebugIntentsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ChatShellIndexRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByTo {
   '/settings/agents': typeof ChatSettingsAgentsRoute
   '/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/settings/archived': typeof ChatSettingsArchivedRoute
+  '/debug/intents': typeof ChatShellDebugIntentsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/_chat/settings/appearance': typeof ChatSettingsAppearanceRoute
   '/_chat/settings/archived': typeof ChatSettingsArchivedRoute
   '/_chat/_shell/': typeof ChatShellIndexRoute
+  '/_chat/_shell/debug/intents': typeof ChatShellDebugIntentsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -93,6 +102,7 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
+    | '/debug/intents'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
     | '/settings/agents'
     | '/settings/appearance'
     | '/settings/archived'
+    | '/debug/intents'
   id:
     | '__root__'
     | '/_chat'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/_chat/settings/appearance'
     | '/_chat/settings/archived'
     | '/_chat/_shell/'
+    | '/_chat/_shell/debug/intents'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -175,17 +187,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatShellThreadIdRouteImport
       parentRoute: typeof ChatShellRouteRoute
     }
+    '/_chat/_shell/debug/intents': {
+      id: '/_chat/_shell/debug/intents'
+      path: '/debug/intents'
+      fullPath: '/debug/intents'
+      preLoaderRoute: typeof ChatShellDebugIntentsRouteImport
+      parentRoute: typeof ChatShellRouteRoute
+    }
   }
 }
 
 interface ChatShellRouteRouteChildren {
   ChatShellThreadIdRoute: typeof ChatShellThreadIdRoute
   ChatShellIndexRoute: typeof ChatShellIndexRoute
+  ChatShellDebugIntentsRoute: typeof ChatShellDebugIntentsRoute
 }
 
 const ChatShellRouteRouteChildren: ChatShellRouteRouteChildren = {
   ChatShellThreadIdRoute: ChatShellThreadIdRoute,
   ChatShellIndexRoute: ChatShellIndexRoute,
+  ChatShellDebugIntentsRoute: ChatShellDebugIntentsRoute,
 }
 
 const ChatShellRouteRouteWithChildren = ChatShellRouteRoute._addFileChildren(

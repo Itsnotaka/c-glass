@@ -13,4 +13,4 @@ export default Effect.gen(function* () {
     ALTER TABLE projection_turns
     ADD COLUMN source_proposed_plan_id TEXT
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/015_ProjectionTurnsSourceProposedPlan"));

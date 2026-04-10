@@ -800,6 +800,6 @@ const make = Effect.gen(function* () {
     start,
     drain: worker.drain,
   } satisfies CheckpointReactorShape;
-});
+}).pipe(Effect.withSpan("orchestration/Layers/CheckpointReactor"));
 
 export const CheckpointReactorLive = Layer.effect(CheckpointReactor, make);

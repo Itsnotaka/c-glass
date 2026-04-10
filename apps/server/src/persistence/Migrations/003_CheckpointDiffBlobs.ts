@@ -19,4 +19,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_checkpoint_diff_blobs_thread_to_turn
     ON checkpoint_diff_blobs(thread_id, to_turn_count)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/003_CheckpointDiffBlobs"));

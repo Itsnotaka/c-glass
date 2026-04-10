@@ -253,7 +253,6 @@ function toSnapshot(
     messages: buildItems(thread),
     live: null,
     working: work ?? null,
-    tree: [],
     isStreaming: threadStreaming(thread),
     pending: { steering: [], followUp: [] },
   };
@@ -429,4 +428,18 @@ export const useThreadSummariesStatus = () => useThreadSessionStore((state) => s
 export function useThreadSummary(sessionId: string | null | undefined) {
   const pick = (state: State) => (sessionId ? (state.sums[sessionId] ?? null) : null);
   return useThreadSessionStore(pick);
+}
+
+const pending = new Set<string>();
+
+export function markThreadPending(id: string) {
+  pending.add(id);
+}
+
+export function clearThreadPending(id: string) {
+  pending.delete(id);
+}
+
+export function isThreadPending(id: string) {
+  return pending.has(id);
 }

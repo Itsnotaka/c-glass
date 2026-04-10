@@ -279,7 +279,7 @@ export const makeEventNdjsonLogger = Effect.fn("makeEventNdjsonLogger")(function
             failedSegments: new Set<string>(),
           },
         ] as const;
-      }),
+      }).pipe(Effect.withSpan("provider/Layers/EventNdjsonLogger")),
     );
   });
 

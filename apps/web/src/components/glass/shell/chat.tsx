@@ -126,7 +126,7 @@ export function GlassChatShell() {
 
   return (
     <>
-      <GlassCommandPalette panels={p} onNewChat={create} />
+      <GlassCommandPalette panels={p} onNewChat={create} routeThreadId={routeThreadId} />
       {isElectron ? (
         <GlassDesktopShell
           cwd={cwd}

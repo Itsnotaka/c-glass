@@ -56,7 +56,7 @@ export const spawnAndCollect = (binaryPath: string, command: ChildProcess.Comman
       return yield* Effect.fail(new Error(`spawn ${binaryPath} ENOENT`));
     }
     return result;
-  }).pipe(Effect.scoped);
+  }).pipe(Effect.withSpan("provider/providerSnapshot"), Effect.scoped);
 
 export function detailFromResult(
   result: CommandResult & { readonly timedOut?: boolean },

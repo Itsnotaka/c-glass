@@ -114,7 +114,7 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
           </Menu.Trigger>
         </div>
       ) : (
-        <div className="group relative flex items-center">
+        <div className="group relative flex items-stretch">
           <Button
             type="button"
             disabled={disabled}
@@ -123,16 +123,16 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
               void ensureNativeApi().shell.openInEditor(shell.cwd, editor);
             }}
             variant="outline"
-            size="default"
-            className="rounded-none rounded-l-[var(--glass-radius-control)] border-r-0 pr-2 before:rounded-none before:rounded-l-[calc(var(--radius-glass-control)-1px)]"
+            size="sm"
+            className="rounded-none rounded-l-[var(--glass-radius-control)] border-r-0 px-2.5 pr-2 before:rounded-none before:rounded-l-[calc(var(--radius-glass-control)-1px)]"
             aria-label={text}
             title={text}
           >
             {ActiveIcon}
-            <span className="max-w-[16rem] truncate">{text}</span>
+            <span className="min-w-0 whitespace-normal text-left">{text}</span>
           </Button>
           <div
-            className="pointer-events-none absolute inset-y-2 z-10 w-px bg-input"
+            className="pointer-events-none absolute inset-y-1.5 z-10 w-px bg-input"
             style={{ left: "calc(100% - 2rem)" }}
             aria-hidden
           />
@@ -143,8 +143,8 @@ export function GlassOpenPicker(props: { variant?: "hero" | "settings" }) {
             render={
               <Button
                 variant="outline"
-                size="default"
-                className="w-8 rounded-none rounded-r-[var(--glass-radius-control)] border-l-0 px-0 before:rounded-none before:rounded-r-[calc(var(--radius-glass-control)-1px)]"
+                size="sm"
+                className="w-8 shrink-0 rounded-none rounded-r-[var(--glass-radius-control)] border-l-0 px-0 before:rounded-none before:rounded-r-[calc(var(--radius-glass-control)-1px)]"
               >
                 <IconChevronDownSmall className="size-3.5 opacity-70" />
               </Button>

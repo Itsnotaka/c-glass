@@ -194,7 +194,7 @@ const makeProjectionThreadMessageRepository = Effect.gen(function* () {
     listByThreadId,
     deleteByThreadId,
   } satisfies ProjectionThreadMessageRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionThreadMessages"));
 
 export const ProjectionThreadMessageRepositoryLive = Layer.effect(
   ProjectionThreadMessageRepository,

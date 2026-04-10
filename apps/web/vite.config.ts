@@ -1,3 +1,4 @@
+import reactScan from "@react-scan/vite-plugin-react-scan";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
@@ -15,7 +16,7 @@ const buildSourcemap =
       ? "hidden"
       : true;
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     tanstackRouter(),
     react(),
@@ -28,6 +29,14 @@ export default defineConfig({
       presets: [reactCompilerPreset()],
     }),
     tailwindcss(),
+    ...(mode === "development"
+      ? [
+          reactScan({
+            enable: true,
+            autoDisplayNames: true,
+          }),
+        ]
+      : []),
   ],
   optimizeDeps: {
     include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
@@ -54,4 +63,4 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: buildSourcemap,
   },
-});
+}));

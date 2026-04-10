@@ -102,7 +102,7 @@ const makeProjectionThreadProposedPlanRepository = Effect.gen(function* () {
     listByThreadId,
     deleteByThreadId,
   } satisfies ProjectionThreadProposedPlanRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionThreadProposedPlans"));
 
 export const ProjectionThreadProposedPlanRepositoryLive = Layer.effect(
   ProjectionThreadProposedPlanRepository,

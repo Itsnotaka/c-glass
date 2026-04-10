@@ -2,7 +2,6 @@ import type { OrchestrationEvent, OrchestrationReadModel } from "@glass/contract
 import { MessageId, ProjectId, ThreadId, TurnId } from "@glass/contracts";
 import { describe, expect, it } from "vitest";
 
-import { hasStreamingThinking } from "./lib/assistant-content";
 import { applyOrchestrationEvent, syncServerReadModel, type AppState } from "./store";
 
 const projectId = ProjectId.makeUnsafe("project-store");
@@ -138,6 +137,7 @@ describe("store assistant content", () => {
       ),
     );
 
-    expect(hasStreamingThinking(next.threads[0]?.messages ?? [])).toBe(true);
+    const msg = next.threads[0]?.messages[0];
+    expect(msg?.content).toEqual([{ type: "thinking", thinking: "Inspect", summary: "Reasoning" }]);
   });
 });

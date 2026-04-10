@@ -19,4 +19,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_projection_thread_proposed_plans_thread_created
     ON projection_thread_proposed_plans(thread_id, created_at)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/013_ProjectionThreadProposedPlans"));

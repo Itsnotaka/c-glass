@@ -132,7 +132,7 @@ const makeProjectionProjectRepository = Effect.gen(function* () {
     listAll,
     deleteById,
   } satisfies ProjectionProjectRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionProjects"));
 
 export const ProjectionProjectRepositoryLive = Layer.effect(
   ProjectionProjectRepository,

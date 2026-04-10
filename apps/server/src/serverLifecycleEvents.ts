@@ -50,5 +50,5 @@ export const ServerLifecycleEventsLive = Layer.effect(
         return Stream.fromPubSub(pubsub);
       },
     } satisfies ServerLifecycleEventsShape;
-  }),
+  }).pipe(Effect.withSpan("serverLifecycleEvents")),
 );

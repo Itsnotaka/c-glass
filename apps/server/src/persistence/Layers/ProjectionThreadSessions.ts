@@ -99,7 +99,7 @@ const makeProjectionThreadSessionRepository = Effect.gen(function* () {
     getByThreadId,
     deleteByThreadId,
   } satisfies ProjectionThreadSessionRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionThreadSessions"));
 
 export const ProjectionThreadSessionRepositoryLive = Layer.effect(
   ProjectionThreadSessionRepository,

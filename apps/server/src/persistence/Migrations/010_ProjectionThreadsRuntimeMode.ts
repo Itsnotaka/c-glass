@@ -14,4 +14,4 @@ export default Effect.gen(function* () {
     SET runtime_mode = 'full-access'
     WHERE runtime_mode IS NULL
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/010_ProjectionThreadsRuntimeMode"));

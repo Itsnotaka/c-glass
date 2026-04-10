@@ -128,7 +128,7 @@ const makeProjectionPendingApprovalRepository = Effect.gen(function* () {
     getByRequestId,
     deleteByRequestId,
   } satisfies ProjectionPendingApprovalRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionPendingApprovals"));
 
 export const ProjectionPendingApprovalRepositoryLive = Layer.effect(
   ProjectionPendingApprovalRepository,

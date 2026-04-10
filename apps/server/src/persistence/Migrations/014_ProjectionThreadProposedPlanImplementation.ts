@@ -13,4 +13,4 @@ export default Effect.gen(function* () {
     ALTER TABLE projection_thread_proposed_plans
     ADD COLUMN implementation_thread_id TEXT
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/014_ProjectionThreadProposedPlanImplementation"));

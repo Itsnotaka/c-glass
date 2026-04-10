@@ -232,4 +232,4 @@ export default Effect.gen(function* () {
       AND json_type(payload_json, '$.modelSelection') IS NULL
       AND json_type(payload_json, '$.model') IS NULL
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/016_CanonicalizeModelSelections"));
