@@ -2413,7 +2413,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         existingResumeSessionId === undefined ? yield* Random.nextUUIDv4 : undefined;
       const sessionId = existingResumeSessionId ?? newSessionId;
 
-      const services = yield* Effect.context();
+      const services = yield* Effect.services();
       const runFork = Effect.runForkWith(services);
       const runPromise = Effect.runPromiseWith(services);
 
@@ -2773,7 +2773,6 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         runtimeMode: input.runtimeMode,
         ...(input.cwd ? { cwd: input.cwd } : {}),
         ...(modelSelection?.model ? { model: modelSelection.model } : {}),
-        ...(threadId ? { threadId } : {}),
         resumeCursor: {
           ...(threadId ? { threadId } : {}),
           ...(sessionId ? { resume: sessionId } : {}),
@@ -2871,9 +2870,7 @@ const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         }
       });
 
-      return {
-        ...session,
-      };
+      return session;
     },
   );
 
