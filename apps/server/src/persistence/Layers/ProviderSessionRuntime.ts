@@ -191,7 +191,7 @@ const makeProviderSessionRuntimeRepository = Effect.gen(function* () {
     list,
     deleteByThreadId,
   } satisfies ProviderSessionRuntimeRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProviderSessionRuntime"));
 
 export const ProviderSessionRuntimeRepositoryLive = Layer.effect(
   ProviderSessionRuntimeRepository,

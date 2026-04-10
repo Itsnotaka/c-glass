@@ -10,4 +10,4 @@ export default Effect.gen(function* () {
     WHERE event_type = 'thread.created'
       AND json_type(payload_json, '$.runtimeMode') IS NULL
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/011_OrchestrationThreadCreatedRuntimeMode"));

@@ -33,12 +33,6 @@ export type ChatRow =
     }
   | {
       id: string;
-      kind: "thinking";
-      text: string;
-      summary: string | null;
-    }
-  | {
-      id: string;
       kind: "assistantError";
       text: string;
     }
@@ -184,7 +178,10 @@ function plain(value: Json | undefined) {
   return list(value)
     .flatMap((item) => {
       if (item.type === "text") return [item.text];
-      if (item.type === "thinking") return [];
+      if (item.type === "thinking") {
+        const raw = typeof item.thinking === "string" ? item.thinking : "";
+        return raw.trim() ? [raw] : [];
+      }
       if (item.type === "image") return ["[image]"];
       if (item.type === "toolCall") return [`[${item.name}]`];
       return [`[${item.type}]`];
@@ -314,10 +311,9 @@ export function buildChatRows(items: GlassSessionItem[]) {
           }
           thought = true;
           rows.push({
-            id: `${entry.id}:t:${rows.length}`,
-            kind: "thinking",
-            text,
-            summary,
+            id: `${entry.id}:a:${rows.length}`,
+            kind: "assistant",
+            text: clean(text || summary || ""),
           });
           continue;
         }

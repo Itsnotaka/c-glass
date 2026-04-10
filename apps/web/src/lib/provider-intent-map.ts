@@ -138,7 +138,7 @@ export const PROVIDER_INTENT_COMPONENTS = {
   "content.delta": {
     componentName: "AssistantBlock",
     status: "rendered",
-    note: "Assistant/reasoning deltas render as assistant/thinking blocks.",
+    note: "Assistant and reasoning deltas render as full assistant transcript rows.",
   },
   "request.opened": {
     componentName: "TextCard",

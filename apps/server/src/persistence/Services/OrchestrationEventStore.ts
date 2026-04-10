@@ -61,7 +61,7 @@ export interface OrchestrationEventStoreShape {
  * const program = Effect.gen(function* () {
  *   const events = yield* OrchestrationEventStore
  *   return yield* Stream.runCollect(events.readAll())
- * })
+ * }).pipe(Effect.withSpan("persistence/Services/OrchestrationEventStore"))
  * ```
  */
 export class OrchestrationEventStore extends Context.Service<

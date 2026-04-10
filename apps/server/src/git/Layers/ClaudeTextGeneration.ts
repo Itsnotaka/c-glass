@@ -334,6 +334,6 @@ const makeClaudeTextGeneration = Effect.gen(function* () {
     generateBranchName,
     generateThreadTitle,
   } satisfies TextGenerationShape;
-});
+}).pipe(Effect.withSpan("git/Layers/ClaudeTextGeneration"));
 
 export const ClaudeTextGenerationLive = Layer.effect(TextGeneration, makeClaudeTextGeneration);

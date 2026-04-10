@@ -71,7 +71,7 @@ export interface OrchestrationEngineShape {
  * const program = Effect.gen(function* () {
  *   const engine = yield* OrchestrationEngineService
  *   return yield* engine.getReadModel()
- * })
+ * }).pipe(Effect.withSpan("orchestration/Services/OrchestrationEngine"))
  * ```
  */
 export class OrchestrationEngineService extends Context.Service<

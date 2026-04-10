@@ -192,7 +192,7 @@ const makeWithDatabase = Effect.fn("makeWithDatabase")(function* (
         return Stream.die("executeStream not implemented");
       },
     });
-  });
+  }).pipe(Effect.withSpan("persistence/NodeSqliteClient"));
 
   const semaphore = yield* Semaphore.make(1);
   const connection = yield* makeConnection;

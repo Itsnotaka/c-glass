@@ -30,7 +30,7 @@ const makeRuntimeReceiptBusTest = Effect.gen(function* () {
       return Stream.fromPubSub(pubSub);
     },
   } satisfies RuntimeReceiptBusShape;
-});
+}).pipe(Effect.withSpan("orchestration/Layers/RuntimeReceiptBus"));
 
 export const RuntimeReceiptBusLive = Layer.effect(RuntimeReceiptBus, makeRuntimeReceiptBus);
 export const RuntimeReceiptBusTest = Layer.effect(RuntimeReceiptBus, makeRuntimeReceiptBusTest);

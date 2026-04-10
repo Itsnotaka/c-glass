@@ -150,4 +150,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_projection_pending_approvals_thread_status
     ON projection_pending_approvals(thread_id, status)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/005_Projections"));

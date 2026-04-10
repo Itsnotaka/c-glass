@@ -81,7 +81,7 @@ const makeOrchestrationCommandReceiptRepository = Effect.gen(function* () {
     upsert,
     getByCommandId,
   } satisfies OrchestrationCommandReceiptRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/OrchestrationCommandReceipts"));
 
 export const OrchestrationCommandReceiptRepositoryLive = Layer.effect(
   OrchestrationCommandReceiptRepository,

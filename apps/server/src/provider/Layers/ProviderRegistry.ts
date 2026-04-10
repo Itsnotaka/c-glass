@@ -92,5 +92,5 @@ export const ProviderRegistryLive = Layer.effect(
         return Stream.fromPubSub(changesPubSub);
       },
     } satisfies ProviderRegistryShape;
-  }),
+  }).pipe(Effect.withSpan("provider/Layers/ProviderRegistry")),
 ).pipe(Layer.provideMerge(CodexProviderLive), Layer.provideMerge(ClaudeProviderLive));

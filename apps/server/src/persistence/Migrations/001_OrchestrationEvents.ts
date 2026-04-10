@@ -41,4 +41,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_orch_events_correlation_id
     ON orchestration_events(correlation_id)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/001_OrchestrationEvents"));

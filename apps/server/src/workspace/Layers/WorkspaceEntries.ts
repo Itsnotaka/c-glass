@@ -498,6 +498,6 @@ export const makeWorkspaceEntries = Effect.gen(function* () {
     invalidate,
     search,
   } satisfies WorkspaceEntriesShape;
-});
+}).pipe(Effect.withSpan("workspace/Layers/WorkspaceEntries"));
 
 export const WorkspaceEntriesLive = Layer.effect(WorkspaceEntries, makeWorkspaceEntries);

@@ -14,11 +14,11 @@ function assistant(id: string, content: Array<Record<string, unknown>>): GlassSe
 }
 
 describe("buildChatRows", () => {
-  it("preserves assistant thinking blocks alongside visible text", () => {
+  it("renders thinking blocks as full assistant transcript rows", () => {
     const rows = buildChatRows([
       assistant("assistant-1", [
         { type: "text", text: "Visible " },
-        { type: "thinking", thinking: "hidden", summary: "Reasoning" },
+        { type: "thinking", thinking: "deep reasoning here", summary: "Reasoning" },
         { type: "text", text: "reply" },
       ]),
       assistant("assistant-2", [{ type: "thinking", thinking: "internal only" }]),
@@ -31,10 +31,9 @@ describe("buildChatRows", () => {
         text: "Visible",
       },
       {
-        id: "assistant-1:t:1",
-        kind: "thinking",
-        text: "hidden",
-        summary: "Reasoning",
+        id: "assistant-1:a:1",
+        kind: "assistant",
+        text: "deep reasoning here",
       },
       {
         id: "assistant-1:a:2",
@@ -42,15 +41,14 @@ describe("buildChatRows", () => {
         text: "reply",
       },
       {
-        id: "assistant-2:t:3",
-        kind: "thinking",
+        id: "assistant-2:a:3",
+        kind: "assistant",
         text: "internal only",
-        summary: null,
       },
     ]);
   });
 
-  it("drops thinking blocks from plain custom content", () => {
+  it("includes thinking text in plain custom content", () => {
     const rows = buildChatRows([
       {
         id: "custom-1",
@@ -58,7 +56,7 @@ describe("buildChatRows", () => {
           role: "custom",
           customType: "note",
           content: [
-            { type: "thinking", thinking: "hidden" },
+            { type: "thinking", thinking: "reasoning" },
             { type: "text", text: "Shown" },
           ],
           display: true,
@@ -71,7 +69,7 @@ describe("buildChatRows", () => {
         id: "custom-1",
         kind: "custom",
         name: "note",
-        text: "Shown",
+        text: "reasoningShown",
       },
     ]);
   });

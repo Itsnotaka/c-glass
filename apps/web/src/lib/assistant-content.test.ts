@@ -1,6 +1,7 @@
+import { TurnId } from "@glass/contracts";
 import { describe, expect, it } from "vitest";
 
-import { assistantBlocks, hasStreamingThinking } from "./assistant-content";
+import { assistantBlocks, hasStreamingThinking, hasTurnThinking } from "./assistant-content";
 
 describe("assistantBlocks", () => {
   it("keeps thinking visible while clipping text to the visible assistant transcript", () => {
@@ -54,6 +55,46 @@ describe("hasStreamingThinking", () => {
           content: [{ type: "text", text: "Answer" }],
         },
       ]),
+    ).toBe(false);
+  });
+});
+
+describe("hasTurnThinking", () => {
+  const turn = TurnId.makeUnsafe("turn-thinking");
+  const old = TurnId.makeUnsafe("turn-old");
+
+  it("keeps reasoning visible for the active turn after streaming stops", () => {
+    expect(
+      hasTurnThinking(
+        [
+          {
+            role: "assistant",
+            turnId: turn,
+            content: [{ type: "thinking", thinking: "Inspect" }],
+          },
+        ],
+        turn,
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores reasoning from older turns", () => {
+    expect(
+      hasTurnThinking(
+        [
+          {
+            role: "assistant",
+            turnId: old,
+            content: [{ type: "thinking", thinking: "Inspect" }],
+          },
+          {
+            role: "assistant",
+            turnId: turn,
+            content: [{ type: "text", text: "Answer" }],
+          },
+        ],
+        turn,
+      ),
     ).toBe(false);
   });
 });

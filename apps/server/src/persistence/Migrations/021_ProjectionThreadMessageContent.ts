@@ -8,4 +8,4 @@ export default Effect.gen(function* () {
     ALTER TABLE projection_thread_messages
     ADD COLUMN content_json TEXT
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/021_ProjectionThreadMessageContent"));

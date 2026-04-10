@@ -25,4 +25,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_orch_command_receipts_sequence
     ON orchestration_command_receipts(result_sequence)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/002_OrchestrationCommandReceipts"));

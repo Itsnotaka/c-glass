@@ -18,5 +18,5 @@ export * from "./shell";
 export * from "./harness";
 export * from "./pi";
 export * from "./session";
-export * from "./thread";
+
 export * from "./skills";

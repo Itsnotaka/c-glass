@@ -50,6 +50,6 @@ export const makeWorkspaceFileSystem = Effect.gen(function* () {
     return { relativePath: target.relativePath };
   });
   return { writeFile } satisfies WorkspaceFileSystemShape;
-});
+}).pipe(Effect.withSpan("workspace/Layers/WorkspaceFileSystem"));
 
 export const WorkspaceFileSystemLive = Layer.effect(WorkspaceFileSystem, makeWorkspaceFileSystem);

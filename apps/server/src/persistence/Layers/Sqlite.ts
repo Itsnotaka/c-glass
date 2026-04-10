@@ -26,7 +26,7 @@ const setup = Layer.effectDiscard(
     yield* sql`PRAGMA journal_mode = WAL;`;
     yield* sql`PRAGMA foreign_keys = ON;`;
     yield* runMigrations();
-  }),
+  }).pipe(Effect.withSpan("persistence/Layers/Sqlite")),
 );
 
 export const makeSqlitePersistenceLive = Effect.fn("makeSqlitePersistenceLive")(function* (

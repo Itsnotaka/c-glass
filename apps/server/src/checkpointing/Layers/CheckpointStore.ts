@@ -277,6 +277,6 @@ const makeCheckpointStore = Effect.gen(function* () {
     diffCheckpoints,
     deleteCheckpointRefs,
   } satisfies CheckpointStoreShape;
-});
+}).pipe(Effect.withSpan("checkpointing/Layers/CheckpointStore"));
 
 export const CheckpointStoreLive = Layer.effect(CheckpointStore, makeCheckpointStore);

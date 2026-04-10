@@ -13,4 +13,4 @@ export default Effect.gen(function* () {
     CREATE INDEX IF NOT EXISTS idx_projection_threads_project_deleted_created
     ON projection_threads(project_id, deleted_at, created_at)
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/019_ProjectionSnapshotLookupIndexes"));

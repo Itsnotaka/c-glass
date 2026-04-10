@@ -152,7 +152,7 @@ const makeProviderSessionDirectory = Effect.gen(function* () {
     remove,
     listThreadIds,
   } satisfies ProviderSessionDirectoryShape;
-});
+}).pipe(Effect.withSpan("provider/Layers/ProviderSessionDirectory"));
 
 export const ProviderSessionDirectoryLive = Layer.effect(
   ProviderSessionDirectory,

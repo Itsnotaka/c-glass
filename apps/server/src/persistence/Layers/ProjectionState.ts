@@ -108,7 +108,7 @@ const makeProjectionStateRepository = Effect.gen(function* () {
     listAll,
     minLastAppliedSequence,
   } satisfies ProjectionStateRepositoryShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/ProjectionState"));
 
 export const ProjectionStateRepositoryLive = Layer.effect(
   ProjectionStateRepository,

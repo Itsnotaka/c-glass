@@ -16,4 +16,4 @@ export default Effect.gen(function* () {
     SET runtime_mode = ${DEFAULT_RUNTIME_MODE}
     WHERE runtime_mode IS NULL
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/006_ProjectionThreadSessionRuntimeModeColumns"));

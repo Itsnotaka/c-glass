@@ -163,6 +163,6 @@ const make = Effect.gen(function* () {
     getTurnDiff,
     getFullThreadDiff,
   } satisfies CheckpointDiffQueryShape;
-});
+}).pipe(Effect.withSpan("checkpointing/Layers/CheckpointDiffQuery"));
 
 export const CheckpointDiffQueryLive = Layer.effect(CheckpointDiffQuery, make);

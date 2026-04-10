@@ -51,9 +51,11 @@ function GlassHeroBurst() {
 
   useEffect(() => {
     if (!shot) return;
-    const id = window.setTimeout(() => clear(shot.id), reduce ? 700 : 1180);
+    const sid = shot.id;
+    const id = window.setTimeout(() => clear(sid), reduce ? 700 : 1180);
     return () => {
       window.clearTimeout(id);
+      clear(sid);
     };
   }, [clear, reduce, shot]);
 

@@ -22,7 +22,7 @@ export const makeOrchestrationReactor = Effect.gen(function* () {
   return {
     start,
   } satisfies OrchestrationReactorShape;
-});
+}).pipe(Effect.withSpan("orchestration/Layers/OrchestrationReactor"));
 
 export const OrchestrationReactorLive = Layer.effect(
   OrchestrationReactor,

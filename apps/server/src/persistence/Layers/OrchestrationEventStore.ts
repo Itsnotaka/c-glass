@@ -262,6 +262,6 @@ const makeEventStore = Effect.gen(function* () {
     readFromSequence,
     readAll: () => readFromSequence(0, Number.MAX_SAFE_INTEGER),
   } satisfies OrchestrationEventStoreShape;
-});
+}).pipe(Effect.withSpan("persistence/Layers/OrchestrationEventStore"));
 
 export const OrchestrationEventStoreLive = Layer.effect(OrchestrationEventStore, makeEventStore);

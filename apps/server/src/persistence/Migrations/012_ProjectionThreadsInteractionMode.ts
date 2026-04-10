@@ -8,4 +8,4 @@ export default Effect.gen(function* () {
     ALTER TABLE projection_threads
     ADD COLUMN interaction_mode TEXT NOT NULL DEFAULT 'default'
   `;
-});
+}).pipe(Effect.withSpan("persistence/migration/012_ProjectionThreadsInteractionMode"));
