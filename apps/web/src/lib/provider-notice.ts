@@ -74,6 +74,23 @@ function rank(kind: ProviderNoticeKind): number {
   return 2;
 }
 
+function rateRejected(value: unknown): boolean | null {
+  const raw = obj(value);
+  if (!raw) {
+    return null;
+  }
+
+  const info = obj(raw.rate_limit_info) ?? raw;
+  const status = str(info?.status);
+  if (status === "rejected") {
+    return true;
+  }
+  if (status === "allowed" || status === "allowed_warning") {
+    return false;
+  }
+  return null;
+}
+
 function note(activity: OrchestrationThreadActivity, now: number): GlassProviderNotice | null {
   const payload = obj(activity.payload);
   const provider = payload?.provider;
@@ -86,6 +103,11 @@ function note(activity: OrchestrationThreadActivity, now: number): GlassProvider
     activity.kind !== PROVIDER_NOTICE_KIND.auth &&
     activity.kind !== PROVIDER_NOTICE_KIND.config
   ) {
+    return null;
+  }
+
+  const raw = payload?.raw ?? activity.payload;
+  if (activity.kind === PROVIDER_NOTICE_KIND.rateLimit && rateRejected(raw) === false) {
     return null;
   }
 
@@ -117,7 +139,7 @@ function note(activity: OrchestrationThreadActivity, now: number): GlassProvider
     title,
     detail: str(payload?.detail),
     until,
-    raw: payload?.raw ?? activity.payload,
+    raw,
   };
 }
 

@@ -31,9 +31,10 @@ describe("buildChatRows", () => {
         text: "Visible",
       },
       {
-        id: "assistant-1:a:1",
-        kind: "assistant",
+        id: "assistant-1:t:1",
+        kind: "thinking",
         text: "deep reasoning here",
+        summary: "Reasoning",
       },
       {
         id: "assistant-1:a:2",
@@ -41,14 +42,15 @@ describe("buildChatRows", () => {
         text: "reply",
       },
       {
-        id: "assistant-2:a:3",
-        kind: "assistant",
+        id: "assistant-2:t:3",
+        kind: "thinking",
         text: "internal only",
+        summary: null,
       },
     ]);
   });
 
-  it("includes thinking text in plain custom content", () => {
+  it("excludes thinking text from plain custom content", () => {
     const rows = buildChatRows([
       {
         id: "custom-1",
@@ -69,7 +71,7 @@ describe("buildChatRows", () => {
         id: "custom-1",
         kind: "custom",
         name: "note",
-        text: "reasoningShown",
+        text: "Shown",
       },
     ]);
   });

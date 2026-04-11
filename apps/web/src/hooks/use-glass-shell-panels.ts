@@ -5,8 +5,10 @@ import { useLocalStorage } from "./use-local-storage";
 
 const leftMin = 180;
 const leftMax = 400;
-const rightMin = 280;
+const rightMin = 340;
 const rightMax = 600;
+
+export type WorkbenchTab = "git" | "web" | "terminal" | "files";
 
 const State = Schema.Struct({
   leftOpen: Schema.Boolean,
@@ -15,16 +17,20 @@ const State = Schema.Struct({
   rightW: Schema.Finite,
 });
 
+const TabSchema = Schema.Literals(["git", "web", "terminal", "files"]);
+
 const init = {
   leftOpen: true,
   rightOpen: false,
   leftW: 256,
-  rightW: 384,
+  rightW: 400,
 };
 
 export function useGlassShellPanels(cwdKey: string | null) {
   const key = `glass.shell.v1:${cwdKey ?? "default"}`;
+  const tabKey = `glass.shell.tab.v1:${cwdKey ?? "default"}`;
   const [state, set] = useLocalStorage(key, init, State);
+  const [tab, setTab] = useLocalStorage<WorkbenchTab, WorkbenchTab>(tabKey, "git", TabSchema);
 
   const setLeftOpen = useCallback(
     (leftOpen: boolean) => {
@@ -68,6 +74,14 @@ export function useGlassShellPanels(cwdKey: string | null) {
     [set],
   );
 
+  const setActiveTab = useCallback(
+    (next: WorkbenchTab) => {
+      setTab(next);
+      set((state) => (state.rightOpen ? state : { ...state, rightOpen: true }));
+    },
+    [set, setTab],
+  );
+
   return {
     leftOpen: state.leftOpen,
     rightOpen: state.rightOpen,
@@ -79,5 +93,7 @@ export function useGlassShellPanels(cwdKey: string | null) {
     toggleRight,
     setLeftWidth,
     setRightWidth,
+    activeTab: tab,
+    setActiveTab,
   };
 }

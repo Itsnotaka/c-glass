@@ -1,22 +1,28 @@
+import { createCodePlugin } from "@streamdown/code";
+import { useMemo } from "react";
 import { Streamdown, type StreamdownProps } from "streamdown";
 import {
   chatMarkdownThreadClassName,
   chatMarkdownToolClassName,
   chatStreamdownControls,
-  chatStreamdownPlugins,
   chatStreamdownShikiTheme,
 } from "./chat-streamdown";
 import { cn } from "./utils";
 
-export type ChatMarkdownProps = Omit<StreamdownProps, "controls" | "plugins" | "shikiTheme"> & {
+export type ChatMarkdownProps = Omit<StreamdownProps, "controls" | "plugins"> & {
   variant?: "thread" | "tool";
 };
 
-/**
- * Single entry point for Streamdown in Glass: `.chat-markdown` styling, shared Shiki theme, controls.
- */
 export function ChatMarkdown(props: ChatMarkdownProps) {
-  const { variant = "thread", className, dir = "auto", lineNumbers = false, ...rest } = props;
+  const {
+    variant = "thread",
+    className,
+    dir = "auto",
+    lineNumbers = false,
+    shikiTheme = chatStreamdownShikiTheme,
+    ...rest
+  } = props;
+  const plugins = useMemo(() => ({ code: createCodePlugin({ themes: shikiTheme }) }), [shikiTheme]);
   const base = variant === "tool" ? chatMarkdownToolClassName : chatMarkdownThreadClassName;
   return (
     <Streamdown
@@ -24,8 +30,8 @@ export function ChatMarkdown(props: ChatMarkdownProps) {
       controls={chatStreamdownControls}
       dir={dir}
       lineNumbers={lineNumbers}
-      plugins={chatStreamdownPlugins}
-      shikiTheme={chatStreamdownShikiTheme}
+      plugins={plugins}
+      shikiTheme={shikiTheme}
       {...rest}
     />
   );
