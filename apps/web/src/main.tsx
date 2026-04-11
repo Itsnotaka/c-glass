@@ -1,5 +1,4 @@
 import "./glass-appearance-boot";
-import "@xterm/xterm/css/xterm.css";
 import "./styles/tailwind.css";
 import "./styles/app.css";
 import "./styles/glass.css";

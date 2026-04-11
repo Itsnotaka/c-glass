@@ -1,21 +1,18 @@
 "use client";
 
-import {
-  IconArrowLeft,
-  IconSidebar,
-  IconSidebarHiddenLeftWide,
-  IconSidebarHiddenRightWide,
-} from "central-icons";
+import { IconArrowLeft, IconSidebar, IconSidebarHiddenLeftWide } from "central-icons";
 import { type PointerEvent as Evt, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { isElectronHost } from "~/env";
+import type { WorkbenchTab } from "~/hooks/use-glass-shell-panels";
 import { cn } from "~/lib/utils";
+import { WorkbenchTabBar } from "./workbench-tabs";
 
 type Side = "left" | "right";
 
 const limit = {
   left: { min: 180, max: 400 },
-  right: { min: 280, max: 600 },
+  right: { min: 340, max: 600 },
 } as const;
 
 export type GlassAppShellPanels = {
@@ -29,6 +26,8 @@ export type GlassAppShellPanels = {
   toggleRight: () => void;
   setLeftWidth: (n: number) => void;
   setRightWidth: (n: number) => void;
+  activeTab: WorkbenchTab;
+  setActiveTab: (tab: WorkbenchTab) => void;
 };
 
 export function GlassAppShell(props: {
@@ -166,7 +165,6 @@ export function GlassAppShell(props: {
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-row bg-transparent">
-      {/* Full-height sidebar */}
       <aside
         className={cn(
           "glass-shell-sidebar relative flex shrink-0 flex-col overflow-hidden border-glass-border/50",
@@ -194,7 +192,6 @@ export function GlassAppShell(props: {
         ) : null}
       </aside>
 
-      {/* Center + right */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="relative flex min-h-0 flex-1 flex-row">
           <main
@@ -213,7 +210,9 @@ export function GlassAppShell(props: {
             <aside
               className={cn(
                 "glass-shell-surface relative flex shrink-0 flex-col overflow-hidden border-glass-border/50",
-                side === "right" ? "transition-none" : "transition-[width] duration-150 ease-out",
+                side === "right"
+                  ? "transition-none"
+                  : "transition-[width] duration-100 ease-[cubic-bezier(0.19,1,0.22,1)] motion-reduce:transition-none",
               )}
               ref={rightRef}
               style={{
@@ -221,7 +220,19 @@ export function GlassAppShell(props: {
                 borderLeftWidth: p.rightOpen ? 1 : 0,
               }}
             >
-              <div aria-hidden={!p.rightOpen} className="flex h-full min-h-0 w-full flex-col">
+              <div
+                aria-hidden={!p.rightOpen}
+                className={cn(
+                  "flex h-full min-h-0 w-full flex-col transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                  p.rightOpen ? "opacity-100" : "opacity-0",
+                )}
+              >
+                <WorkbenchTabBar
+                  active={p.activeTab}
+                  onTab={p.setActiveTab}
+                  count={props.changesCount}
+                  onToggle={p.toggleRight}
+                />
                 {props.right}
               </div>
               {p.rightOpen ? (
@@ -240,12 +251,12 @@ export function GlassAppShell(props: {
         </div>
       </div>
 
-      {/* Floating controls (no visible bar) */}
       <div
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 z-10 h-(--glass-header-height)",
+          "pointer-events-none absolute top-0 left-0 z-10 h-(--glass-header-height)",
           electron && "drag-region",
         )}
+        style={{ right: rightW }}
       >
         <div className="pointer-events-none absolute top-(--glass-titlebar-control-row-top) left-(--glass-workbench-toggle-left) flex gap-1">
           {props.onBack ? (
@@ -271,27 +282,15 @@ export function GlassAppShell(props: {
             )}
           </button>
         </div>
-        {showRight ? (
+        {showRight && !p.rightOpen ? (
           <div className="pointer-events-none absolute top-(--glass-titlebar-control-row-top) right-0 flex pr-(--glass-workbench-toggle-right)">
             <button
               type="button"
               onClick={() => p.toggleRight()}
-              className={cn(
-                "pointer-events-auto no-drag font-glass glass-sidebar-label flex h-(--glass-titlebar-control-height) items-center gap-1 rounded-glass-control px-2 leading-none transition-colors [&_svg]:block",
-                p.rightOpen
-                  ? "bg-glass-active/60 text-foreground"
-                  : "text-muted-foreground/70 hover:bg-glass-hover hover:text-foreground",
-              )}
+              className="pointer-events-auto no-drag flex h-(--glass-titlebar-control-height) w-(--glass-titlebar-control-height) shrink-0 items-center justify-center rounded-glass-control bg-transparent p-0 leading-none text-muted-foreground/70 [&_svg]:block hover:bg-glass-hover hover:text-foreground"
+              aria-label="Expand panel"
             >
-              <span className="leading-none">Changes</span>
-              <span className="flex min-w-4 items-center justify-center rounded bg-muted-foreground/20 px-1 py-0 leading-none text-inherit tabular-nums">
-                {props.changesCount}
-              </span>
-              {p.rightOpen ? (
-                <IconSidebarHiddenRightWide className="size-4 shrink-0 opacity-60" />
-              ) : (
-                <IconSidebar className="size-4 shrink-0 opacity-60" />
-              )}
+              <IconSidebar className="size-4 shrink-0 opacity-60" />
             </button>
           </div>
         ) : null}

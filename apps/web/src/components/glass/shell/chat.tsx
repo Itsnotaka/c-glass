@@ -18,7 +18,9 @@ import { useThreadSummariesStatus } from "~/lib/thread-session-store";
 import { useStore } from "~/store";
 import { GlassAppShell } from "./app";
 import { GlassCommandPalette } from "./command-palette";
+import { PlaceholderPanel, WorkbenchPanel } from "./workbench-panel";
 import { GlassGitPanel } from "~/components/glass/git/panel";
+import { GlassTerminalPanel } from "~/components/glass/terminal/panel";
 import { GlassSidebarFooter } from "~/components/glass/sidebar/footer";
 import { GlassSidebarHeader } from "~/components/glass/sidebar/header";
 import { GlassThreadRail } from "~/components/glass/sidebar/thread-rail";
@@ -155,8 +157,9 @@ function GlassDesktopShell(props: {
   const muted = useGlassShellStore((state) =>
     props.cwd ? Boolean(state.mutes[props.cwd]) : false,
   );
-  const autoOpen = Boolean(props.routeThreadId && git.hit && !muted);
+  const autoOpen = Boolean(props.routeThreadId && git.focusId && !muted);
   const rightOpen = props.panels.rightOpen || autoOpen;
+  const tab = props.panels.activeTab;
 
   return (
     <GlassAppShell
@@ -183,7 +186,14 @@ function GlassDesktopShell(props: {
       }}
       left={props.left}
       center={<Outlet />}
-      right={<GlassGitPanel git={git} />}
+      right={
+        <WorkbenchPanel>
+          {tab === "git" && <GlassGitPanel git={git} />}
+          {tab === "terminal" && <GlassTerminalPanel cwd={props.cwd} />}
+          {tab === "web" && <PlaceholderPanel label="Web" />}
+          {tab === "files" && <PlaceholderPanel label="Files" />}
+        </WorkbenchPanel>
+      }
     />
   );
 }

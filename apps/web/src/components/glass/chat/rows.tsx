@@ -105,6 +105,10 @@ function draw(row: ChatRow, expanded: boolean) {
     return <AssistantBlock key={row.id} text={row.text} />;
   }
 
+  if (row.kind === "thinking") {
+    return <ThinkingBlock key={row.id} text={row.text} summary={row.summary} />;
+  }
+
   if (row.kind === "assistantError") {
     return <AssistantErrorBlock key={row.id} text={row.text} expanded={expanded} />;
   }
@@ -240,6 +244,18 @@ const AssistantBlock = memo(function AssistantBlock(props: { text: string }) {
   );
 });
 
+const ThinkingBlock = memo(function ThinkingBlock(props: { text: string; summary: string | null }) {
+  const content = props.text || props.summary || "";
+  if (!content) return null;
+  return (
+    <li className="min-w-0 py-1">
+      <div className="text-foreground/75">
+        <ChatMarkdown>{content}</ChatMarkdown>
+      </div>
+    </li>
+  );
+});
+
 function workSpan(ms: number) {
   if (!Number.isFinite(ms) || ms < 1_000) return "0s";
   const sec = Math.floor(ms / 1_000);
@@ -322,12 +338,11 @@ const GlassChatWorking = memo(function GlassChatWorking(props: {
   if (!props.busy && !props.work) return null;
 
   if (!props.work || (!props.work.tool && !props.work.task)) {
+    if (props.thinking) return null;
     return (
       <li className="min-w-0 py-0.5">
-        <div className="flex items-center gap-2 px-1 text-body/[1.375] text-muted-foreground/68">
-          <IconLoader className="size-3.5 shrink-0 animate-spin text-muted-foreground/58" />
-          {props.work || props.thinking ? <span>Thinking</span> : null}
-          <span className="tabular-nums">
+        <div className="px-1 text-body/[1.375]">
+          <span className="thinking-shimmer text-muted-foreground/68">
             {workLabel(props.work?.startedAt ?? props.since, now)}
           </span>
         </div>

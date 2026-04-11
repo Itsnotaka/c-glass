@@ -142,13 +142,11 @@ function rate(event: Extract<ProviderRuntimeEvent, { type: "account.rate-limits.
   const raw = obj(event.payload.rateLimits);
   const info = obj(raw?.rate_limit_info) ?? raw;
   const status = str(info?.status);
-  const over = str(info?.overageStatus);
-  const blocked = status === "rejected" || over === "rejected";
-  if (!blocked) return [];
+  if (status !== "rejected") return [];
 
   const name = label(event.provider);
   const title = `${name} rate limit reached`;
-  const until = iso(info?.overageResetsAt) ?? iso(info?.resetsAt);
+  const until = iso(info?.resetsAt) ?? iso(info?.overageResetsAt);
   const payload: Record<string, unknown> = {
     provider: event.provider,
     level: "warning",

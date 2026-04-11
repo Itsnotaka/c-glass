@@ -32,12 +32,11 @@ export const GlassDiffViewer = memo(function GlassDiffViewer(props: Props) {
               overflow: "wrap",
               disableFileHeader: true,
               disableBackground: false,
-              disableLineNumbers: true,
+              disableLineNumbers: false,
               diffIndicators: "none",
               lineDiffType: "none",
               expandUnchanged: false,
               hunkSeparators: "simple",
-              unsafeCSS: "[data-separator] { display: none !important; }",
               ...(props.collapsed !== undefined ? { collapsed: props.collapsed } : {}),
             }}
           />
